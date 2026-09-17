@@ -1,0 +1,26 @@
+# OPTIONAL local Postgres. OneStop never requires Docker to run.
+#   docker compose up -d      # start
+#   docker compose down       # stop (data kept in the named volume)
+# Matches DATABASE_URL in .env.example.
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: onestop-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: onestop
+      POSTGRES_PASSWORD: onestop
+      POSTGRES_DB: onestop
+    ports:
+      # Override with POSTGRES_PORT if 5432 is already taken on your machine.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - onestop-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U onestop -d onestop"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  onestop-pgdata:

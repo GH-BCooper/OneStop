@@ -1,0 +1,2 @@
+# Python processors for OneStop. Standard library only for now.
+# Heavy libraries (e.g. PyMuPDF, pytesseract) are added by the phases that need them.
