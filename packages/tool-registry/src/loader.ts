@@ -1,0 +1,117 @@
+// Registry loader: validates every entry when the module is first imported, so a bad entry
+// fails `next build`, `npm test` and dev startup loudly instead of shipping a broken catalogue.
+import { CATEGORY_IDS, PHASE_FILES, type PlatformFeature, type ToolMeta } from "./schema";
+
+/**
+ * Tool ids allowed to set `offline: true`. Empty until 19-testing.md adds a passing offline test
+ * per tool; adding an id here without that test breaks the Definition of Done in CLAUDE.md §8.
+ */
+export const VERIFIED_OFFLINE: readonly string[] = [];
+
+const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const SOURCE_RE = /^\d{1,2}\.\d{1,2}$/;
+
+export class RegistryError extends Error {
+  constructor(public readonly problems: string[]) {
+    super(`Tool registry is invalid:\n  - ${problems.join("\n  - ")}`);
+    this.name = "RegistryError";
+  }
+}
+
+function isNonEmptyString(v: unknown): v is string {
+  return typeof v === "string" && v.trim().length > 0;
+}
+
+function isStringArray(v: unknown): v is string[] {
+  return Array.isArray(v) && v.every((x) => isNonEmptyString(x));
+}
+
+/** Returns a list of problems for one entry (empty when valid). */
+export function validateEntry(entry: unknown): string[] {
+  const problems: string[] = [];
+  if (typeof entry !== "object" || entry === null) return ["entry is not an object"];
+  const e = entry as Partial<Record<keyof ToolMeta, unknown>>;
+  const label = isNonEmptyString(e.id) ? e.id : "<missing id>";
+  const need = (ok: boolean, msg: string) => {
+    if (!ok) problems.push(`${label}: ${msg}`);
+  };
+
+  need(isNonEmptyString(e.id), "missing id");
+  need(isNonEmptyString(e.slug), "missing slug");
+  if (isNonEmptyString(e.slug)) need(SLUG_RE.test(e.slug), `invalid slug "${e.slug}"`);
+  need(isNonEmptyString(e.name), "missing name");
+  need(
+    typeof e.category === "string" && (CATEGORY_IDS as readonly string[]).includes(e.category),
+    `unknown category "${String(e.category)}"`,
+  );
+  need(isNonEmptyString(e.subcategory), "missing subcategory");
+  need(isStringArray(e.inputTypes), "inputTypes must be an array of strings");
+  need(isStringArray(e.outputTypes) && e.outputTypes.length > 0, "outputTypes must be non-empty");
+  need(e.execution === "local" || e.execution === "remote", "execution must be local|remote");
+  need(typeof e.offline === "boolean", "offline must be boolean");
+  need(
+    e.network === "none" || e.network === "optional" || e.network === "required",
+    "network must be none|optional|required",
+  );
+  need(typeof e.supportsBatch === "boolean", "supportsBatch must be boolean");
+  need(typeof e.requiresAuth === "boolean", "requiresAuth must be boolean");
+  need(isStringArray(e.keywords), "keywords must be an array of strings");
+  need(isNonEmptyString(e.description), "missing description");
+  need(typeof e.phase === "string" && e.phase in PHASE_FILES, `unknown phase "${String(e.phase)}"`);
+  need(
+    e.status === "stub" || e.status === "demo" || e.status === "available",
+    "status must be stub|demo|available",
+  );
+  need(
+    typeof e.popularity === "number" && e.popularity >= 0 && e.popularity <= 100,
+    "popularity must be 0–100",
+  );
+  need(
+    isStringArray(e.sources) && e.sources.length > 0 && e.sources.every((s) => SOURCE_RE.test(s)),
+    'sources must be non-empty "section.item" references',
+  );
+
+  if (e.offline === true && !VERIFIED_OFFLINE.includes(label)) {
+    problems.push(`${label}: offline:true without a passing offline test (see VERIFIED_OFFLINE)`);
+  }
+  if (e.network === "required" && e.offline === true) {
+    problems.push(`${label}: a tool that requires the network cannot be offline`);
+  }
+  if (e.network === "required" && e.execution !== "remote") {
+    problems.push(`${label}: network "required" tools must use execution "remote"`);
+  }
+  return problems;
+}
+
+/** Validates the whole registry. Throws a RegistryError listing every problem found. */
+export function loadRegistry(
+  entries: readonly unknown[],
+  platformFeatures: readonly PlatformFeature[] = [],
+): ToolMeta[] {
+  const problems = entries.flatMap(validateEntry);
+  const seen = (key: "id" | "slug") => {
+    const counts = new Map<string, number>();
+    for (const e of entries as Partial<ToolMeta>[]) {
+      if (isNonEmptyString(e?.[key])) counts.set(e[key], (counts.get(e[key]) ?? 0) + 1);
+    }
+    for (const [value, n] of counts) {
+      if (n > 1) problems.push(`duplicate ${key} "${value}" (${n} entries)`);
+    }
+  };
+  seen("id");
+  seen("slug");
+
+  const sourceOwners = new Map<string, string>();
+  const claim = (source: string, owner: string) => {
+    const prev = sourceOwners.get(source);
+    if (prev) problems.push(`Features item ${source} is claimed by both "${prev}" and "${owner}"`);
+    else sourceOwners.set(source, owner);
+  };
+  for (const e of entries as Partial<ToolMeta>[]) {
+    if (isStringArray(e?.sources)) e.sources.forEach((s) => claim(s, e.id ?? "?"));
+  }
+  for (const f of platformFeatures) f.sources.forEach((s) => claim(s, f.name));
+
+  if (problems.length > 0) throw new RegistryError(problems);
+  return entries as ToolMeta[];
+}

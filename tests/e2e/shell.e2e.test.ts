@@ -18,7 +18,9 @@ const routes = [
   "/assistant",
   "/tools",
   "/tools/pdf",
+  "/tools/media",
   "/tools/pdf/merge-pdf",
+  "/tools/dev-utility/uuid-generator",
   "/workflows",
   "/workflows/new",
   "/workflows/demo-1",
@@ -202,6 +204,75 @@ describe("behaviour", () => {
     await page.getByRole("link", { name: "Ask OneStop AI" }).click();
     await page.waitForURL("**/assistant");
     await expect(page.locator("h1").textContent()).resolves.toBe("AI Assistant");
+    await page.context().close();
+  });
+});
+
+// Phase 03 (03-tool-registry.md): registry-driven catalogue, search and generic tool page.
+describe("tools catalogue", () => {
+  it("searches the registry from the Home search box", async () => {
+    const page = await newPage(1440);
+    await page.goto(baseUrl() + "/");
+    await page
+      .getByRole("searchbox", { name: /what do you want to do/i })
+      .fill("make a pdf from images");
+    await page.getByRole("button", { name: /search tools/i }).click();
+    await page.waitForURL("**/tools?q=*");
+    const first = page.getByRole("list", { name: "Tools" }).getByRole("link").first();
+    await expect(first.getAttribute("data-tool-id")).resolves.toBe("image-to-pdf");
+    await page.context().close();
+  });
+
+  it("filters by category and tag, then opens a tool page", async () => {
+    const page = await newPage(1440);
+    await page.goto(baseUrl() + "/tools");
+    await page.selectOption("#tools-category", "qr");
+    await expect(page.getByText(/^15 tools$/)).toBeTruthy();
+    await page.getByRole("button", { name: "Online" }).click();
+    const ids = await page
+      .getByRole("list", { name: "Tools" })
+      .getByRole("link")
+      .evaluateAll((els) => els.map((el) => el.getAttribute("data-tool-id")));
+    expect(ids).toContain("dynamic-qr-code");
+    expect(ids).not.toContain("text-to-qr");
+    await page
+      .getByRole("link", { name: /Dynamic QR Code/ })
+      .first()
+      .click();
+    await page.waitForURL("**/tools/qr/dynamic-qr-code");
+    await expect(page.locator("h1").first().textContent()).resolves.toBe("Dynamic QR Code");
+    await page.context().close();
+  });
+
+  it("runs a stub tool to a clear 'coming in a later phase' state, never fake success", async () => {
+    const page = await newPage(1440);
+    await page.goto(baseUrl() + "/tools/dev-utility/uuid-generator");
+    await page.getByRole("button", { name: /^Run UUID Generator$/ }).click();
+    await expect(page.getByRole("status").textContent()).resolves.toMatch(
+      /coming in a later phase/i,
+    );
+    await expect(page.getByRole("button", { name: "Download" }).count()).resolves.toBe(0);
+    await page.context().close();
+  });
+
+  it("runs the phase-03 demo tool end to end", async () => {
+    const page = await newPage(1440);
+    await page.goto(baseUrl() + "/tools/file-utility/file-metadata-viewer");
+    await page.setInputFiles("input[type=file]", {
+      name: "notes.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("hello onestop"),
+    });
+    await page.getByRole("button", { name: /^Run File Metadata Viewer$/ }).click();
+    await expect(page.getByRole("status").textContent()).resolves.toMatch(/done/i);
+    await expect(page.getByText(/13 bytes in total/).isVisible()).resolves.toBe(true);
+    await page.context().close();
+  });
+
+  it("404s on a tool that is not in the registry", async () => {
+    const page = await newPage(1440);
+    const res = await page.goto(baseUrl() + "/tools/pdf/not-a-real-tool");
+    expect(res?.status()).toBe(404);
     await page.context().close();
   });
 });

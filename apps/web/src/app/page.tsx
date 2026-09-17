@@ -1,7 +1,9 @@
+import { GROUPS, popularTools, toolHref, toolsForCatalogPage } from "@onestop/tool-registry";
 import { Badge, buttonClasses, Card, CardDescription, CardTitle } from "@onestop/ui";
 import Link from "next/link";
 import { HomeSearch } from "@/components/home/HomeSearch";
-import { categories, popularTools, recentJobs, type RecentJob } from "@/lib/mock-data";
+import { RecentTools } from "@/components/home/RecentTools";
+import { recentJobs, type RecentJob } from "@/lib/mock-data";
 
 const statusTone: Record<RecentJob["status"], "success" | "danger" | "primary"> = {
   completed: "success",
@@ -42,10 +44,10 @@ export default function HomePage() {
           </Link>
         </div>
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {categories.map((c) => (
-            <li key={c.slug}>
+          {GROUPS.map((c) => (
+            <li key={c.id}>
               <Link
-                href={`/tools/${c.slug}`}
+                href={`/tools/${c.id}`}
                 className="block h-full rounded-lg focus-visible:outline-2 focus-visible:outline-ring"
               >
                 <Card interactive className="flex h-full items-center gap-3">
@@ -54,7 +56,7 @@ export default function HomePage() {
                   </span>
                   <div className="min-w-0">
                     <CardTitle>{c.name}</CardTitle>
-                    <CardDescription>{c.count} tools</CardDescription>
+                    <CardDescription>{toolsForCatalogPage(c.id).length} tools</CardDescription>
                   </div>
                 </Card>
               </Link>
@@ -63,16 +65,18 @@ export default function HomePage() {
         </ul>
       </section>
 
+      <RecentTools />
+
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         <section aria-labelledby="popular-heading" className="flex flex-col gap-4">
           <h2 id="popular-heading" className="text-xl font-semibold">
             Popular tools
           </h2>
           <ul className="flex flex-wrap gap-2">
-            {popularTools.map((t) => (
-              <li key={t.slug}>
+            {popularTools(8).map((t) => (
+              <li key={t.id}>
                 <Link
-                  href={`/tools/${t.category}/${t.slug}`}
+                  href={toolHref(t)}
                   className="inline-block rounded-full border border-border bg-surface px-3 py-1.5 text-sm hover:border-primary hover:text-primary"
                 >
                   {t.name}

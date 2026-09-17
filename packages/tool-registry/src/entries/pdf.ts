@@ -1,0 +1,31 @@
+import { defineCategory } from "../define";
+
+// Features §1. PDF → PowerPoint (§5.2) and PDF → Image (§6.2) are the same tools, listed once here.
+export const pdfTools = defineCategory("pdf", { phase: "05", sub: "PDF" }, [
+  { src: ["1.1"], name: "PDF → Word", phase: "06", in: ["pdf"], out: ["docx"], pop: 90, kw: ["doc", "docx", "editable", "convert"], desc: "Convert a PDF into an editable Word document." },
+  { src: ["1.2"], name: "PDF → Excel", phase: "06", in: ["pdf"], out: ["xlsx"], pop: 60, kw: ["xlsx", "spreadsheet", "tables", "convert"], desc: "Extract tables from a PDF into an Excel spreadsheet." },
+  { src: ["1.3", "5.2"], name: "PDF → PowerPoint", phase: "06", in: ["pdf"], out: ["pptx"], pop: 40, kw: ["ppt", "pptx", "slides", "presentation", "convert"], desc: "Turn PDF pages into PowerPoint slides." },
+  { src: ["1.4", "6.2"], name: "PDF → Images", in: ["pdf"], out: ["png", "jpg"], pop: 70, kw: ["jpg", "png", "picture", "photo", "export pages", "convert"], desc: "Export each PDF page as a PNG or JPG image." },
+  { src: ["1.5"], name: "PDF → Text", in: ["pdf"], out: ["txt"], pop: 50, kw: ["txt", "extract text", "plain text"], desc: "Extract the plain text from a PDF." },
+  { src: ["1.6"], name: "PDF → HTML", phase: "06", in: ["pdf"], out: ["html"], kw: ["web page", "html"], desc: "Convert a PDF into an HTML page." },
+  { src: ["1.7"], name: "PDF → PDF/A", slug: "pdf-to-pdfa", phase: "06", in: ["pdf"], out: ["pdf"], kw: ["archive", "archival", "pdfa", "long-term"], desc: "Convert a PDF to the PDF/A archival format." },
+  { src: ["1.8"], name: "Merge PDF", in: ["pdf"], out: ["pdf"], batch: true, pop: 95, kw: ["combine", "join", "append", "multiple pdfs"], desc: "Combine several PDFs into one document." },
+  { src: ["1.9"], name: "Split PDF", in: ["pdf"], out: ["pdf", "zip"], pop: 75, kw: ["separate", "break apart", "divide"], desc: "Split a PDF into several smaller PDFs." },
+  { src: ["1.10"], name: "Extract PDF Pages", in: ["pdf"], out: ["pdf"], pop: 45, kw: ["pull out", "select pages", "subset"], desc: "Copy selected pages into a new PDF." },
+  { src: ["1.11"], name: "Delete PDF Pages", in: ["pdf"], out: ["pdf"], pop: 45, kw: ["remove pages", "drop pages"], desc: "Remove unwanted pages from a PDF." },
+  { src: ["1.12"], name: "Reorder PDF Pages", in: ["pdf"], out: ["pdf"], kw: ["rearrange", "sort pages", "move pages", "organize"], desc: "Change the order of pages in a PDF." },
+  { src: ["1.13"], name: "Rotate PDF Pages", in: ["pdf"], out: ["pdf"], pop: 40, kw: ["turn", "orientation", "landscape", "portrait"], desc: "Rotate some or all pages of a PDF." },
+  { src: ["1.14"], name: "Compress PDF", in: ["pdf"], out: ["pdf"], batch: true, pop: 90, kw: ["shrink", "reduce size", "smaller", "optimize"], desc: "Make a PDF smaller while keeping it readable." },
+  { src: ["1.15"], name: "Resize PDF", in: ["pdf"], out: ["pdf"], kw: ["page size", "a4", "letter", "scale"], desc: "Change the page size of a PDF (e.g. A4 or Letter)." },
+  { src: ["1.16"], name: "Add Watermark to PDF", phase: "06", in: ["pdf"], out: ["pdf"], batch: true, pop: 35, kw: ["stamp", "confidential"], desc: "Stamp a text or image watermark onto PDF pages." },
+  { src: ["1.17"], name: "Add Page Numbers", slug: "add-page-numbers-to-pdf", phase: "06", in: ["pdf"], out: ["pdf"], kw: ["numbering", "paginate", "footer", "pdf"], desc: "Number the pages of a PDF." },
+  { src: ["1.18"], name: "Password Protect PDF", phase: "06", in: ["pdf"], out: ["pdf"], pop: 40, kw: ["encrypt", "lock", "secure"], desc: "Encrypt a PDF so it needs a password to open." },
+  { src: ["1.19"], name: "Remove PDF Password", phase: "06", in: ["pdf"], out: ["pdf"], kw: ["unlock", "decrypt", "authorized"], desc: "Unlock a PDF you are authorized to open, using its existing password." },
+  { src: ["1.20"], name: "Sign PDF", phase: "06", in: ["pdf"], out: ["pdf"], pop: 55, kw: ["signature", "e-sign", "esign"], desc: "Draw or upload a signature and place it on a PDF." },
+  { src: ["1.21"], name: "Fill PDF Forms", phase: "06", in: ["pdf"], out: ["pdf"], pop: 35, kw: ["form", "fields", "fillable"], desc: "Fill in the form fields of a PDF." },
+  { src: ["1.22"], name: "Edit PDF Metadata", phase: "06", in: ["pdf"], out: ["pdf"], kw: ["title", "author", "properties"], desc: "Change a PDF's title, author and other properties." },
+  { src: ["1.23"], name: "Remove PDF Metadata", phase: "06", in: ["pdf"], out: ["pdf"], batch: true, kw: ["strip", "privacy", "clean", "properties"], desc: "Strip hidden properties and metadata from a PDF." },
+  { src: ["1.24"], name: "Compare PDFs", phase: "06", in: ["pdf"], out: ["pdf", "html"], kw: ["diff", "difference", "changes"], desc: "Highlight the differences between two PDFs." },
+  { src: ["1.25"], name: "Repair PDF", in: ["pdf"], out: ["pdf"], kw: ["fix", "corrupt", "broken", "recover"], desc: "Try to recover a damaged or corrupt PDF." },
+  { src: ["1.26"], name: "OCR PDF", phase: "06", in: ["pdf"], out: ["pdf", "txt"], pop: 60, kw: ["scan", "scanned", "searchable", "recognize text", "tesseract"], desc: "Make a scanned PDF searchable with local OCR." },
+]);

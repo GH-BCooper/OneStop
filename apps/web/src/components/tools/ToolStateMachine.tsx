@@ -1,0 +1,217 @@
+// The generic tool-page state machine (master plan §20): every tool moves through the same eight
+// states, so the UI for each state is defined once here and reused by every tool page.
+import type { FileRef } from "@onestop/types";
+import { Button, buttonClasses, Card } from "@onestop/ui";
+import Link from "next/link";
+
+export const TOOL_STATES = [
+  "empty",
+  "selected",
+  "validating",
+  "processing",
+  "success",
+  "failed",
+  "unavailable",
+  "unsupported",
+] as const;
+export type ToolStateName = (typeof TOOL_STATES)[number];
+
+export type ToolInput =
+  { kind: "files"; files: FileRef[] } | { kind: "text"; value: string } | { kind: "none" };
+
+export type UnavailableReason = "offline" | "not-implemented" | "auth-required";
+
+export interface ToolState {
+  status: ToolStateName;
+  input: ToolInput | null;
+  message?: string;
+  reason?: UnavailableReason;
+  output?: unknown;
+  summary?: string;
+}
+
+export type ToolEvent =
+  | { type: "SELECT"; input: ToolInput }
+  | { type: "CLEAR" }
+  | { type: "VALIDATE" }
+  | { type: "REJECT"; message: string }
+  | { type: "START" }
+  | { type: "SUCCEED"; output: unknown; summary?: string }
+  | { type: "FAIL"; message: string }
+  | { type: "UNAVAILABLE"; reason: UnavailableReason; message: string }
+  | { type: "RESET" };
+
+export function initialToolState(needsInput: boolean): ToolState {
+  return needsInput
+    ? { status: "empty", input: null }
+    : { status: "selected", input: { kind: "none" } };
+}
+
+const busy = (s: ToolState) => s.status === "validating" || s.status === "processing";
+
+/** Pure transition function; events that don't apply to the current state are ignored. */
+export function toolReducer(state: ToolState, event: ToolEvent): ToolState {
+  switch (event.type) {
+    case "SELECT":
+      return busy(state) ? state : { status: "selected", input: event.input };
+    case "CLEAR":
+      if (busy(state)) return state;
+      return state.input?.kind === "none" ? state : { status: "empty", input: null };
+    case "VALIDATE":
+      return state.status === "selected" ? { status: "validating", input: state.input } : state;
+    case "REJECT":
+      return state.status === "validating"
+        ? { status: "unsupported", input: state.input, message: event.message }
+        : state;
+    case "START":
+      return state.status === "validating" ? { status: "processing", input: state.input } : state;
+    case "SUCCEED":
+      return state.status === "processing"
+        ? { status: "success", input: state.input, output: event.output, summary: event.summary }
+        : state;
+    case "FAIL":
+      return state.status === "processing"
+        ? { status: "failed", input: state.input, message: event.message }
+        : state;
+    case "UNAVAILABLE":
+      return {
+        status: "unavailable",
+        input: state.input,
+        reason: event.reason,
+        message: event.message,
+      };
+    case "RESET":
+      if (busy(state)) return state;
+      return state.input
+        ? { status: "selected", input: state.input }
+        : { status: "empty", input: null };
+  }
+}
+
+function describeInput(input: ToolInput | null): string {
+  if (!input || input.kind === "none") return "Ready to run.";
+  if (input.kind === "text") return `Ready: ${input.value.length} characters entered.`;
+  const n = input.files.length;
+  return `Ready: ${n === 1 ? input.files[0]!.name : `${n} files`} selected.`;
+}
+
+export interface ToolStateViewProps {
+  state: ToolState;
+  toolName: string;
+  acceptedTypes?: string;
+  onReset?: () => void;
+  onDownload?: () => void;
+}
+
+const titles: Record<ToolStateName, string> = {
+  empty: "Nothing selected yet",
+  selected: "Ready",
+  validating: "Checking your input…",
+  processing: "Processing…",
+  success: "Done",
+  failed: "Something went wrong",
+  unavailable: "Unavailable",
+  unsupported: "This input isn't supported",
+};
+
+const unavailableTitles: Record<UnavailableReason, string> = {
+  offline: "Internet connection required",
+  "not-implemented": "Coming in a later phase",
+  "auth-required": "Sign in required",
+};
+
+/** Renders the result/progress panel for the current state. */
+export function ToolStateView({
+  state,
+  toolName,
+  acceptedTypes,
+  onReset,
+  onDownload,
+}: ToolStateViewProps) {
+  const title =
+    state.status === "unavailable" && state.reason
+      ? unavailableTitles[state.reason]
+      : titles[state.status];
+  const tone =
+    state.status === "success"
+      ? "border-success"
+      : state.status === "failed" || state.status === "unsupported"
+        ? "border-danger"
+        : state.status === "unavailable"
+          ? "border-warning"
+          : "";
+
+  return (
+    <Card className={`flex flex-col gap-3 ${tone}`} data-state={state.status}>
+      <div role="status" aria-live="polite" className="flex flex-col gap-1">
+        <h2 className="text-lg font-semibold">{title}</h2>
+        {state.status === "empty" && (
+          <p className="text-sm text-fg-muted">Add your input above to use {toolName}.</p>
+        )}
+        {state.status === "selected" && (
+          <p className="text-sm text-fg-muted">{describeInput(state.input)}</p>
+        )}
+        {state.status === "success" && state.summary && <p className="text-sm">{state.summary}</p>}
+        {(state.status === "failed" ||
+          state.status === "unsupported" ||
+          state.status === "unavailable") &&
+          state.message && <p className="text-sm">{state.message}</p>}
+        {state.status === "unsupported" && acceptedTypes && (
+          <p className="text-sm text-fg-muted">Accepted: {acceptedTypes}.</p>
+        )}
+      </div>
+
+      {(state.status === "validating" || state.status === "processing") && (
+        <div
+          role="progressbar"
+          aria-label={title}
+          className="h-2 w-full overflow-hidden rounded-full bg-surface-muted"
+        >
+          <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
+        </div>
+      )}
+
+      {state.status === "success" && (
+        <>
+          {state.output !== undefined && (
+            <pre className="max-h-64 overflow-auto rounded-md bg-surface-muted p-3 text-xs">
+              {JSON.stringify(state.output, null, 2)}
+            </pre>
+          )}
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={onDownload}>Download</Button>
+            <Button variant="secondary" disabled title="Saving results arrives with accounts">
+              Save
+            </Button>
+            <Button variant="ghost" onClick={onReset}>
+              Run again
+            </Button>
+          </div>
+        </>
+      )}
+
+      {(state.status === "failed" || state.status === "unsupported") && (
+        <div>
+          <Button variant="secondary" onClick={onReset}>
+            Try again
+          </Button>
+        </div>
+      )}
+
+      {state.status === "unavailable" && state.reason === "auth-required" && (
+        <div>
+          <Link href="/auth/login" className={buttonClasses("secondary")}>
+            Sign in
+          </Link>
+        </div>
+      )}
+      {state.status === "unavailable" && state.reason === "offline" && (
+        <div>
+          <Button variant="secondary" onClick={onReset}>
+            Try again
+          </Button>
+        </div>
+      )}
+    </Card>
+  );
+}
