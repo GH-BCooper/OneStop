@@ -22,6 +22,7 @@ These override convenience every time:
 5. **Privacy.** Temporary files are deleted automatically after a short retention window. Cloud storage of files is opt-in only, never default. No raw file binaries in Postgres.
 6. **Security baseline (always, every phase):** validate MIME/extension/size on every upload; sanitize filenames and paths; never execute an uploaded file; secrets only in env vars, never committed; validate/limit any externally fetched URL to reduce SSRF risk; **the AI Assistant may never execute arbitrary shell commands and may never call a tool that isn't in the registry.**
 7. **One registry, one contract.** Every tool — however implemented — exposes the same metadata shape (id, category, inputTypes, outputTypes, execution, offline, supportsBatch, requiresAuth, description). No tool is usable by the UI or the AI unless it's registered.
+8. **No Claude / Anthropic integration.** The app must never depend on, call, or be configured for Claude or any Anthropic API, SDK, model, or service — not as a default, not as an opt-in provider. AI features use only the free options in §3 (Ollama, Groq, OpenRouter free models, Google AI Studio). The coding assistant working on this repo must not connect itself to the project either (no assistant hooks, MCP servers, keys, or config committed here).
 
 If a build file below and this section ever conflict, this section wins — flag the conflict in `PROGRESS.md` under "Open Questions" rather than silently picking one.
 
@@ -112,6 +113,7 @@ Files 05–12 and 17 don't strictly depend on each other and could in principle 
 - Errors shown to the user are short and actionable (see master plan §22). Log the technical detail server-side; never show a stack trace in the UI.
 - Prefer small, composable functions over large ones — the AI Assistant (phase 16) and Workflows (phase 15) both need to call individual tool steps in isolation.
 - Commit in small, phase-sized chunks so `PROGRESS.md` and git history stay aligned.
+- Commit and push as the repo owner's git identity (GitHub: **GH-BCooper**). Never add Claude/Anthropic as author or co-author, and never add `Co-Authored-By: Claude …` or "Generated with Claude Code" lines to commits or PR descriptions.
 
 ## 8. Definition of Done for Any Phase
 
