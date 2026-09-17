@@ -9,15 +9,19 @@ export interface CategorySummary {
   icon: string;
 }
 
+// The 8 categories of master doc §4 (docs/OneStop_MasterDoc.md). Counts are the tools listed
+// for them in docs/OneStop_Features.md: Documents = Word + PowerPoint, Excel/CSV/Data =
+// Excel + Data Conversion, Audio/Video = Audio + Video + Online Media,
+// Utilities/Developer = Developer + Network + File Utilities.
 export const categories: CategorySummary[] = [
-  { slug: "pdf", name: "PDF", count: 32, icon: "📄" },
-  { slug: "documents", name: "Word & PowerPoint", count: 24, icon: "📝" },
-  { slug: "data", name: "Excel, CSV & Data", count: 28, icon: "📊" },
-  { slug: "images", name: "Images", count: 36, icon: "🖼️" },
-  { slug: "media", name: "Audio & Video", count: 30, icon: "🎬" },
-  { slug: "qr", name: "QR Codes", count: 10, icon: "🔳" },
-  { slug: "ai", name: "AI Tools", count: 18, icon: "✨" },
-  { slug: "dev-utility", name: "Developer & File Utilities", count: 40, icon: "🛠️" },
+  { slug: "pdf", name: "PDF", count: 26, icon: "📄" },
+  { slug: "documents", name: "Documents, Word & PowerPoint", count: 25, icon: "📝" },
+  { slug: "data", name: "Excel, CSV & Data", count: 38, icon: "📊" },
+  { slug: "images", name: "Images", count: 28, icon: "🖼️" },
+  { slug: "media", name: "Audio & Video", count: 35, icon: "🎬" },
+  { slug: "qr", name: "QR", count: 15, icon: "🔳" },
+  { slug: "ai", name: "AI", count: 16, icon: "✨" },
+  { slug: "dev-utility", name: "Utilities & Developer", count: 42, icon: "🛠️" },
 ];
 
 export interface ToolSummary {
@@ -26,13 +30,14 @@ export interface ToolSummary {
   slug: string;
 }
 
+// Tool names as written in docs/OneStop_Features.md; mostly the §21 search examples.
 export const popularTools: ToolSummary[] = [
   { name: "Merge PDF", category: "pdf", slug: "merge-pdf" },
-  { name: "Compress Image", category: "images", slug: "compress-image" },
-  { name: "PDF to Word", category: "pdf", slug: "pdf-to-word" },
-  { name: "CSV to Excel", category: "data", slug: "csv-to-excel" },
-  { name: "QR Code Generator", category: "qr", slug: "qr-generator" },
-  { name: "JSON Formatter", category: "dev-utility", slug: "json-formatter" },
+  { name: "Image → PDF", category: "images", slug: "image-to-pdf" },
+  { name: "Background Removal", category: "images", slug: "background-removal" },
+  { name: "Video Compressor", category: "media", slug: "video-compressor" },
+  { name: "CSV → JSON", category: "data", slug: "csv-to-json" },
+  { name: "QR Code Generator", category: "qr", slug: "qr-code-generator" },
 ];
 
 export interface RecentJob {

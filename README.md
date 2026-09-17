@@ -2,7 +2,7 @@
 
 One web app for file conversion, PDF, image, data, QR, media, AI and developer-utility tasks, built for personal / small-trusted-group use. Free-first and local-first: every core feature works without paying for anything.
 
-> Status: **Phase 02 (UI Shell)** done. App shell, navigation, themes and page placeholders; no tools yet. See [`docs/build/PROGRESS.md`](docs/build/PROGRESS.md). Full docs arrive in phase 20.
+> Status: **Phase 02 (UI Shell)** done. App shell, navigation, themes and page placeholders; no tools yet. See [`docs/PROGRESS.md`](docs/PROGRESS.md). Full docs arrive in phase 20.
 
 ## Requirements
 

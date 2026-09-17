@@ -2,7 +2,7 @@
 
 Framework-agnostic backend modules for OneStop.
 
-HTTP routes live as Next.js route handlers in `apps/web/src/app/api/` (see the decisions log in `docs/build/PROGRESS.md`). Those handlers call into this package, so if the backend ever needs to be split out, this is the boundary to extract.
+HTTP routes live as Next.js route handlers in `apps/web/src/app/api/` (see the decisions log in `docs/PROGRESS.md`). Those handlers call into this package, so if the backend ever needs to be split out, this is the boundary to extract.
 
 ## Python bridge
 

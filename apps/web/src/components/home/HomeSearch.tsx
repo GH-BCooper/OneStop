@@ -25,7 +25,7 @@ export function HomeSearch() {
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
-        placeholder="e.g. merge two PDFs, compress a photo, convert CSV to Excel"
+        placeholder="e.g. make a pdf from images, remove background, convert csv to json"
         className="h-14 w-full min-w-0 rounded-lg sm:flex-1 border border-border bg-surface px-4 text-base text-fg shadow-sm placeholder:text-fg-muted focus-visible:outline-2 focus-visible:outline-ring"
       />
       <Button type="submit" size="lg" variant="secondary" className="h-14">

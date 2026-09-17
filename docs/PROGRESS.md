@@ -6,28 +6,28 @@
 
 ## Phase Status
 
-| # | File | Status | Completed On | Notes |
-|---|---|---|---|---|
-| 01 | 01-foundation.md | Complete | 2026-09-17 | npm workspaces, Next.js 16, Node↔Python bridge, optional Docker Postgres. All acceptance criteria verified. |
-| 02 | 02-ui-shell.md | Complete | 2026-09-17 | Tailwind v4 shell, 15 routes, theme tokens, 6 base components. 72 unit/component tests + 66 real-browser checks (375/768/1440) pass. |
-| 03 | 03-tool-registry.md | Not started | | |
-| 04 | 04-file-core.md | Not started | | |
-| 05 | 05-pdf-tools-core.md | Not started | | |
-| 06 | 06-pdf-tools-advanced.md | Not started | | |
-| 07 | 07-word-ppt-tools.md | Not started | | |
-| 08 | 08-excel-csv-data-tools.md | Not started | | |
-| 09 | 09-image-tools.md | Not started | | |
-| 10 | 10-audio-video-tools.md | Not started | | |
-| 11 | 11-qr-tools.md | Not started | | |
-| 12 | 12-dev-utility-tools.md | Not started | | |
-| 13 | 13-auth-database.md | Not started | | |
-| 14 | 14-history-favorites.md | Not started | | |
-| 15 | 15-workflows.md | Not started | | |
-| 16 | 16-ai-assistant.md | Not started | | |
-| 17 | 17-online-media-network-tools.md | Not started | | |
-| 18 | 18-pwa-offline.md | Not started | | |
-| 19 | 19-testing.md | Not started | | |
-| 20 | 20-deployment.md | Not started | | |
+| #   | File                             | Status      | Completed On | Notes                                                                                                                                |
+| --- | -------------------------------- | ----------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| 01  | 01-foundation.md                 | Complete    | 2026-09-17   | npm workspaces, Next.js 16, Node↔Python bridge, optional Docker Postgres. All acceptance criteria verified.                          |
+| 02  | 02-ui-shell.md                   | Complete    | 2026-09-17   | Tailwind v4 shell, 15 routes, theme tokens, 6 base components. 72 unit/component tests + 66 real-browser checks (375/768/1440) pass. |
+| 03  | 03-tool-registry.md              | Not started |              |                                                                                                                                      |
+| 04  | 04-file-core.md                  | Not started |              |                                                                                                                                      |
+| 05  | 05-pdf-tools-core.md             | Not started |              |                                                                                                                                      |
+| 06  | 06-pdf-tools-advanced.md         | Not started |              |                                                                                                                                      |
+| 07  | 07-word-ppt-tools.md             | Not started |              |                                                                                                                                      |
+| 08  | 08-excel-csv-data-tools.md       | Not started |              |                                                                                                                                      |
+| 09  | 09-image-tools.md                | Not started |              |                                                                                                                                      |
+| 10  | 10-audio-video-tools.md          | Not started |              |                                                                                                                                      |
+| 11  | 11-qr-tools.md                   | Not started |              |                                                                                                                                      |
+| 12  | 12-dev-utility-tools.md          | Not started |              |                                                                                                                                      |
+| 13  | 13-auth-database.md              | Not started |              |                                                                                                                                      |
+| 14  | 14-history-favorites.md          | Not started |              |                                                                                                                                      |
+| 15  | 15-workflows.md                  | Not started |              |                                                                                                                                      |
+| 16  | 16-ai-assistant.md               | Not started |              |                                                                                                                                      |
+| 17  | 17-online-media-network-tools.md | Not started |              |                                                                                                                                      |
+| 18  | 18-pwa-offline.md                | Not started |              |                                                                                                                                      |
+| 19  | 19-testing.md                    | Not started |              |                                                                                                                                      |
+| 20  | 20-deployment.md                 | Not started |              |                                                                                                                                      |
 
 Status values to use: `Not started` → `In progress` → `Complete`. If a phase is complete but with a known gap, use `Complete (see notes)` and explain in Notes / Known Issues below — never mark something Complete that silently doesn't meet its acceptance criteria.
 
@@ -61,6 +61,7 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 
 - **02 — Paths:** the build file says `apps/web/app/**`, `apps/web/components/layout/*` and `packages/ui/tokens.ts`; phase 01 set up `src/` directories, so these live at `apps/web/src/app/**`, `apps/web/src/components/layout/*` and `packages/ui/src/tokens.ts`.
 - **02 — Extra layout piece:** `ConnectionBadge.tsx` (the static "Online" indicator) sits next to Header/Nav/ThemeToggle/Footer so phase 18 has one place to wire real connectivity.
+- **02 — Settings is not in the header nav.** Master §3 lists it under Home, but the nav order in the build file and Features §18 leaves it out, so it's linked from the footer. Phase 14 could add it to an account menu.
 - **02 — Home "recent jobs"** always shows its sample data (labelled "Sample data") because there's no session yet; phase 13/14 should show it only when signed in.
 - **02 — Snapshot test** snapshots the Nav markup under both `data-theme` values. Theme colors are CSS variables, so markup is identical across themes; the visual difference is asserted in the browser test (body background changes on toggle).
 
@@ -81,10 +82,11 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 
 (Anything ambiguous that needs a decision from the user rather than a guess.)
 
-- **02 — Master plan not in the repo.** Build files cite master plan §3.1, §4, §5 and §18, but no master plan file exists in `docs/`. Phase 02 used the lists in `02-ui-shell.md` itself. The "8 categories from §4" are a guess: PDF, Word & PowerPoint, Excel/CSV & Data, Images, Audio & Video, QR Codes, AI Tools, Developer & File Utilities. Phase 03's schema has 12 category ids (audio/video separate, plus online-media, network, file-utility), so the Home cards will change when they're wired to the registry. Adding the master plan (and the Feature & Tool List document phase 03 needs) to `docs/` would remove the guesswork.
+- _(none open)_. **Resolved (02):** the master plan and the feature list are now in the repo as `docs/OneStop_MasterDoc.md` and `docs/OneStop_Features.md`. Phase 02 was checked against them: routes match master §3.1, Home matches §5, nav order matches Features §18 ("§18" in `02-ui-shell.md` means the Features doc, not master §18, which covers hosting). Home category cards now use master §4's 8 categories, with counts taken from the Features list.
+- **For phase 03:** master §4 has 8 categories, but `03-tool-registry.md`'s schema and the Features doc have 12–15 sections (Audio and Video are separate; Online Media, Network and File Utilities are their own sections; Workflow Tools is §15). Suggested approach: the 12 schema categories as registry ids, grouped under master §4's 8 groups for the Home cards and `/tools` filters. Confirm when phase 03 starts.
 
 ---
 
 ## Next Up
 
-Phase 03 — Tool Registry (`docs/build/03-tool-registry.md`). Replace `apps/web/src/lib/mock-data.ts` (categories, popular tools) with registry data, make `/tools` read `?q=`, and build the real `/tools/[category]` and `/tools/[category]/[slug]` pages over the existing placeholders. Phase 03 needs the Feature & Tool List document, which isn't in the repo yet (see Open Questions). Verify with `npm run lint && npm run typecheck && npm test && npm run build && npm run test:e2e`.
+Phase 03 — Tool Registry (`docs/build/03-tool-registry.md`). Replace `apps/web/src/lib/mock-data.ts` (categories, popular tools) with registry data, make `/tools` read `?q=`, and build the real `/tools/[category]` and `/tools/[category]/[slug]` pages over the existing placeholders. The tool list is `docs/OneStop_Features.md` (230+ items across §1–15) and the product spec is `docs/OneStop_MasterDoc.md`. See the category-mapping note under Open Questions first. Verify with `npm run lint && npm run typecheck && npm test && npm run build && npm run test:e2e`.
