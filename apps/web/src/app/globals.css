@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+/* Shared components live outside this app; let Tailwind scan them for classes. */
+@source "../../../../packages/ui/src";
+
+/* `dark:` follows the theme toggle (data-theme on <html>), not only the OS setting. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Values come from packages/ui/src/tokens.ts via themeCss(), injected in the root layout. */
+@theme inline {
+  --color-bg: var(--os-bg);
+  --color-surface: var(--os-surface);
+  --color-surface-muted: var(--os-surface-muted);
+  --color-border: var(--os-border);
+  --color-fg: var(--os-fg);
+  --color-fg-muted: var(--os-fg-muted);
+  --color-primary: var(--os-primary);
+  --color-primary-hover: var(--os-primary-hover);
+  --color-primary-fg: var(--os-primary-fg);
+  --color-success: var(--os-success);
+  --color-warning: var(--os-warning);
+  --color-danger: var(--os-danger);
+  --color-ring: var(--os-ring);
+  --radius-sm: var(--os-radius-sm);
+  --radius-md: var(--os-radius-md);
+  --radius-lg: var(--os-radius-lg);
+  --font-sans: var(--os-font-sans);
+  --font-mono: var(--os-font-mono);
+}
+
+html,
+body {
+  overflow-x: hidden;
+}
+
+body {
+  background-color: var(--os-bg);
+  color: var(--os-fg);
+  font-family: var(--os-font-sans);
+}

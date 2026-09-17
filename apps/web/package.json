@@ -9,8 +9,10 @@
     "typecheck": "next typegen && tsc --noEmit"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0"
+    "@types/react-dom": "^19.3.0",
+    "tailwindcss": "^4.3.3"
   },
   "dependencies": {
     "next": "^16.3.5",

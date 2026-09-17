@@ -2,7 +2,7 @@
 
 One web app for file conversion, PDF, image, data, QR, media, AI and developer-utility tasks, built for personal / small-trusted-group use. Free-first and local-first: every core feature works without paying for anything.
 
-> Status: **Phase 01 (Foundation)** done. Scaffolding only, no tools yet. See [`docs/build/PROGRESS.md`](docs/build/PROGRESS.md). Full docs arrive in phase 20.
+> Status: **Phase 02 (UI Shell)** done. App shell, navigation, themes and page placeholders; no tools yet. See [`docs/build/PROGRESS.md`](docs/build/PROGRESS.md). Full docs arrive in phase 20.
 
 ## Requirements
 
@@ -20,16 +20,17 @@ npm run dev                   # http://localhost:3000
 
 ## Scripts
 
-| Command                | What it does                                                   |
-| ---------------------- | -------------------------------------------------------------- |
-| `npm run dev`          | Start the Next.js dev server (`apps/web`)                      |
-| `npm run build`        | Production build of `apps/web`                                 |
-| `npm run start`        | Serve the production build                                     |
-| `npm run lint`         | ESLint across the monorepo (fails on any warning)              |
-| `npm run typecheck`    | `tsc --noEmit` in every workspace                              |
-| `npm test`             | Vitest (includes the Node↔Python bridge and lint-wiring tests) |
-| `npm run format`       | Prettier write (`format:check` to verify only)                 |
-| `npm run bridge:hello` | Call `processors/python/hello.py` from Node and print the JSON |
+| Command                | What it does                                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| `npm run dev`          | Start the Next.js dev server (`apps/web`)                                                |
+| `npm run build`        | Production build of `apps/web`                                                           |
+| `npm run start`        | Serve the production build                                                               |
+| `npm run lint`         | ESLint across the monorepo (fails on any warning)                                        |
+| `npm run typecheck`    | `tsc --noEmit` in every workspace                                                        |
+| `npm test`             | Vitest (includes the Node↔Python bridge and lint-wiring tests)                           |
+| `npm run test:e2e`     | Browser checks of the built app (run `npm run build` first; uses your local Chrome/Edge) |
+| `npm run format`       | Prettier write (`format:check` to verify only)                                           |
+| `npm run bridge:hello` | Call `processors/python/hello.py` from Node and print the JSON                           |
 
 ## Layout
 
