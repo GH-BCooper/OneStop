@@ -97,7 +97,9 @@ describe("tool page", () => {
   it("shows input, output and capability badges from the registry", async () => {
     await renderServer(ToolRoute, { category: "pdf", slug: "merge-pdf" });
     expect(screen.getByRole("heading", { level: 1, name: "Merge PDF" })).toBeTruthy();
-    expect(screen.getByText(/runs locally/i)).toBeTruthy();
+    // Phase 05 verified Merge PDF offline, so the badge is now the stronger claim.
+    expect(screen.getByText(/works offline/i)).toBeTruthy();
+    expect(screen.getByText(/^available$/i)).toBeTruthy();
     expect(screen.getByText(/batch/i)).toBeTruthy();
   });
 
@@ -119,19 +121,19 @@ describe("tool page", () => {
       ok: false,
       error: {
         code: "NOT_IMPLEMENTED",
-        message: "Merge PDF is coming in a later phase (05-pdf-tools-core.md).",
+        message: "PDF → Word is coming in a later phase (06-pdf-tools-advanced.md).",
       },
     });
     render(
       <ToolPage
-        tool={byId("merge-pdf")}
+        tool={byId("pdf-to-word")}
         initialState={{
           status: "selected",
           input: { kind: "files", files: [{ name: "a.pdf", size: 10, type: "application/pdf" }] },
         }}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /run merge pdf/i }));
+    fireEvent.click(screen.getByRole("button", { name: /run pdf . word/i }));
     await waitFor(() => {
       const panel = screen.getByRole("status");
       expect(panel.textContent).toMatch(/coming in a later phase/i);
@@ -356,5 +358,70 @@ describe("/tools query params", () => {
     expect(
       parseExplorerParams({ category: "nope", sub: "Audio", tags: "bogus", sort: "bogus" }),
     ).toEqual({ q: "", category: "", sub: "", tags: [], sort: "" });
+  });
+});
+
+/** The FormData a stubbed `fetch` was called with. `mockRun`'s spy takes no typed arguments. */
+function sentBody(fetchMock: ReturnType<typeof mockRun>): FormData {
+  const call = fetchMock.mock.calls[0] as unknown as [string, { body: FormData }];
+  return call[1].body;
+}
+
+/** 05-pdf-tools-core.md introduced per-tool options, rendered from the registry. */
+describe("tool options", () => {
+  const selected = (name: string, type = "application/pdf"): ToolState => ({
+    status: "selected",
+    input: { kind: "files", files: [{ name, size: 10, type }] },
+  });
+
+  it("says so when a tool has no options", () => {
+    render(<ToolPage tool={byId("pdf-to-word")} />);
+    expect(screen.getByText(/no options for this tool yet/i)).toBeTruthy();
+  });
+
+  it("renders the registry's options for a tool that has them", () => {
+    render(<ToolPage tool={byId("pdf-to-images")} />);
+    const options = screen.getByTestId("tool-options");
+    expect(within(options).getByLabelText(/image format/i)).toBeTruthy();
+    expect(within(options).getByLabelText(/resolution/i)).toBeTruthy();
+    expect(within(options).getByLabelText(/^pages$/i)).toBeTruthy();
+    // JPG quality is conditional on the format, so it starts hidden.
+    expect(within(options).queryByLabelText(/jpg quality/i)).toBeNull();
+  });
+
+  it("reveals a conditional option when its condition is met", () => {
+    render(<ToolPage tool={byId("pdf-to-images")} />);
+    fireEvent.change(screen.getByLabelText(/image format/i), { target: { value: "jpg" } });
+    expect(screen.getByLabelText(/jpg quality/i)).toBeTruthy();
+  });
+
+  it("sends the visible option values with the run request", async () => {
+    const fetchMock = mockRun({ ok: true, job: { id: "j", status: "success" }, files: [] });
+    render(<ToolPage tool={byId("rotate-pdf-pages")} initialState={selected("a.pdf")} />);
+    fireEvent.change(screen.getByLabelText(/rotate by/i), { target: { value: "180" } });
+    fireEvent.change(screen.getByLabelText(/^pages$/i), { target: { value: "2-3" } });
+    fireEvent.click(screen.getByRole("button", { name: /run rotate pdf pages/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = sentBody(fetchMock);
+    expect(JSON.parse(body.get("options") as string)).toEqual({ angle: "180", pages: "2-3" });
+  });
+
+  it("omits an option that is hidden by its condition", async () => {
+    const fetchMock = mockRun({ ok: true, job: { id: "j", status: "success" }, files: [] });
+    render(<ToolPage tool={byId("split-pdf")} initialState={selected("a.pdf")} />);
+    fireEvent.click(screen.getByRole("button", { name: /run split pdf/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = sentBody(fetchMock);
+    expect(JSON.parse(body.get("options") as string)).toEqual({
+      mode: "each-page",
+      packaging: "zip",
+    });
+  });
+
+  it("no longer shows the coming-soon banner for a tool this phase built", () => {
+    render(<ToolPage tool={byId("merge-pdf")} />);
+    expect(screen.queryByTestId("coming-soon")).toBeNull();
   });
 });

@@ -3,10 +3,27 @@
 import { CATEGORY_IDS, PHASE_FILES, type PlatformFeature, type ToolMeta } from "./schema";
 
 /**
- * Tool ids allowed to set `offline: true`. Empty until 19-testing.md adds a passing offline test
- * per tool; adding an id here without that test breaks the Definition of Done in CLAUDE.md §8.
+ * Tool ids with a passing offline test. `loadRegistry` is what sets `offline: true`, from this
+ * list alone, so an entry can never claim it on its own (CLAUDE.md §8). 19-testing.md audits the
+ * list; a phase adds an id here only once its own test proves the tool makes no network call.
+ *
+ * The eleven core PDF tools qualify via the "offline" suite in `apps/api/src/pdf/pdf.test.ts`,
+ * which runs each of them with `fetch`, `http.get/request` and `https.get/request` replaced by
+ * traps that throw.
  */
-export const VERIFIED_OFFLINE: readonly string[] = [];
+export const VERIFIED_OFFLINE: readonly string[] = [
+  "compress-pdf",
+  "delete-pdf-pages",
+  "extract-pdf-pages",
+  "merge-pdf",
+  "pdf-to-images",
+  "pdf-to-text",
+  "reorder-pdf-pages",
+  "repair-pdf",
+  "resize-pdf",
+  "rotate-pdf-pages",
+  "split-pdf",
+];
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const SOURCE_RE = /^\d{1,2}\.\d{1,2}$/;
@@ -113,5 +130,9 @@ export function loadRegistry(
   for (const f of platformFeatures) f.sources.forEach((s) => claim(s, f.name));
 
   if (problems.length > 0) throw new RegistryError(problems);
-  return entries as ToolMeta[];
+  // `offline` is derived, never authored: an entry says what it needs (`network`), and this list
+  // says what has actually been proven.
+  return (entries as ToolMeta[]).map((entry) =>
+    VERIFIED_OFFLINE.includes(entry.id) ? { ...entry, offline: true } : entry,
+  );
 }

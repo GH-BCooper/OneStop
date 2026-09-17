@@ -12,7 +12,7 @@
 | 02  | 02-ui-shell.md                   | Complete    | 2026-09-17   | Tailwind v4 shell, 15 routes, theme tokens, 6 base components. 72 unit/component tests + 66 real-browser checks (375/768/1440) pass.                                       |
 | 03  | 03-tool-registry.md              | Complete    | 2026-09-17   | 206 registry entries covering every Features item; validating loader; search/filters/sort; /tools, category and generic tool pages.                                        |
 | 04  | 04-file-core.md                  | Complete    | 2026-09-17   | Upload validation, temp store with auto-delete, Job model, pipeline + 3 API routes; File Metadata Viewer runs for real end to end. 218 unit + 83 real-browser checks pass. |
-| 05  | 05-pdf-tools-core.md             | Not started |              |                                                                                                                                                                            |
+| 05  | 05-pdf-tools-core.md             | Complete    | 2026-09-18   | All 11 core PDF tools real and registered; per-tool Options mechanism added to the registry + tool page; 306 unit + 83 real-browser checks pass.                           |
 | 06  | 06-pdf-tools-advanced.md         | Not started |              |                                                                                                                                                                            |
 | 07  | 07-word-ppt-tools.md             | Not started |              |                                                                                                                                                                            |
 | 08  | 08-excel-csv-data-tools.md       | Not started |              |                                                                                                                                                                            |
@@ -61,6 +61,13 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 - **04 — Validation is three checks, all required:** sanitised filename, size against `MAX_UPLOAD_MB` (default 100; 4x that per request, at most 50 files), and extension against both the declared MIME type and the file's own magic bytes. A generic browser MIME (`application/octet-stream`, or empty) never rejects on its own; a `.pdf` carrying PNG bytes does.
 - **04 — Jobs stay in memory** behind the `JobStore` interface (`create/get/update/list/delete/clear`), with a state-transition guard and a 500-job cap. Phase 13 swaps the implementation in via `setJobStore`; no caller changes.
 - **04 — Executors get a 120 s timeout** (`DEFAULT_EXECUTION_TIMEOUT_MS`) through an `AbortController`; a tool that hangs fails its job and still cleans up.
+- **05 — PDF stack: `pdf-lib` + `pdf.js` + `@napi-rs/canvas`, all local, all free.** `pdf-lib` does the structural work (merge/split/extract/delete/reorder/rotate/resize and every re-save); `pdfjs-dist` (legacy build) reads page content; `@napi-rs/canvas` gives pdf.js a Node canvas via a prebuilt binary, so there is no node-gyp build and no system library to install. PyMuPDF was not needed — the build file allows it "if Node libraries struggle", and they did not.
+- **05 — pdf.js is configured to be inert and offline:** `isEvalSupported: false`, `enableXfa: false`, `disableStream`/`disableAutoFetch`, and standard fonts/CMaps/WASM/ICC loaded from `node_modules/pdfjs-dist` by filesystem path. That path is found by walking up from the module and the working directory, **not** with `require.resolve` — once Next bundles the module the bundler's `require` returns a module id, not a path. This failed only under `next start`, never in tests, which is worth remembering.
+- **05 — `pdfjs-dist`, `@napi-rs/canvas` and `pdf-lib` are listed in `serverExternalPackages`** in `apps/web/next.config.ts`: the canvas binary and pdf.js's asset lookups must not be bundled.
+- **05 — Compression is two strategies, and the smaller one wins.** "Light" is lossless (copy every page into a fresh document, drop metadata, object streams); "Balanced"/"Strong" re-render each page as a JPEG at 120/80 DPI. The result is returned only if it is genuinely smaller than the input, and the summary says plainly when text stopped being selectable.
+- **05 — Repair PDF tries four strategies in order:** strict parse, tolerant parse, byte salvage (trim junk before `%PDF` and after the last `%%EOF`), then rasterised recovery through pdf.js. Each is a real attempt, and the summary names which one worked.
+- **05 — Tool options live in the registry** (`packages/tool-registry/src/options.ts`, `TOOL_OPTIONS`), not in page code: `select` / `text` / `number` / `boolean` plus a declarative `showWhen` equality condition. `ToolOptions.tsx` renders whatever the registry declares and sends only the _visible_ values, so phases 15/16 can discover what a tool accepts from the same source of truth.
+- **05 — `offline` is now derived, never authored.** `loadRegistry` sets `offline: true` for the ids in `VERIFIED_OFFLINE` and for no others, so an entry cannot claim it. The eleven PDF tools earned it through an offline test that runs each of them with `fetch`, `http.get/request` and `https.get/request` replaced by traps that throw.
 
 ---
 
@@ -91,6 +98,14 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 - **04 — `ToolState` gained `files`** and the success panel renders one download link per result file (`data-testid="result-download"`), falling back to the old JSON-blob download when a tool returns no files. `REJECT` is now also accepted from `processing`, so a server-side "This file type is not supported." lands in the `unsupported` state instead of the generic failure state.
 - **04 — `apps/web/tsconfig.json` gained `allowImportingTsExtensions`** and `@onestop/api` was added to `transpilePackages`, because `@onestop/api` ships TypeScript source with explicit `.ts` imports (phase 01 decision). `packages/types` gained `"lib": ["ES2022", "DOM"]` for `AbortSignal` in the shared contracts.
 - **04 — Offline detection for remote tools is a pipeline input (`deps.online`), not a probe.** The pipeline never reaches out to check connectivity; the browser's `navigator.onLine` still drives the UI, and phase 18 can feed a real server-side signal in.
+- **05 — Paths:** the build file says `apps/api/pdf/{merge.ts, …}`; following phases 01–04 these live at `apps/api/src/pdf/*`. Files beyond the eleven listed modules: `document.ts` (shared load / page-selection / option helpers), `errors.ts` (`PdfToolError`, and the one place a thrown error becomes an `ExecResult`), `render.ts` (pdf.js + canvas), `zip.ts`, `fixtures.ts` (test-only), `index.ts` (registration), plus `packages/tool-registry/src/options.ts` and `apps/web/src/components/tools/ToolOptions.tsx`.
+- **05 — Split PDF and PDF → Images return a ZIP by default.** The registry already declared `zip` as a Split output; handing back forty download links is worse than one archive, so both tools pack multiple results with a small store-only ZIP writer (`apps/api/src/pdf/zip.ts`, no dependency — PDFs and PNG/JPEGs are already compressed, so "stored" costs nothing). A "Separate downloads" option turns it off. 12-dev-utility-tools.md can reuse the writer and add real deflate.
+- **05 — Merge PDF asks for at least two files** rather than silently copying one.
+- **05 — Reorder PDF Pages keeps the pages you leave out.** `3,1` on a five-page PDF gives `3,1,2,4,5`, so a partial order can never lose pages.
+- **05 — Rotate is relative and additive** (it adds to each page's existing `/Rotate`), so rotating twice behaves the way a user expects.
+- **05 — PDF → Text refuses a scan instead of returning an empty file**, pointing at OCR PDF (phase 06).
+- **05 — A corrupt PDF whose `%PDF` header is not at byte 0 is rejected by phase 04's magic-byte validation before Repair PDF sees it.** That is the right security boundary, so it was left alone; Repair PDF still handles leading junk for any file that reaches it, and the realistic corruption cases (broken xref, truncation, trailing junk) all recover.
+- **05 — Phase-04-era tests were updated, not deleted:** the registry's "exactly one demo tool" assertion now lists the twelve working tools and also asserts every `available` tool comes from a built phase, and the NOT_IMPLEMENTED API test moved from `merge-pdf` to `pdf-to-word` (phase 06).
 
 ---
 
@@ -111,6 +126,10 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 - **04:** `userId` is always `null` (guest), so `requiresAuth` tools fail with `AUTH_REQUIRED` in the pipeline as well as the UI. Phase 13 wires the session into `POST /api/tools/run`.
 - **04:** uploads are buffered fully in memory before being written (Next reads the whole multipart body anyway). Fine at the 100 MB default; if phase 10's video tools raise that limit, switch the route to a streaming parser.
 - **04:** there is no per-IP or per-session rate limit on `POST /api/tools/run`. Acceptable for personal/small-group use; worth revisiting in phase 20 if the app is ever exposed publicly.
+- **05:** Compress PDF's "Balanced"/"Strong" levels rasterise, which is the honest free/local trade-off — there is no pure-JS recompressor for the images already inside a PDF. A later phase could down-sample individual image XObjects with `sharp` (a likely phase-09 dependency) for a lossy-but-still-text mode.
+- **05:** Resize PDF embeds each page as a form XObject, so a page with a non-zero `/Rotate` is embedded in its unrotated box and "auto" orientation reads the unrotated size. Rare in practice; worth fixing if it shows up.
+- **05:** rendering is sequential, one page at a time, with a 10 000 px cap on either dimension. A 200-page scan at 300 DPI will approach the pipeline's 120 s executor timeout; phase 19 should decide whether long jobs need progress reporting rather than a bigger timeout.
+- **05:** the ZIP writer stores entries uncompressed and has no ZIP64 support, so an archive above 4 GB is out of scope (the 100 MB upload ceiling makes that unreachable today).
 
 ---
 
@@ -124,14 +143,12 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 
 ## Next Up
 
-Phase 05 - Core PDF tools (`docs/build/05-pdf-tools-core.md`): merge, split, rotate, compress and friends.
+Phase 06 — Advanced PDF tools (`docs/build/06-pdf-tools-advanced.md`): OCR, signing, forms, passwords, watermarks, metadata, compare, and PDF ↔ Office.
 
-Everything a tool phase needs is now in place, and the seam is small:
+Phase 05 left it a short walk:
 
-1. Write the executor in `apps/api/src/file-processing/executors/<name>.ts`. It receives `(files: FileRef[], options, ctx)`, reads bytes with `await ctx.readFile(ref)`, and returns `{ ok: true, output, summary, files: [{ name, mimeType, bytes }] }`. It never touches the filesystem and never runs an uploaded file.
-2. Register it in `apps/api/src/file-processing/index.ts` with `registerExecutor(id, fn)`, and flip that tool's registry `status` from `stub` to `available`.
-3. That is all: validation, the job record, temp storage, output validation, downloads and cleanup are already handled by `runPipeline`, and the UI drives itself from the registry.
+1. `apps/api/src/pdf/` already holds the primitives phase 06 is told to reuse — `renderPdfPages` (PDF → PowerPoint, PDF → HTML), `extractPdfText` (PDF → Word), `copySelectedPages`, `compressPdfBytes`, `loadPdf` / `parsePageSelection` (clear errors for protected, damaged and out-of-range input) and the ZIP writer. Do not re-implement page handling.
+2. Password handling is the one deliberate gap: every tool currently reports "This PDF is password protected. Remove its password first, then try again." Phase 06 owns adding a password parameter to `loadPdf` — pdf-lib cannot decrypt, so Remove PDF Password needs a different local route (check what pdf.js can decrypt and re-emit through pdf-lib before reaching for an external binary).
+3. Adding a tool is: write the executor in `apps/api/src/pdf/`, register it, flip its registry `status` to `"available"`, add its options to `TOOL_OPTIONS`, and add its id to `VERIFIED_OFFLINE` **only** once the offline suite in `apps/api/src/pdf/pdf.test.ts` covers it.
 
-Tool-specific **Options** are the one missing piece of the generic tool page (`ToolPage.tsx` still shows "No options for this tool yet"). Phase 05 is the first phase that needs them, so it should add the options-schema mechanism - options already travel to the server as the `options` form field and reach executors as their second argument.
-
-Verify any phase with `npm run lint && npm run typecheck && npm test && npm run build && npm run test:e2e` (the last needs the build plus a local Chrome/Edge; it now starts two servers, on ports 3107 and 3108).
+Verify any phase with `npm run lint && npm run typecheck && npm test && npm run build && npm run test:e2e` (the last needs the build plus a local Chrome/Edge; it starts two servers, on ports 3107 and 3108). For anything touching pdf.js or the canvas binary, also run the tools once against a real `next start` — two phase-05 bugs appeared only there.

@@ -13,7 +13,10 @@
     "bridge:hello": "node scripts/bridge-hello.ts"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^1.0.9",
     "@onestop/tool-registry": "*",
-    "@onestop/types": "*"
+    "@onestop/types": "*",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.3.289"
   }
 }

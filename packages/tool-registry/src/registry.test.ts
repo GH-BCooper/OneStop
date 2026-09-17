@@ -7,8 +7,11 @@ import {
   PHASE_FILES,
   PLATFORM_FEATURES,
   RegistryError,
+  TOOL_OPTIONS,
+  VERIFIED_OFFLINE,
   acceptAttribute,
   acceptsFileName,
+  defaultOptionValues,
   getExecutor,
   inputKind,
   loadRegistry,
@@ -86,8 +89,15 @@ describe("registry contents", () => {
     }
   });
 
-  it("marks no tool offline before an offline test exists (CLAUDE.md §8)", () => {
-    expect(tools.filter((t) => t.offline)).toEqual([]);
+  it("marks a tool offline only when a passing offline test says so (CLAUDE.md §8)", () => {
+    expect(
+      tools
+        .filter((t) => t.offline)
+        .map((t) => t.id)
+        .sort(),
+    ).toEqual([...VERIFIED_OFFLINE].sort());
+    // An offline tool must also be one that never needed the network by design.
+    for (const tool of tools.filter((t) => t.offline)) expect(tool.network).toBe("none");
   });
 
   it("flags internet-only categories correctly", () => {
@@ -98,10 +108,48 @@ describe("registry contents", () => {
     expect(tools.find((t) => t.id === "spotify-link-info")?.outputTypes).toEqual(["json"]);
   });
 
-  it("wires exactly one demo tool to a working executor", () => {
-    expect(tools.filter((t) => t.status !== "stub").map((t) => t.id)).toEqual([
-      "file-metadata-viewer",
-    ]);
+  it("only marks a tool non-stub once a phase has actually built it", () => {
+    // Phase 04's demo tool plus the eleven core PDF tools built in 05-pdf-tools-core.md.
+    expect(
+      tools
+        .filter((t) => t.status !== "stub")
+        .map((t) => t.id)
+        .sort(),
+    ).toEqual(
+      [
+        "compress-pdf",
+        "delete-pdf-pages",
+        "extract-pdf-pages",
+        "file-metadata-viewer",
+        "merge-pdf",
+        "pdf-to-images",
+        "pdf-to-text",
+        "reorder-pdf-pages",
+        "repair-pdf",
+        "resize-pdf",
+        "rotate-pdf-pages",
+        "split-pdf",
+      ].sort(),
+    );
+    for (const tool of tools.filter((t) => t.status === "available")) {
+      expect(tool.phase, `${tool.id} is available but not from a built phase`).toBe("05");
+    }
+  });
+
+  it("only defines options for tools that exist, with usable defaults", () => {
+    for (const [id, options] of Object.entries(TOOL_OPTIONS)) {
+      const tool = tools.find((t) => t.id === id);
+      expect(tool, `TOOL_OPTIONS has an entry for the unknown tool "${id}"`).toBeDefined();
+      const ids = options.map((o) => o.id);
+      expect(new Set(ids).size, `duplicate option id in ${id}`).toBe(ids.length);
+      for (const option of options) {
+        if (option.type === "select") {
+          expect(option.choices.map((c) => c.value)).toContain(option.default);
+        }
+        if (option.showWhen) expect(ids).toContain(option.showWhen.option);
+      }
+      expect(Object.keys(defaultOptionValues(id)).sort()).toEqual([...ids].sort());
+    }
   });
 });
 

@@ -1,10 +1,13 @@
 "use client";
 
 import {
+  defaultOptionValues,
   fileInputTypes,
+  getToolOptions,
   inputKind,
   PHASE_FILES,
   typeLabel,
+  visibleOptionValues,
   type ToolMeta,
 } from "@onestop/tool-registry";
 import {
@@ -24,6 +27,7 @@ import {
   type ToolInput,
   type ToolState,
 } from "./ToolStateMachine";
+import { ToolOptions, type OptionValues } from "./ToolOptions";
 import { checkFiles, UploadZone } from "./UploadZone";
 
 const OFFLINE_MESSAGE = ERROR_MESSAGES.offline;
@@ -89,6 +93,10 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
   // The real File objects, kept beside the reducer's metadata so they can be uploaded.
   const [files, setFiles] = useState<File[]>([]);
   const [text, setText] = useState(state.input?.kind === "text" ? state.input.value : "");
+  const toolOptions = getToolOptions(tool.id);
+  const [optionValues, setOptionValues] = useState<OptionValues>(() =>
+    defaultOptionValues(tool.id),
+  );
   const inputId = useId();
   const busy = state.status === "validating" || state.status === "processing";
   const accepted = typeLabel(fileInputTypes(tool));
@@ -127,6 +135,9 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
     dispatch({ type: "CLEAR" });
   };
 
+  const setOption = (id: string, value: string | number | boolean) =>
+    setOptionValues((current) => ({ ...current, [id]: value }));
+
   const run = useCallback(async () => {
     dispatch({ type: "VALIDATE" });
     const problem = validateToolInput(tool, state.input);
@@ -153,6 +164,9 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
     body.set("toolId", tool.id);
     for (const file of files) body.append("files", file);
     if (state.input?.kind === "text") body.set("text", state.input.value);
+    if (toolOptions.length > 0) {
+      body.set("options", JSON.stringify(visibleOptionValues(tool.id, optionValues)));
+    }
 
     try {
       const response = await fetch(RUN_ENDPOINT, { method: "POST", body });
@@ -187,7 +201,7 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
         dispatch({ type: "FAIL", message: "The tool stopped unexpectedly. Please try again." });
       }
     }
-  }, [tool, state.input, files]);
+  }, [tool, state.input, files, toolOptions.length, optionValues]);
 
   /** Fallback download for tools whose result is JSON shown on the page. */
   const download = () => {
@@ -268,8 +282,12 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
         <h2 id={`${inputId}-options`} className="text-lg font-semibold">
           Options
         </h2>
-        {/* TODO(phase file in PHASE_FILES[tool.phase]): tool-specific options. */}
-        <p className="text-sm text-fg-muted">No options for this tool yet.</p>
+        <ToolOptions
+          options={toolOptions}
+          values={optionValues}
+          disabled={busy}
+          onChange={setOption}
+        />
       </section>
 
       <div className="flex flex-wrap gap-2">
