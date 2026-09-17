@@ -6,3 +6,5 @@ package-lock.json
 docs/build
 CLAUDE.md
 packages/tool-registry/src/entries
+docs/OneStop_Features.md
+docs/OneStop_MasterDoc.md

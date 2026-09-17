@@ -11,5 +11,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "bridge:hello": "node scripts/bridge-hello.ts"
+  },
+  "dependencies": {
+    "@onestop/tool-registry": "*",
+    "@onestop/types": "*"
   }
 }

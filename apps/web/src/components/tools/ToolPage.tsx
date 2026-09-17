@@ -1,18 +1,21 @@
 "use client";
 
 import {
-  acceptAttribute,
-  acceptsFileName,
   fileInputTypes,
-  getExecutor,
   inputKind,
   PHASE_FILES,
   typeLabel,
   type ToolMeta,
 } from "@onestop/tool-registry";
-import type { FileRef } from "@onestop/types";
+import {
+  DEFAULT_MAX_UPLOAD_BYTES,
+  ERROR_MESSAGES,
+  type ExecErrorCode,
+  type FileRef,
+  type OutputFileRef,
+} from "@onestop/types";
 import { Button, Card } from "@onestop/ui";
-import { useCallback, useEffect, useId, useReducer, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useId, useReducer, useState } from "react";
 import { recordRecentTool } from "@/lib/recent-tools";
 import {
   initialToolState,
@@ -21,11 +24,23 @@ import {
   type ToolInput,
   type ToolState,
 } from "./ToolStateMachine";
+import { checkFiles, UploadZone } from "./UploadZone";
 
-const OFFLINE_MESSAGE = "This tool needs an Internet connection. Connect and try again.";
+const OFFLINE_MESSAGE = ERROR_MESSAGES.offline;
+/** The one entry point into the phase-04 pipeline. */
+export const RUN_ENDPOINT = "/api/tools/run";
 
-function toFileRefs(list: FileList | File[]): FileRef[] {
-  return Array.from(list, (f) => ({
+interface RunResponse {
+  ok: boolean;
+  job?: { id: string; status: string };
+  output?: unknown;
+  summary?: string | null;
+  files?: OutputFileRef[];
+  error?: { code: ExecErrorCode | string; message: string } | null;
+}
+
+function toFileRefs(files: File[]): FileRef[] {
+  return files.map((f) => ({
     name: f.name,
     size: f.size,
     type: f.type,
@@ -33,15 +48,17 @@ function toFileRefs(list: FileList | File[]): FileRef[] {
   }));
 }
 
-/** Returns an actionable message when the input can't be used, or null when it's fine. */
+/**
+ * Client-side pre-check so obvious mistakes never reach the network. The server revalidates
+ * everything (see `apps/api/src/file-processing/validate.ts`); this is convenience, not security.
+ * Returns an actionable message, or null when the input is usable.
+ */
 export function validateToolInput(tool: ToolMeta, input: ToolInput | null): string | null {
   if (!input) return "Add an input first.";
   if (input.kind === "files") {
     if (input.files.length === 0) return "Choose a file first.";
     if (!tool.supportsBatch && input.files.length > 1) return "This tool takes one file at a time.";
-    if (input.files.some((f) => !acceptsFileName(tool, f.name))) {
-      return "This file type is not supported.";
-    }
+    return checkFiles(tool, input.files, DEFAULT_MAX_UPLOAD_BYTES);
   }
   if (input.kind === "text") {
     const value = input.value.trim();
@@ -69,7 +86,8 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
     toolReducer,
     initialState ?? initialToolState(kind !== "none"),
   );
-  const [dragging, setDragging] = useState(false);
+  // The real File objects, kept beside the reducer's metadata so they can be uploaded.
+  const [files, setFiles] = useState<File[]>([]);
   const [text, setText] = useState(state.input?.kind === "text" ? state.input.value : "");
   const inputId = useId();
   const busy = state.status === "validating" || state.status === "processing";
@@ -85,9 +103,16 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
     return () => window.removeEventListener("offline", goOffline);
   }, [tool.id, tool.network]);
 
-  const selectFiles = (list: FileList | File[] | null) => {
-    if (!list || list.length === 0) return;
-    dispatch({ type: "SELECT", input: { kind: "files", files: toFileRefs(list) } });
+  const selectFiles = (picked: File[]) => {
+    setFiles(picked);
+    if (picked.length === 0) dispatch({ type: "CLEAR" });
+    else dispatch({ type: "SELECT", input: { kind: "files", files: toFileRefs(picked) } });
+  };
+
+  const rejectFiles = (message: string) => {
+    dispatch({ type: "SELECT", input: { kind: "files", files: toFileRefs(files) } });
+    dispatch({ type: "VALIDATE" });
+    dispatch({ type: "REJECT", message });
   };
 
   const onTextChange = (value: string) => {
@@ -96,10 +121,10 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
     else dispatch({ type: "SELECT", input: { kind: "text", value } });
   };
 
-  const onDrop = (e: DragEvent<HTMLLabelElement>) => {
-    e.preventDefault();
-    setDragging(false);
-    selectFiles(e.dataTransfer.files);
+  const clear = () => {
+    setFiles([]);
+    setText("");
+    dispatch({ type: "CLEAR" });
   };
 
   const run = useCallback(async () => {
@@ -122,29 +147,49 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
       });
       return;
     }
+
     dispatch({ type: "START" });
-    const input = state.input;
-    const payload =
-      input?.kind === "files" ? input.files : input?.kind === "text" ? input.value : null;
+    const body = new FormData();
+    body.set("toolId", tool.id);
+    for (const file of files) body.append("files", file);
+    if (state.input?.kind === "text") body.set("text", state.input.value);
+
     try {
-      const result = await getExecutor(tool)(payload, {});
-      if (result.ok) {
-        dispatch({ type: "SUCCEED", output: result.output, summary: result.summary });
-      } else if (result.code === "NOT_IMPLEMENTED") {
-        dispatch({ type: "UNAVAILABLE", reason: "not-implemented", message: result.message });
-      } else if (result.code === "OFFLINE") {
+      const response = await fetch(RUN_ENDPOINT, { method: "POST", body });
+      const data = (await response.json()) as RunResponse;
+      if (data.ok) {
+        dispatch({
+          type: "SUCCEED",
+          output: data.output,
+          ...(data.summary ? { summary: data.summary } : {}),
+          ...(data.files && data.files.length > 0 ? { files: data.files } : {}),
+        });
+        return;
+      }
+      const code = data.error?.code ?? "FAILED";
+      const message = data.error?.message ?? "Something went wrong. Please try again.";
+      if (code === "NOT_IMPLEMENTED") {
+        dispatch({ type: "UNAVAILABLE", reason: "not-implemented", message });
+      } else if (code === "OFFLINE") {
         dispatch({ type: "UNAVAILABLE", reason: "offline", message: OFFLINE_MESSAGE });
-      } else if (result.code === "AUTH_REQUIRED") {
-        dispatch({ type: "UNAVAILABLE", reason: "auth-required", message: result.message });
+      } else if (code === "AUTH_REQUIRED") {
+        dispatch({ type: "UNAVAILABLE", reason: "auth-required", message });
+      } else if (code === "UNSUPPORTED_INPUT") {
+        dispatch({ type: "REJECT", message });
       } else {
-        dispatch({ type: "FAIL", message: result.message });
+        dispatch({ type: "FAIL", message });
       }
     } catch (err) {
-      console.error(`[tool:${tool.id}] executor threw`, err);
-      dispatch({ type: "FAIL", message: "The tool stopped unexpectedly. Please try again." });
+      console.error(`[tool:${tool.id}] run request failed`, err);
+      if (isOffline()) {
+        dispatch({ type: "UNAVAILABLE", reason: "offline", message: OFFLINE_MESSAGE });
+      } else {
+        dispatch({ type: "FAIL", message: "The tool stopped unexpectedly. Please try again." });
+      }
     }
-  }, [tool, state.input]);
+  }, [tool, state.input, files]);
 
+  /** Fallback download for tools whose result is JSON shown on the page. */
   const download = () => {
     const blob = new Blob([JSON.stringify(state.output, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
@@ -155,7 +200,7 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
     URL.revokeObjectURL(url);
   };
 
-  const files = state.input?.kind === "files" ? state.input.files : [];
+  const hasInput = state.input?.kind === "files" ? files.length > 0 : text.length > 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -175,44 +220,14 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
           Input
         </h2>
         {kind === "file" && (
-          <>
-            <label
-              htmlFor={inputId}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragging(true);
-              }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={onDrop}
-              className={`flex min-h-36 cursor-pointer flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed p-6 text-center ${
-                dragging ? "border-primary bg-surface-muted" : "border-border bg-surface"
-              }`}
-            >
-              <span className="font-medium">
-                Drop {tool.supportsBatch ? "files" : "a file"} here or click to browse
-              </span>
-              <span className="text-sm text-fg-muted">Accepted: {accepted}</span>
-            </label>
-            <input
-              id={inputId}
-              type="file"
-              className="sr-only"
-              multiple={tool.supportsBatch}
-              accept={acceptAttribute(tool)}
-              disabled={busy}
-              onChange={(e) => selectFiles(e.target.files)}
-            />
-            {files.length > 0 && (
-              <ul className="flex flex-col gap-1 text-sm" aria-label="Selected files">
-                {files.map((f, i) => (
-                  <li key={`${f.name}-${i}`} className="flex justify-between gap-2">
-                    <span className="truncate">{f.name}</span>
-                    <span className="shrink-0 text-fg-muted">{f.size} bytes</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
+          <UploadZone
+            tool={tool}
+            files={files}
+            disabled={busy}
+            inputId={inputId}
+            onSelect={selectFiles}
+            onReject={rejectFiles}
+          />
         )}
         {kind === "text" && (
           <>
@@ -261,8 +276,8 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
         <Button size="lg" onClick={run} disabled={state.status !== "selected"}>
           Run {tool.name}
         </Button>
-        {files.length > 0 && !busy && (
-          <Button size="lg" variant="ghost" onClick={() => dispatch({ type: "CLEAR" })}>
+        {hasInput && !busy && (
+          <Button size="lg" variant="ghost" onClick={clear}>
             Clear
           </Button>
         )}

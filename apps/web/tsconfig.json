@@ -4,6 +4,8 @@
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "jsx": "preserve",
     "incremental": true,
+    // @onestop/api ships TypeScript source with explicit .ts imports (see PROGRESS.md, phase 01).
+    "allowImportingTsExtensions": true,
     "plugins": [{ "name": "next" }],
     "paths": { "@/*": ["./src/*"] }
   },

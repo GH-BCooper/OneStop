@@ -1,6 +1,6 @@
 // The generic tool-page state machine (master plan §20): every tool moves through the same eight
 // states, so the UI for each state is defined once here and reused by every tool page.
-import type { FileRef } from "@onestop/types";
+import type { FileRef, OutputFileRef } from "@onestop/types";
 import { Button, buttonClasses, Card } from "@onestop/ui";
 import Link from "next/link";
 
@@ -28,6 +28,8 @@ export interface ToolState {
   reason?: UnavailableReason;
   output?: unknown;
   summary?: string;
+  /** Downloadable files the pipeline stored for this run (04-file-core.md). */
+  files?: OutputFileRef[];
 }
 
 export type ToolEvent =
@@ -36,7 +38,7 @@ export type ToolEvent =
   | { type: "VALIDATE" }
   | { type: "REJECT"; message: string }
   | { type: "START" }
-  | { type: "SUCCEED"; output: unknown; summary?: string }
+  | { type: "SUCCEED"; output: unknown; summary?: string; files?: OutputFileRef[] }
   | { type: "FAIL"; message: string }
   | { type: "UNAVAILABLE"; reason: UnavailableReason; message: string }
   | { type: "RESET" };
@@ -60,14 +62,22 @@ export function toolReducer(state: ToolState, event: ToolEvent): ToolState {
     case "VALIDATE":
       return state.status === "selected" ? { status: "validating", input: state.input } : state;
     case "REJECT":
-      return state.status === "validating"
+      // Rejection can come from the client pre-check (validating) or from the server's own
+      // validation once the upload is under way (processing).
+      return state.status === "validating" || state.status === "processing"
         ? { status: "unsupported", input: state.input, message: event.message }
         : state;
     case "START":
       return state.status === "validating" ? { status: "processing", input: state.input } : state;
     case "SUCCEED":
       return state.status === "processing"
-        ? { status: "success", input: state.input, output: event.output, summary: event.summary }
+        ? {
+            status: "success",
+            input: state.input,
+            output: event.output,
+            summary: event.summary,
+            files: event.files,
+          }
         : state;
     case "FAIL":
       return state.status === "processing"
@@ -173,13 +183,32 @@ export function ToolStateView({
 
       {state.status === "success" && (
         <>
+          {state.files && state.files.length > 0 && (
+            <p className="text-xs text-fg-muted">
+              Result files are deleted from the server automatically — download them now.
+            </p>
+          )}
           {state.output !== undefined && (
             <pre className="max-h-64 overflow-auto rounded-md bg-surface-muted p-3 text-xs">
               {JSON.stringify(state.output, null, 2)}
             </pre>
           )}
           <div className="flex flex-wrap gap-2">
-            <Button onClick={onDownload}>Download</Button>
+            {state.files && state.files.length > 0 ? (
+              state.files.map((file) => (
+                <a
+                  key={file.id}
+                  href={file.url}
+                  download={file.name}
+                  data-testid="result-download"
+                  className={buttonClasses("primary")}
+                >
+                  Download {file.name}
+                </a>
+              ))
+            ) : (
+              <Button onClick={onDownload}>Download</Button>
+            )}
             <Button variant="secondary" disabled title="Saving results arrives with accounts">
               Save
             </Button>

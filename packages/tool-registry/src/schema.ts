@@ -1,5 +1,5 @@
 // Tool metadata contract (03-tool-registry.md, master plan §13).
-import type { ExecResult, FileRef } from "@onestop/types";
+import type { ExecContext, ExecResult, FileRef } from "@onestop/types";
 
 export const CATEGORY_IDS = [
   "pdf",
@@ -57,9 +57,14 @@ export interface ToolMeta {
   sources: string[];
 }
 
+/**
+ * How every tool is run. `ctx` is supplied by the phase-04 pipeline (file bytes, job id,
+ * cancellation); executors that only need metadata can ignore it.
+ */
 export type Executor = (
   input: FileRef[] | string | null,
   options: Record<string, unknown>,
+  ctx?: ExecContext,
 ) => Promise<ExecResult>;
 
 export interface CategoryInfo {

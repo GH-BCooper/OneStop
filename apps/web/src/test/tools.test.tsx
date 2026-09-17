@@ -9,7 +9,7 @@ import {
 } from "@onestop/tool-registry";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ToolPage, validateToolInput } from "@/components/tools/ToolPage";
 import {
   initialToolState,
@@ -23,6 +23,20 @@ import CategoryPage, { generateStaticParams as categoryParams } from "@/app/tool
 import ToolRoute, { generateStaticParams as toolParams } from "@/app/tools/[category]/[slug]/page";
 
 const byId = (id: string) => getTool(id)!;
+
+/**
+ * Phase 04 moved execution behind POST /api/tools/run, so the tool page's happy/unhappy paths are
+ * driven by a stubbed response here. The route itself is tested in `file-core-api.test.ts`.
+ */
+function mockRun(body: Record<string, unknown>) {
+  const fetchMock = vi.fn(async () => new Response(JSON.stringify(body), { status: 200 }));
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
 
 type ServerPage<P> = (props: { params: Promise<P> }) => Promise<ReactElement>;
 
@@ -100,7 +114,14 @@ describe("tool page", () => {
     }
   });
 
-  it("runs the stub executor to an 'unavailable' state instead of faking success", async () => {
+  it("reports a not-implemented tool as unavailable instead of faking success", async () => {
+    mockRun({
+      ok: false,
+      error: {
+        code: "NOT_IMPLEMENTED",
+        message: "Merge PDF is coming in a later phase (05-pdf-tools-core.md).",
+      },
+    });
     render(
       <ToolPage
         tool={byId("merge-pdf")}
@@ -118,7 +139,23 @@ describe("tool page", () => {
     expect(screen.queryByRole("button", { name: /^download$/i })).toBeNull();
   });
 
-  it("runs the echo executor end to end for the demo tool", async () => {
+  it("runs the demo tool through the pipeline and offers the result for download", async () => {
+    const fetchMock = mockRun({
+      ok: true,
+      job: { id: "job-1", status: "success" },
+      output: { files: [{ name: "a.txt", size: 12 }] },
+      summary: "a.txt - 12 B",
+      files: [
+        {
+          id: "11111111-2222-3333-4444-555555555555",
+          name: "a.txt.metadata.json",
+          mimeType: "application/json",
+          size: 120,
+          url: "/api/files/11111111-2222-3333-4444-555555555555",
+          expiresAt: new Date().toISOString(),
+        },
+      ],
+    });
     render(
       <ToolPage
         tool={byId("file-metadata-viewer")}
@@ -129,9 +166,34 @@ describe("tool page", () => {
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /run file metadata viewer/i }));
-    await screen.findByRole("button", { name: /^download$/i });
+    const link = await screen.findByTestId("result-download");
+    expect(link.getAttribute("href")).toBe("/api/files/11111111-2222-3333-4444-555555555555");
+    expect(link.getAttribute("download")).toBe("a.txt.metadata.json");
     expect(screen.getByRole("status").textContent).toMatch(/done/i);
-    expect(screen.getAllByText(/a\.txt/).length).toBeGreaterThan(0);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tools/run",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("shows the server's rejection when it is the one that catches a bad file", async () => {
+    mockRun({
+      ok: false,
+      error: { code: "UNSUPPORTED_INPUT", message: "This file type is not supported." },
+    });
+    render(
+      <ToolPage
+        tool={byId("file-metadata-viewer")}
+        initialState={{
+          status: "selected",
+          input: { kind: "files", files: [{ name: "a.txt", size: 12, type: "text/plain" }] },
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /run file metadata viewer/i }));
+    await waitFor(() =>
+      expect(screen.getByRole("status").textContent).toMatch(/file type is not supported/i),
+    );
   });
 
   it("rejects an unsupported file type", async () => {

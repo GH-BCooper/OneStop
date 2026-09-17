@@ -1,7 +1,11 @@
-// Executor lookup. Phase 03 ships one working "echo" executor (File Metadata Viewer, which just
+// Executor lookup. Phase 03 shipped one working "echo" executor (File Metadata Viewer, which just
 // reflects the metadata of the files it's given) to prove the plumbing; every other tool gets a
 // stub that reports NOT_IMPLEMENTED so the UI can say "Coming in a later phase" instead of
-// pretending to succeed. Phases 05–17 register real executors here by tool id.
+// pretending to succeed. Phases 05-17 register real executors here by tool id.
+//
+// Phase 04 adds `registerExecutor`: real processing lives server-side (it needs `node:` APIs and
+// the temp store), so those executors register themselves at import time from
+// `apps/api/src/file-processing/executors/`. This file stays dependency-free and bundler-safe.
 import type { FileRef } from "@onestop/types";
 import { PHASE_FILES, type Executor, type ToolMeta } from "./schema";
 
@@ -34,6 +38,19 @@ export function stubExecutor(tool: Pick<ToolMeta, "name" | "phase">): Executor {
 const executors: Record<string, Executor> = {
   "file-metadata-viewer": echoExecutor,
 };
+
+/**
+ * Registers the real executor for a tool. Later phases call this from their own module so the
+ * registry never has to import their dependencies. Returns an unregister function for tests.
+ */
+export function registerExecutor(id: string, executor: Executor): () => void {
+  const previous = executors[id];
+  executors[id] = executor;
+  return () => {
+    if (previous) executors[id] = previous;
+    else delete executors[id];
+  };
+}
 
 export function getExecutor(tool: Pick<ToolMeta, "id" | "name" | "phase">): Executor {
   return executors[tool.id] ?? stubExecutor(tool);

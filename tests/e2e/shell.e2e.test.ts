@@ -248,6 +248,8 @@ describe("tools catalogue", () => {
     const page = await newPage(1440);
     await page.goto(baseUrl() + "/tools/dev-utility/uuid-generator");
     await page.getByRole("button", { name: /^Run UUID Generator$/ }).click();
+    // Phase 04 moved execution to POST /api/tools/run, so the panel settles asynchronously.
+    await page.locator('[data-state="unavailable"]').waitFor({ timeout: 15_000 });
     await expect(page.getByRole("status").textContent()).resolves.toMatch(
       /coming in a later phase/i,
     );
@@ -255,7 +257,7 @@ describe("tools catalogue", () => {
     await page.context().close();
   });
 
-  it("runs the phase-03 demo tool end to end", async () => {
+  it("runs the demo tool end to end", async () => {
     const page = await newPage(1440);
     await page.goto(baseUrl() + "/tools/file-utility/file-metadata-viewer");
     await page.setInputFiles("input[type=file]", {
@@ -264,8 +266,9 @@ describe("tools catalogue", () => {
       buffer: Buffer.from("hello onestop"),
     });
     await page.getByRole("button", { name: /^Run File Metadata Viewer$/ }).click();
+    await page.locator('[data-state="success"]').waitFor({ timeout: 30_000 });
     await expect(page.getByRole("status").textContent()).resolves.toMatch(/done/i);
-    await expect(page.getByText(/13 bytes in total/).isVisible()).resolves.toBe(true);
+    await expect(page.getByTestId("result-download").isVisible()).resolves.toBe(true);
     await page.context().close();
   });
 

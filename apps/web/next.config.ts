@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Root CLAUDE.md is the single agent guide; stop Next from generating per-app copies.
   agentRules: false,
-  transpilePackages: ["@onestop/ui", "@onestop/types", "@onestop/tool-registry"],
+  transpilePackages: ["@onestop/ui", "@onestop/types", "@onestop/tool-registry", "@onestop/api"],
 };
 
 export default nextConfig;

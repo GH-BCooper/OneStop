@@ -15,6 +15,10 @@
     "tailwindcss": "^4.3.3"
   },
   "dependencies": {
+    "@onestop/api": "*",
+    "@onestop/tool-registry": "*",
+    "@onestop/types": "*",
+    "@onestop/ui": "*",
     "next": "^16.3.5",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"

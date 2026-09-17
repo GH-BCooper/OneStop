@@ -23,7 +23,13 @@ export * from "./schema";
 export * from "./io";
 export * from "./search";
 export { loadRegistry, validateEntry, RegistryError, VERIFIED_OFFLINE } from "./loader";
-export { getExecutor, hasExecutor, echoExecutor, stubExecutor } from "./executors";
+export {
+  getExecutor,
+  hasExecutor,
+  registerExecutor,
+  echoExecutor,
+  stubExecutor,
+} from "./executors";
 export { PLATFORM_FEATURES } from "./platform";
 export { slugify } from "./define";
 
