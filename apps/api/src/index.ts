@@ -11,3 +11,5 @@ export * from "./documents/index.ts";
 export * from "./data/index.ts";
 // Importing the images module registers the phase-09 image executors.
 export * from "./images/index.ts";
+// Importing the media module registers the phase-10 audio & video executors.
+export * from "./media/index.ts";

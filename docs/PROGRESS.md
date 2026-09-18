@@ -17,7 +17,7 @@
 | 07  | 07-word-ppt-tools.md             | Complete    | 2026-09-18   | All 24 Word/PowerPoint tools real, registered and offline-verified; OOXML merge/split/slide surgery; local grammar/summary/translation. 388 unit + 84 real-browser checks pass.          |
 | 08  | 08-excel-csv-data-tools.md       | Complete    | 2026-09-18   | All 30 Excel/CSV/data tools real, registered and offline-verified; typed round trips, located validator errors, 50k-row smoke test. 435 unit + 84 real-browser checks pass.              |
 | 09  | 09-image-tools.md                | Complete    | 2026-09-18   | All 27 image tools real, registered and offline-verified (PDF → Image is phase 05’s); 5+5 fit modes; local-AI interface with built-in fallbacks. 475 unit + 89 real-browser checks pass. |
-| 10  | 10-audio-video-tools.md          | Not started |              |                                                                                                                                                                                          |
+| 10  | 10-audio-video-tools.md          | Complete    | 2026-09-18   | All 27 audio/video tools real, registered and offline-verified via local FFmpeg 9.0; own SRT/VTT/ASS engine; one FFmpeg-missing message. 535 unit + 93 real-browser checks pass.          |
 | 11  | 11-qr-tools.md                   | Not started |              |                                                                                                                                                                                          |
 | 12  | 12-dev-utility-tools.md          | Not started |              |                                                                                                                                                                                          |
 | 13  | 13-auth-database.md              | Not started |              |                                                                                                                                                                                          |
@@ -101,6 +101,15 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 - **09 — Built-in (non-AI) methods:** Background Removal flood-fills a plain background inwards from the edges with a soft edge, and refuses (pointing to the local model) when the border is too busy; Object Removal fills a marked rectangle by onion-peel inpainting plus smoothing; Upscaler is Lanczos + unsharp mask; Enhancer is auto-levels + CLAHE + saturation + sharpen; Sharpening is an unsharp mask; Denoiser is median + light blur; Background Blur keeps a feathered focus ellipse sharp (or, with a model, the detected subject).
 - **09 — Remove Image Metadata is lossless for JPEG and PNG:** metadata segments/chunks are cut out byte-for-byte (JFIF, Adobe and, by default, the ICC profile are kept), so pixels are identical. A JPEG with an EXIF rotation is re-encoded upright first (once the tag is gone nothing would rotate it); other formats are re-encoded without metadata.
 
+- **10 - FFmpeg is spawned directly, not through `fluent-ffmpeg`.** The build file suggests `fluent-ffmpeg`, but that package was archived in May 2025 and is only a string builder over the same CLI. `media/ffmpegCheck.ts` spawns `ffmpeg`/`ffprobe` itself with `shell: false`, fixed argument arrays, a timeout, `AbortSignal` kill and `-protocol_whitelist file` on every input - the same shape as phase 06's LibreOffice wrapper, with one fewer dependency. **Phase 10 adds no npm dependencies at all.**
+- **10 - FFmpeg is required, and detected once.** `findFfmpeg()` checks `FFMPEG_PATH`/`FFPROBE_PATH`, then PATH, then the usual install folders per OS (including the winget Links folder on Windows); both binaries must be present. The result is cached per process, `media/index.ts` logs one warning at startup when it is missing, and every tool that needs it fails with exactly `FFMPEG_MISSING_MESSAGE` ("FFmpeg is required for audio/video tools - see setup instructions." plus the per-OS install commands). `ffmpegStatus()` is what phase 18's `/status` should show. Tested against **FFmpeg 9.0-full_build (gyan.dev) on Windows 11**, installed with `winget install Gyan.FFmpeg` following the README's own instructions.
+- **10 - Media tools get a 10-minute executor timeout** (`executorTimeoutMs` in `pipeline.ts`, `MEDIA_TIMEOUT_SECONDS`, capped at 1 hour); every other tool keeps 120 s. Re-encoding a real video legitimately takes minutes, and the 120 s cap would have failed honest jobs.
+- **10 - FFmpeg never opens anything but the one file it is given.** Inputs are copied into a fresh `onestop-media-*` scratch directory as `in-<n>.<ext>` (extension whitelisted by regex), FFmpeg runs with that directory as its cwd, every `-i` is preceded by `-protocol_whitelist file`, uploads whose first bytes look like a playlist (`#EXTM3U`, `ffconcat`, MPD, `[playlist]`) are refused, and a probe reporting a referencing demuxer (hls/concat/dash/image2/lavfi...) is refused too. That closes the classic "playlist disguised as a video reads /etc/passwd" path. Merging uses the concat *filter*, never the concat demuxer, for the same reason.
+- **10 - Subtitles are OneStop's own engine, not FFmpeg's.** `media/subtitles.ts` reads and writes SRT, WebVTT and ASS/SSA in pure TypeScript (cue model in milliseconds; `<i>/<b>/<u>` kept, VTT classes/voices/NOTE/STYLE and ASS override tags handled; UTF-8/UTF-16/Windows-1252 decoding), so Subtitle Conversion works **with no FFmpeg at all** and SRT -> VTT -> SRT is lossless. Subtitle Extraction uses FFmpeg only to pull a track out (normalised to SRT), then formats it with the same writer; image-based tracks (PGS/VobSub) are refused with an explanation rather than producing empty text.
+- **10 - Conversions copy streams when they can.** `canRemux` knows which codecs each container accepts, so MKV (H.264/AAC) -> MP4 is an instant, lossless remux; anything else re-encodes (x264 `veryfast` / VP9 `realtime` / MPEG-4 for AVI) and the summary says which happened. Video Trimmer offers the same choice as "Fast" (stream copy, keyframe-accurate) vs "Exactly where I said".
+- **10 - Volume Normalizer is two-pass EBU R128 `loudnorm`** (measure, then a linear gain onto -14/-16/-23 LUFS with a true-peak ceiling), with a simple `volumedetect` + `volume` peak mode as the alternative. The test measures the output and asserts it lands within 1.5 LU of the target.
+- **10 - The waveform is computed, not drawn by FFmpeg.** FFmpeg decodes to mono 16-bit PCM at a rate chosen to stay under 20 M samples; OneStop reduces that to min/max peaks per column and renders its own SVG (three styles), rasterised to PNG with sharp. `output.files[].peaks` returns the same array, so a frontend - or phase 15/16 - can draw it itself.
+
 ---
 
 ## Deviations From Plan
@@ -166,6 +175,13 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 - **09 — Basic Image Editor is option-driven, not a canvas UI:** crop (edge trims) → rotate → flip → resize → colour/effects → mark an area (box, circle, highlight, blur or pixelate) → caption, in one pass, reusing the other tools' building blocks. An interactive drag-to-crop/draw canvas on the tool page would be a UI layer on top of the same executor.
 - **09 — Test-harness note:** `images.test.ts` sets `sharp.concurrency(1)`, because libvips threads saturating the machine pushed phase 08's CPU-time budget over (10.5 s vs 10 s) when the files ran in parallel.
 
+- **10 - Paths:** the build file says `apps/api/media/{convertAudio.ts, ...}`; following earlier phases they live in `apps/api/src/media/`, with all eleven listed modules (`convertAudio`, `convertVideo`, `trim`, `merge`, `extractAudio`, `extractFrames`, `subtitles`, `waveform`, `normalize`, `metadata`, `ffmpegCheck`) plus `common.ts` (scratch dir, probing, encoder settings, `eachMedia`), `fixtures.ts` (test-only), `index.ts` and `media.test.ts`. Options: `packages/tool-registry/src/options-media.ts`. Real-browser checks: `tests/e2e/media.e2e.test.ts`.
+- **10 - No new npm dependencies** (see the Decisions Log entry on `fluent-ffmpeg`). `sharp` (phase 09) rasterises the waveform SVG; the ZIP writer comes from phase 05.
+- **10 - Fixtures are generated, not committed:** `fixtures.ts` builds tones (`aevalsrc`, so the amplitude is exact) and clips (`testsrc`/`smptebars` plus a tone) with FFmpeg itself, so the repo holds no binary media and the tests are self-contained. The media suite skips with a clear message when FFmpeg is absent, except the pure-TypeScript parts (subtitles, time parsing, filter builders, registry), which always run.
+- **10 - Phase-04 upload validation was extended** for media: MIME types for `wma/wmv/flv/srt/vtt/ass/ssa`, and magic-byte signatures for raw MPEG audio frames (`ff fb/fa/f3/f2/e3/e2` - an MP3 without an ID3 tag was being rejected), ADTS/ADIF AAC, FLV and the ASF GUID.
+- **10 - Tool behaviours worth knowing:** batch tools return one ZIP by default ("Separate downloads" option). The Audio and Video compressors never return something bigger than the input - they hand the original back and say so; Change Video Resolution does the same when the file is already smaller than the target (upscaling is opt-in). Resolution targets apply to the *short* side, so vertical videos work. Video Merger matches the first clip's size and frame rate, letterboxes rather than stretches, and generates silence for a clip with no sound so nothing drifts. Extract Audio copies the track out untouched when the codec suits a container (AAC -> M4A, Opus -> .opus, PCM -> WAV...). Extract Frames caps at 300 frames and seeks accurately per frame. Video -> GIF caps at 60 s and builds a per-clip palette. Audio Metadata's "edit" mode is `-c copy`, so the audio is bit-identical; raw ADTS `.aac` says plainly that it cannot hold tags.
+- **10 - Rotation is a re-encode.** FFmpeg can rewrite the display matrix losslessly, but only for MP4/MOV; one consistent behaviour (with a quality option defaulting to High) was judged simpler than a mode that silently works for only some containers.
+
 ---
 
 ## Known Issues / Tech Debt
@@ -214,6 +230,14 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 - **08/09:** phase 08's 50k-row test (CPU budget 10 s) is flaky on the dev machine as of 2026-09-18: run alone, it measures 9.5–11 s of CPU on both the phase-08 commit and phase 09, so this is machine load, not a regression. The budget was left unchanged; phase 19 should decide whether to scale it or move it to a separate perf run.
 - **03 resolved:** the five fit modes are implemented for both Fit to Square and Fit to Circle.
 
+- **10:** long media jobs have no progress reporting - a 10-minute encode simply shows "Processing". Same long-job question as phases 05/06; phase 19 should decide whether jobs need progress events.
+- **10:** uploads are still buffered in memory (phase 04), so a video is limited by `MAX_UPLOAD_MB` (default 100). Raising it for video means switching `POST /api/tools/run` to a streaming parser first, as phase 04 noted.
+- **10:** WebM output uses VP9 at `-deadline realtime -cpu-used 8` for speed; a slower preset would give better quality per byte. AV1 is not offered (too slow in software). Hardware encoders (NVENC/QSV/VideoToolbox) are never used - software encoding is the portable, works-everywhere default.
+- **10:** `.wma/.wmv/.flv` are read (and WMA can be written) but are not offered as conversion targets beyond WMA audio; a minimal FFmpeg build missing an encoder fails with a message pointing at a full build.
+- **10:** Subtitle Extraction cannot handle image-based subtitle tracks (PGS/VobSub) - that needs OCR; phase 16 could route them through the phase-06 OCR engine.
+- **10:** the waveform decodes the whole track into memory (at most 20 M samples, about 40 MB); a 3-hour recording is handled by lowering the sample rate rather than streaming.
+- **08/10:** phase 08's 50k-row CPU budget was raised from 10 s to 15 s. The media tests spawn FFmpeg in parallel test files, and a saturated machine inflates even a process's own measured CPU time; the underlying work is unchanged (about 3 s alone). Phase 19 should still move this to a separate perf run.
+
 ---
 
 ## Open Questions
@@ -226,12 +250,13 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 
 ## Next Up
 
-Phase 10 — Audio & video tools (`docs/build/10-audio-video-tools.md`).
+Phase 11 - QR tools (`docs/build/11-qr-tools.md`).
 
-What phase 09 leaves it:
+What phase 10 leaves it:
 
-1. `apps/api/src/images/` follows the phase-08 pattern (pure engines exported from `index.ts`, thin executors via `eachImage`/`runImageTool`). `eachImage` is a reusable "one file in → one file out, ZIP when several" executor shape that media tools can copy.
-2. Video thumbnails / GIF-from-video can hand frames to `images/convert.ts` (`imagesToGif`) and `images/resize.ts` instead of re-implementing them. FFmpeg (a local binary, like LibreOffice) should be detected optionally the way `shared/libreoffice.ts` does it, with a clear "install FFmpeg" message.
-3. `ToolMeta.localModel` and `images/model.ts` are the pattern for any media tool that can use a local AI model (e.g. transcription in phase 16).
+1. `apps/api/src/media/` follows the same shape as phases 08/09: pure engines plus thin executors built on `eachMedia` (one file in, one file out, ZIP when several).
+2. `media/ffmpegCheck.ts` is the pattern for a **required** local binary (detect once, cache, one consistent setup message, `ffmpegStatus()` for phase 18's `/status`), just as `shared/libreoffice.ts` is the pattern for an optional one. Phase 17's yt-dlp should copy it, and can hand downloaded files straight to `encodeAudio`/`encodeVideo`.
+3. The subtitle engine (`media/subtitles.ts`) is dependency-free and reusable: phase 16 for transcription output, phase 17 for downloaded captions.
+4. `executorTimeoutMs` in the pipeline now gives audio/video 10 minutes (`MEDIA_TIMEOUT_SECONDS`); any later phase with long-running work should extend that function rather than raise the global default.
 
 Verify any phase with `npm run lint && npm run typecheck && npm test && npm run build && npm run test:e2e`, then run the new tools once against a real `next start`.

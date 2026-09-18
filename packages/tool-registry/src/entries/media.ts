@@ -2,7 +2,7 @@ import { defineCategory } from "../define";
 
 // Features §7 (Audio), §8 (Video) and §9 (Online Media).
 // "Extract Audio from Video" (§7.10) and "Extract Audio" (§8.10) are the same tool.
-export const audioTools = defineCategory("audio", { phase: "10", sub: "Audio" }, [
+export const audioTools = defineCategory("audio", { phase: "10", sub: "Audio", status: "available" }, [
   { src: ["7.1"], name: "Video → MP3", in: ["video"], out: ["mp3"], batch: true, pop: 80, kw: ["mp4", "audio", "music", "convert", "extract sound"], desc: "Save the soundtrack of a video as an MP3." },
   { src: ["7.2"], name: "Audio Converter", in: ["audio"], out: ["mp3", "wav", "aac", "flac", "ogg", "m4a"], batch: true, pop: 55, kw: ["convert", "format", "sound", "music"], desc: "Convert audio between MP3, WAV, AAC, FLAC, OGG and M4A." },
   { src: ["7.3"], name: "Audio Compressor", in: ["audio"], out: ["audio"], batch: true, pop: 35, kw: ["shrink", "reduce size", "bitrate", "smaller", "sound"], desc: "Reduce audio file size by lowering the bitrate." },
@@ -18,7 +18,7 @@ export const audioTools = defineCategory("audio", { phase: "10", sub: "Audio" },
   { src: ["7.13"], name: "Audio Waveform Generator", in: ["audio"], out: ["png", "svg"], kw: ["waveform", "visualize", "graph"], desc: "Draw a waveform image of an audio file." },
 ]);
 
-export const videoTools = defineCategory("video", { phase: "10", sub: "Video" }, [
+export const videoTools = defineCategory("video", { phase: "10", sub: "Video", status: "available" }, [
   { src: ["8.1"], name: "Video Converter", in: ["video"], out: ["mp4", "webm", "mov", "mkv", "avi"], batch: true, pop: 60, kw: ["convert", "format", "movie", "clip"], desc: "Convert videos between MP4, WebM, MOV, MKV and AVI." },
   { src: ["8.2"], name: "Video Compressor", in: ["video"], out: ["mp4"], batch: true, pop: 85, kw: ["compress", "shrink", "reduce size", "smaller", "movie", "clip"], desc: "Make a video smaller for sharing or uploading." },
   { src: ["8.3"], name: "Video → MP4", in: ["video"], out: ["mp4"], batch: true, pop: 45, kw: ["convert", "mov", "mkv", "avi"], desc: "Convert a video to MP4." },

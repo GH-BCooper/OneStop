@@ -32,6 +32,8 @@ import { sanitizeFileName, validateOutputFile, validateUpload } from "./validate
 export const FILE_DOWNLOAD_PATH = "/api/files";
 
 export const DEFAULT_EXECUTION_TIMEOUT_MS = 120_000;
+/** Audio/video tools spawn FFmpeg, which legitimately takes minutes on a long clip. */
+export const DEFAULT_MEDIA_TIMEOUT_MS = 600_000;
 
 export interface PipelineFileInput {
   name: string;
@@ -120,6 +122,18 @@ function checkShape(
   return null;
 }
 
+/**
+ * How long a tool may run. Audio/video work is minutes, not seconds (10-audio-video-tools.md), so
+ * those two categories get a longer budget — overridable with MEDIA_TIMEOUT_SECONDS.
+ */
+export function executorTimeoutMs(tool: Pick<ToolMeta, "category">): number {
+  if (tool.category !== "audio" && tool.category !== "video") return DEFAULT_EXECUTION_TIMEOUT_MS;
+  const configured = Number(process.env.MEDIA_TIMEOUT_SECONDS);
+  return Number.isFinite(configured) && configured > 0
+    ? Math.min(configured, 3600) * 1000
+    : DEFAULT_MEDIA_TIMEOUT_MS;
+}
+
 async function runExecutorWithTimeout(
   tool: ToolMeta,
   payload: FileRef[] | string | null,
@@ -159,7 +173,7 @@ export async function runPipeline(
   const config = deps.config ?? loadFileCoreConfig();
   const jobs = deps.jobs ?? getJobStore();
   const temp = deps.temp ?? getTempStore();
-  const timeoutMs = deps.timeoutMs ?? DEFAULT_EXECUTION_TIMEOUT_MS;
+  const timeoutMs = deps.timeoutMs ?? executorTimeoutMs(tool);
   const inputFiles = input.files ?? [];
   const options = input.options ?? {};
   const mode = detectExecutionMode(tool);

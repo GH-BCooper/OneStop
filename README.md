@@ -2,12 +2,13 @@
 
 One web app for file conversion, PDF, image, data, QR, media, AI and developer-utility tasks, built for personal / small-trusted-group use. Free-first and local-first: every core feature works without paying for anything.
 
-> Status: **Phase 02 (UI Shell)** done. App shell, navigation, themes and page placeholders; no tools yet. See [`docs/PROGRESS.md`](docs/PROGRESS.md). Full docs arrive in phase 20.
+> Status: **Phase 10 (Audio & Video Tools)** done. PDF, Word/PowerPoint, Excel/CSV/data, image and audio/video tools all work end to end; auth, history, workflows and the AI assistant are still to come. See [`docs/PROGRESS.md`](docs/PROGRESS.md). Full docs arrive in phase 20.
 
 ## Requirements
 
 - **Node.js 22.18+** (24 recommended, see `.nvmrc`) and npm 10+
 - **Python 3.10+** (optional until Python-backed tools land; needed for the bridge check)
+- **FFmpeg** (required for the audio & video tools — see [FFmpeg](#ffmpeg) below; everything else works without it)
 - **Docker** (optional, only for the local Postgres in `docker-compose.yml`)
 
 ## Quick start
@@ -56,6 +57,29 @@ docker compose down
 ```
 
 A free hosted Postgres (Neon, Supabase) works just as well: put its URL in `DATABASE_URL`.
+
+## FFmpeg
+
+The audio and video tools (phase 10) run entirely locally through FFmpeg, which is free and open
+source. Install it once:
+
+| OS             | Command                                                                            |
+| -------------- | ---------------------------------------------------------------------------------- |
+| macOS          | `brew install ffmpeg`                                                              |
+| Ubuntu/Debian  | `sudo apt install ffmpeg`                                                          |
+| Fedora         | `sudo dnf install ffmpeg`                                                          |
+| Windows        | `winget install Gyan.FFmpeg` (or download a build from [ffmpeg.org](https://ffmpeg.org/download.html) and add its `bin` folder to `PATH`) |
+
+Check it with `ffmpeg -version` and `ffprobe -version` — OneStop needs both, and they ship together.
+Open a new terminal after installing on Windows so the new `PATH` is picked up, then restart the dev
+server. If FFmpeg lives somewhere unusual, set `FFMPEG_PATH` (and `FFPROBE_PATH` if it is not in the
+same folder) in `.env`.
+
+Without FFmpeg the app still runs: every audio/video tool simply reports "FFmpeg is required for
+audio/video tools — see setup instructions", and the server logs the same thing once at startup.
+Subtitle Conversion is the exception — it is pure TypeScript and works either way.
+
+Long jobs: a media tool may run for up to 10 minutes (`MEDIA_TIMEOUT_SECONDS` to change it).
 
 ## Python
 

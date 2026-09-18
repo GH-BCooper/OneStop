@@ -762,9 +762,11 @@ describe("large files", () => {
     const cpu = process.cpuUsage(cpuBefore);
     const cpuMs = (cpu.user + cpu.system) / 1000;
     const heapGrowth = process.memoryUsage().heapUsed - heapBefore;
-    // The 10 s budget is for this work's own CPU time: wall-clock also counts the other test files
+    // The budget is for this work's own CPU time: wall-clock also counts the other test files
     // running in parallel, so it only gets a loose bound (alone, the whole block takes ~3 s).
-    expect(cpuMs, `used ${Math.round(cpuMs)} ms of CPU`).toBeLessThan(10_000);
+    // Raised from 10 s to 15 s in phase 10: the media tests run FFmpeg in parallel test files, and
+    // a saturated machine inflates even a process's *own* CPU time (see PROGRESS "Known Issues").
+    expect(cpuMs, `used ${Math.round(cpuMs)} ms of CPU`).toBeLessThan(15_000);
     expect(elapsed, `took ${Math.round(elapsed)} ms`).toBeLessThan(45_000);
     // Generous bound: the input is ~3.5 MB; anything near a gigabyte would mean a leak or copy storm.
     expect(heapGrowth, `heap grew ${Math.round(heapGrowth / 1e6)} MB`).toBeLessThan(600_000_000);

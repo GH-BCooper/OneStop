@@ -10,6 +10,7 @@
 
 import { DATA_TOOL_OPTIONS } from "./options-data";
 import { IMAGE_TOOL_OPTIONS } from "./options-images";
+import { MEDIA_TOOL_OPTIONS } from "./options-media";
 
 export interface ToolOptionBase {
   id: string;
@@ -183,6 +184,7 @@ const translatorLanguages = [
 export const TOOL_OPTIONS: Record<string, ToolOption[]> = {
   ...DATA_TOOL_OPTIONS,
   ...IMAGE_TOOL_OPTIONS,
+  ...MEDIA_TOOL_OPTIONS,
   "pdf-to-images": [
     {
       id: "format",
