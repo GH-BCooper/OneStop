@@ -5,8 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import { checkFiles, formatBytes, UploadZone } from "@/components/tools/UploadZone";
 
 const mergePdf = getTool("merge-pdf")!;
-// A single-file tool that accepts PDFs (phase 07; Compare PDFs became a two-file tool in 06).
-const singleFilePdfTool = getTool("ocr-to-word")!;
+// A single-file tool that accepts PDFs (phase 16; Compare PDFs became a two-file tool in 06).
+const singleFilePdfTool = getTool("ai-pdf-summarizer")!;
 
 const makeFile = (name: string, size = 10, type = "") =>
   new File([new Uint8Array(size)], name, { type });

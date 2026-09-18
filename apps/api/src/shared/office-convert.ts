@@ -3,7 +3,7 @@
 // Phase 06's PDF → Word/Excel/PowerPoint tools and phases 07/08's Word/Excel/PowerPoint → PDF
 // tools all go through here, so there is exactly one place that decides *how* a conversion runs:
 //
-//   officeToPdf  LibreOffice (if installed) → built-in converter (docx/xlsx/pptx/txt)
+//   officeToPdf  LibreOffice (if installed) → built-in converter (docx/xlsx/pptx/txt/rtf/odt)
 //   pdfToOffice  built-in converter (default) → LibreOffice only when explicitly asked for (docx)
 //
 // LibreOffice is optional. When it is missing, a conversion the built-in path can do still runs
@@ -12,6 +12,8 @@
 import { convertWithLibreOffice, findLibreOffice, LibreOfficeError } from "./libreoffice.ts";
 import { pdfToDocx, pdfToPptx, pdfToXlsx, type FromPdfOptions } from "./office/fromPdf.ts";
 import { docxToPdf, OfficeReadError, pptxToPdf, textToPdf, xlsxToPdf } from "./office/toPdf.ts";
+import { odtToPdf } from "./office/odt.ts";
+import { rtfToPdf } from "./office/rtf.ts";
 
 export { findLibreOffice, setLibreOfficeLocator } from "./libreoffice.ts";
 export { OfficeReadError } from "./office/toPdf.ts";
@@ -39,6 +41,9 @@ const BUILTIN_TO_PDF: Partial<Record<OfficeSource, (bytes: Uint8Array) => Promis
   xlsx: xlsxToPdf,
   pptx: pptxToPdf,
   txt: textToPdf,
+  // 07-word-ppt-tools.md: text-only fallbacks so Document → PDF still works without LibreOffice.
+  rtf: rtfToPdf,
+  odt: odtToPdf,
 };
 
 const LABEL: Record<OfficeSource, string> = {

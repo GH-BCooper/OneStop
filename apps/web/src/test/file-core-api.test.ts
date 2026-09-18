@@ -154,10 +154,10 @@ describe("POST /api/tools/run", () => {
     const pdf = new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31])], "a.pdf", {
       type: "application/pdf",
     });
-    // Phases 05-06 built the PDF tools, so this checks one that is still to come (phase 07).
-    const { body } = await run(formWith(pdf, "ocr-to-word"));
+    // Phases 05-07 built the PDF and Office tools, so this checks one that is still to come (phase 16).
+    const { body } = await run(formWith(pdf, "ai-pdf-summarizer"));
     expect(body.error?.code).toBe("NOT_IMPLEMENTED");
-    expect(body.error?.message).toContain("07-word-ppt-tools.md");
+    expect(body.error?.message).toContain("16-ai-assistant.md");
   });
 });
 

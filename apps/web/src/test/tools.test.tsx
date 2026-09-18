@@ -108,6 +108,22 @@ describe("tool page", () => {
     expect(screen.getByText(/needs internet/i)).toBeTruthy();
   });
 
+  it("lets file-or-text tools take pasted text and sends it as `text` (07)", async () => {
+    const fetchMock = mockRun({ ok: true, job: { id: "j", status: "success" }, summary: "Done." });
+    render(<ToolPage tool={byId("grammar-checker")} />);
+    fireEvent.change(screen.getByLabelText(/or paste text instead/i), {
+      target: { value: "i could of gone" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /run grammar checker/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as FormData;
+    expect(body.get("text")).toBe("i could of gone");
+    expect(body.getAll("files")).toHaveLength(0);
+    // A file-only tool has no text box.
+    render(<ToolPage tool={byId("word-to-pdf")} />);
+    expect(screen.getAllByLabelText(/or paste text instead/i)).toHaveLength(1);
+  });
+
   it("says 'Coming in a later phase' for every unimplemented tool", async () => {
     for (const t of tools.filter((x) => x.status === "stub").slice(0, 5)) {
       const { unmount } = await renderServer(ToolRoute, { category: t.category, slug: t.slug });
@@ -121,19 +137,19 @@ describe("tool page", () => {
       ok: false,
       error: {
         code: "NOT_IMPLEMENTED",
-        message: "OCR → Word is coming in a later phase (07-word-ppt-tools.md).",
+        message: "AI PDF Summarizer is coming in a later phase (16-ai-assistant.md).",
       },
     });
     render(
       <ToolPage
-        tool={byId("ocr-to-word")}
+        tool={byId("ai-pdf-summarizer")}
         initialState={{
           status: "selected",
           input: { kind: "files", files: [{ name: "a.pdf", size: 10, type: "application/pdf" }] },
         }}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /run ocr . word/i }));
+    fireEvent.click(screen.getByRole("button", { name: /run ai pdf summarizer/i }));
     await waitFor(() => {
       const panel = screen.getByRole("status");
       expect(panel.textContent).toMatch(/coming in a later phase/i);
@@ -221,7 +237,7 @@ describe("tool page", () => {
     ).toBeNull();
     expect(validateToolInput(merge, { kind: "files", files: [] })).toMatch(/choose a file/i);
     expect(
-      validateToolInput(byId("ocr-to-word"), {
+      validateToolInput(byId("ai-pdf-summarizer"), {
         kind: "files",
         files: [
           { name: "a.pdf", size: 1, type: "" },
@@ -375,7 +391,7 @@ describe("tool options", () => {
   });
 
   it("says so when a tool has no options", () => {
-    render(<ToolPage tool={byId("ocr-to-word")} />);
+    render(<ToolPage tool={byId("ai-pdf-summarizer")} />);
     expect(screen.getByText(/no options for this tool yet/i)).toBeTruthy();
   });
 

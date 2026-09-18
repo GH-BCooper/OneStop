@@ -8,6 +8,7 @@
 import {
   getExecutor,
   getTool,
+  acceptsTypedText,
   inputKind,
   type ToolMeta,
   fileInputTypes,
@@ -93,7 +94,13 @@ function checkShape(
   const text = (input.text ?? "").trim();
 
   if (kind === "file") {
-    if (files.length === 0) return fail("UNSUPPORTED_INPUT", "Choose a file first.");
+    if (files.length === 0 && acceptsTypedText(tool) && text !== "") return null;
+    if (files.length === 0) {
+      return fail(
+        "UNSUPPORTED_INPUT",
+        acceptsTypedText(tool) ? "Choose a file or enter some text first." : "Choose a file first.",
+      );
+    }
     if (!tool.supportsBatch && files.length > 1) {
       return fail("UNSUPPORTED_INPUT", "This tool takes one file at a time.");
     }

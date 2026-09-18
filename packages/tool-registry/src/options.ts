@@ -100,6 +100,82 @@ const metadataField = (id: string, label: string): TextOption => ({
   placeholder: "Keep current",
 });
 
+// ---- 07-word-ppt-tools.md shared options ------------------------------------------------------
+
+const officeEngine: SelectOption = {
+  id: "engine",
+  type: "select",
+  label: "Converter",
+  default: "auto",
+  choices: [
+    { value: "auto", label: "Best available (LibreOffice if installed)" },
+    { value: "builtin", label: "Built-in (always offline)" },
+  ],
+  help: "LibreOffice gives the closest layout; the built-in converter keeps text, tables and pictures.",
+};
+
+function imageExport(noun: "page" | "slide", dpi: number): ToolOption[] {
+  return [
+    {
+      id: "format",
+      type: "select",
+      label: "Image format",
+      default: "png",
+      choices: [
+        { value: "png", label: "PNG (sharp, larger)" },
+        { value: "jpg", label: "JPG (smaller)" },
+      ],
+    },
+    {
+      id: "dpi",
+      type: "number",
+      label: "Resolution",
+      default: dpi,
+      min: 36,
+      max: 300,
+      step: 6,
+      unit: "DPI",
+    },
+    {
+      id: "quality",
+      type: "number",
+      label: "JPG quality",
+      default: 85,
+      min: 10,
+      max: 100,
+      step: 5,
+      unit: "%",
+      showWhen: { option: "format", equals: ["jpg"] },
+    },
+    pageSelection({
+      label: noun === "slide" ? "Slides" : "Pages",
+      help: `Leave blank for every ${noun}. Accepts 1-3, 5, 9- and the words odd, even, first, last.`,
+    }),
+    packaging,
+  ];
+}
+
+const compressLevel: SelectOption = {
+  id: "level",
+  type: "select",
+  label: "Compression",
+  default: "balanced",
+  choices: [
+    { value: "light", label: "Light (lossless, pictures untouched)" },
+    { value: "balanced", label: "Balanced (pictures up to 1920 px)" },
+    { value: "strong", label: "Strong (pictures up to 1280 px, smaller files)" },
+  ],
+};
+
+const translatorLanguages = [
+  { value: "en", label: "English" },
+  { value: "es", label: "Spanish" },
+  { value: "fr", label: "French" },
+  { value: "de", label: "German" },
+  { value: "it", label: "Italian" },
+  { value: "pt", label: "Portuguese" },
+];
+
 /** Tool id → its options. A tool with no entry simply has none. */
 export const TOOL_OPTIONS: Record<string, ToolOption[]> = {
   "pdf-to-images": [
@@ -685,6 +761,266 @@ export const TOOL_OPTIONS: Record<string, ToolOption[]> = {
       ],
     },
     pageSelection(),
+  ],
+
+  // ---- 07-word-ppt-tools.md -------------------------------------------------------------------
+  "word-to-pdf": [officeEngine, packaging],
+  "document-to-pdf": [officeEngine, packaging],
+  "powerpoint-to-pdf": [officeEngine, packaging],
+  "document-to-images": imageExport("page", 150),
+  "powerpoint-to-images": imageExport("slide", 96),
+  "word-to-html": [
+    {
+      id: "images",
+      type: "select",
+      label: "Pictures",
+      default: "embed",
+      choices: [
+        { value: "embed", label: "Embed in the page" },
+        { value: "omit", label: "Leave out" },
+      ],
+    },
+  ],
+  "word-to-excel": [
+    {
+      id: "content",
+      type: "select",
+      label: "Move into Excel",
+      default: "tables",
+      choices: [
+        { value: "tables", label: "Tables only (one sheet each)" },
+        { value: "all", label: "Tables and all text" },
+      ],
+      help: "A document without tables always gets its paragraphs as rows.",
+    },
+  ],
+  "split-documents": [
+    {
+      id: "mode",
+      type: "select",
+      label: "Split at",
+      default: "auto",
+      choices: [
+        { value: "auto", label: "Headings, or page breaks if there are none" },
+        { value: "headings", label: "Headings" },
+        { value: "breaks", label: "Page and section breaks" },
+      ],
+    },
+    {
+      id: "level",
+      type: "select",
+      label: "Heading level",
+      default: "1",
+      choices: [
+        { value: "1", label: "Heading 1" },
+        { value: "2", label: "Heading 1–2" },
+        { value: "3", label: "Heading 1–3" },
+      ],
+      showWhen: { option: "mode", equals: ["auto", "headings"] },
+    },
+    packaging,
+  ],
+  "compress-documents": [compressLevel, packaging],
+  "compress-presentation": [compressLevel, packaging],
+  "ocr-to-word": [
+    {
+      id: "includeImage",
+      type: "boolean",
+      label: "Put the original page image above the text",
+      default: false,
+    },
+    {
+      id: "keepLines",
+      type: "boolean",
+      label: "Keep the original line breaks",
+      default: false,
+      help: "Off joins wrapped lines back into paragraphs.",
+    },
+    pageSelection({ help: "PDFs only. Leave blank for every page." }),
+  ],
+  "document-translator": [
+    {
+      id: "from",
+      type: "select",
+      label: "From",
+      default: "en",
+      choices: translatorLanguages,
+    },
+    {
+      id: "to",
+      type: "select",
+      label: "To",
+      default: "es",
+      choices: translatorLanguages,
+      help: "Offline word-by-word translation with a built-in dictionary: rough, literal results. Better quality arrives with the AI Assistant.",
+    },
+  ],
+  "grammar-checker": [
+    { id: "spelling", type: "boolean", label: "Check spelling", default: true },
+    {
+      id: "style",
+      type: "boolean",
+      label: "Style suggestions",
+      default: true,
+      help: "Passive voice, wordy phrases, weasel words and clichés.",
+    },
+    {
+      id: "output",
+      type: "select",
+      label: "Results",
+      default: "both",
+      choices: [
+        { value: "both", label: "Report and corrected copy" },
+        { value: "report", label: "Report only" },
+        { value: "corrected", label: "Corrected copy only" },
+      ],
+      help: "The corrected copy applies only the safe fixes; spelling guesses stay in the report.",
+    },
+  ],
+  "text-formatter": [
+    {
+      id: "case",
+      type: "select",
+      label: "Letter case",
+      default: "none",
+      choices: [
+        { value: "none", label: "Keep as is" },
+        { value: "sentence", label: "Sentence case" },
+        { value: "title", label: "Title Case" },
+        { value: "capitalize", label: "Capitalize Each Word" },
+        { value: "lower", label: "lower case" },
+        { value: "upper", label: "UPPER CASE" },
+      ],
+    },
+    {
+      id: "blankLines",
+      type: "select",
+      label: "Blank lines",
+      default: "single",
+      choices: [
+        { value: "single", label: "At most one in a row" },
+        { value: "keep", label: "Keep" },
+        { value: "remove", label: "Remove all" },
+      ],
+    },
+    { id: "trimLines", type: "boolean", label: "Trim spaces at line ends", default: true },
+    { id: "collapseSpaces", type: "boolean", label: "Collapse repeated spaces", default: true },
+    {
+      id: "unwrap",
+      type: "boolean",
+      label: "Join wrapped lines into paragraphs",
+      default: false,
+      help: "Useful for text copied from a PDF or an email.",
+    },
+    { id: "tabsToSpaces", type: "boolean", label: "Turn tabs into spaces", default: false },
+    { id: "straightQuotes", type: "boolean", label: "Use straight quotes", default: false },
+    {
+      id: "lineEndings",
+      type: "select",
+      label: "Line endings",
+      default: "lf",
+      choices: [
+        { value: "lf", label: "LF (macOS, Linux, web)" },
+        { value: "crlf", label: "CRLF (Windows)" },
+      ],
+    },
+  ],
+  "document-summarizer": [
+    {
+      id: "length",
+      type: "select",
+      label: "Summary length",
+      default: "medium",
+      choices: [
+        { value: "short", label: "Short (2–4 sentences)" },
+        { value: "medium", label: "Medium (3–7 sentences)" },
+        { value: "long", label: "Long (5–12 sentences)" },
+      ],
+    },
+  ],
+  "document-metadata": [
+    {
+      id: "mode",
+      type: "select",
+      label: "Action",
+      default: "view",
+      choices: [
+        { value: "view", label: "View metadata" },
+        { value: "remove", label: "Remove metadata" },
+      ],
+    },
+    {
+      id: "authors",
+      type: "boolean",
+      label: "Also anonymise names on comments and tracked changes",
+      default: true,
+      showWhen: { option: "mode", equals: ["remove"] },
+    },
+  ],
+  "powerpoint-to-text": [
+    { id: "notes", type: "boolean", label: "Include speaker notes", default: true },
+  ],
+  "split-presentation": [
+    {
+      id: "mode",
+      type: "select",
+      label: "Split",
+      default: "every",
+      choices: [
+        { value: "every", label: "Every N slides" },
+        { value: "ranges", label: "Into ranges" },
+      ],
+    },
+    {
+      id: "size",
+      type: "number",
+      label: "Slides per file",
+      default: 1,
+      min: 1,
+      max: 500,
+      unit: "slides",
+      showWhen: { option: "mode", equals: ["every"] },
+    },
+    {
+      id: "ranges",
+      type: "text",
+      label: "Ranges",
+      default: "",
+      placeholder: "1-3, 4-6, 7-",
+      help: "Each comma-separated range becomes one presentation.",
+      showWhen: { option: "mode", equals: ["ranges"] },
+    },
+    packaging,
+  ],
+  "extract-slides": [
+    {
+      id: "slides",
+      type: "text",
+      label: "Slides to extract",
+      default: "",
+      placeholder: "2-4, 7",
+      help: "Accepts 1-3, 5, 9- and the words odd, even, first, last.",
+    },
+  ],
+  "rearrange-slides": [
+    {
+      id: "order",
+      type: "text",
+      label: "New order",
+      default: "",
+      placeholder: "3, 1, 2",
+      help: "List slides in the order you want; any you leave out keep their order at the end. Type reverse to flip the deck.",
+    },
+  ],
+  "remove-slides": [
+    {
+      id: "slides",
+      type: "text",
+      label: "Slides to remove",
+      default: "",
+      placeholder: "2, 5-6",
+      help: "Accepts 1-3, 5, 9- and the words odd, even, first, last.",
+    },
   ],
 };
 

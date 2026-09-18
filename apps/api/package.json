@@ -20,15 +20,18 @@
     "@signpdf/signer-p12": "^3.3.0",
     "@signpdf/signpdf": "^3.3.0",
     "@tesseract.js-data/eng": "^1.0.0",
+    "dictionary-en": "^4.0.0",
     "docx": "^9.7.1",
     "exceljs": "^4.4.0",
     "fontkit": "^2.0.4",
     "jszip": "^3.10.2",
     "mammoth": "^1.12.3",
     "node-forge": "^1.4.0",
+    "nspell": "^2.1.5",
     "pdfjs-dist": "^6.3.289",
     "pptxgenjs": "^4.0.1",
-    "tesseract.js": "^7.0.0"
+    "tesseract.js": "^7.0.0",
+    "write-good": "^1.0.8"
   },
   "devDependencies": {
     "@types/fontkit": "^2.0.9",

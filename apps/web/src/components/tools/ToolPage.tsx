@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  acceptsTypedText,
   defaultOptionValues,
   fileInputTypes,
   getToolOptions,
@@ -113,6 +114,7 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
 
   const selectFiles = (picked: File[]) => {
     setFiles(picked);
+    setText("");
     if (picked.length === 0) dispatch({ type: "CLEAR" });
     else dispatch({ type: "SELECT", input: { kind: "files", files: toFileRefs(picked) } });
   };
@@ -125,6 +127,8 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
 
   const onTextChange = (value: string) => {
     setText(value);
+    // Tools that take a file *or* text use whichever the user touched last.
+    if (files.length > 0) setFiles([]);
     if (value.length === 0) dispatch({ type: "CLEAR" });
     else dispatch({ type: "SELECT", input: { kind: "text", value } });
   };
@@ -242,6 +246,22 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
             onSelect={selectFiles}
             onReject={rejectFiles}
           />
+        )}
+        {kind === "file" && acceptsTypedText(tool) && (
+          <>
+            <label htmlFor={`${inputId}-text`} className="text-sm text-fg-muted">
+              …or paste text instead
+            </label>
+            <textarea
+              id={`${inputId}-text`}
+              value={text}
+              disabled={busy}
+              onChange={(e) => onTextChange(e.target.value)}
+              rows={6}
+              placeholder="Paste or type here"
+              className="w-full rounded-lg border border-border bg-surface p-3 font-mono text-sm text-fg focus-visible:outline-2 focus-visible:outline-ring"
+            />
+          </>
         )}
         {kind === "text" && (
           <>

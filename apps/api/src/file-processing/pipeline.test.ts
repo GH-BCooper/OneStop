@@ -140,6 +140,15 @@ describe("runPipeline — validation", () => {
     expect(batch.error?.message).toMatch(/one file at a time/i);
   });
 
+  it("lets a file-or-text tool take typed text instead of a file, but not a file-only tool (07)", async () => {
+    const typed = await runPipeline({ toolId: "grammar-checker", text: "i could of gone" }, deps());
+    expect(typed.error?.message ?? "").not.toMatch(/choose a file/i);
+    const empty = await runPipeline({ toolId: "grammar-checker", text: "   " }, deps());
+    expect(empty.error?.message).toBe("Choose a file or enter some text first.");
+    const fileOnly = await runPipeline({ toolId: "word-to-pdf", text: "hello" }, deps());
+    expect(fileOnly.error?.message).toMatch(/choose a file first/i);
+  });
+
   it("never stores a password or drawn signature on the job record (06)", async () => {
     const outcome = await runPipeline(
       {

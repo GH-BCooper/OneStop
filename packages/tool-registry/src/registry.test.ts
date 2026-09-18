@@ -145,10 +145,35 @@ describe("registry contents", () => {
         "remove-pdf-metadata",
         "remove-pdf-password",
         "sign-pdf",
+        // 07-word-ppt-tools.md
+        "compress-documents",
+        "compress-presentation",
+        "document-metadata",
+        "document-summarizer",
+        "document-to-images",
+        "document-to-pdf",
+        "document-translator",
+        "extract-slides",
+        "grammar-checker",
+        "merge-documents",
+        "merge-presentations",
+        "ocr-to-word",
+        "powerpoint-to-images",
+        "powerpoint-to-pdf",
+        "powerpoint-to-text",
+        "rearrange-slides",
+        "remove-slides",
+        "split-documents",
+        "split-presentation",
+        "text-formatter",
+        "word-to-excel",
+        "word-to-html",
+        "word-to-pdf",
+        "word-to-text",
       ].sort(),
     );
     for (const tool of tools.filter((t) => t.status === "available")) {
-      expect(["05", "06"], `${tool.id} is available but not from a built phase`).toContain(
+      expect(["05", "06", "07"], `${tool.id} is available but not from a built phase`).toContain(
         tool.phase,
       );
     }

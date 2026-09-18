@@ -5,3 +5,5 @@ export * from "./file-processing/index.ts";
 export * from "./pdf/index.ts";
 // The shared Office ⇄ PDF interface (06-pdf-tools-advanced.md), reused by phases 07 and 08.
 export * from "./shared/office-convert.ts";
+// Importing the documents module registers the phase-07 Word & PowerPoint executors.
+export * from "./documents/index.ts";

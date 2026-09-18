@@ -27,6 +27,10 @@ const nextConfig: NextConfig = {
     "@signpdf/signpdf",
     "@signpdf/signer-p12",
     "@signpdf/utils",
+    // 07-word-ppt-tools.md: loaded with createRequire at run time (grammar checker).
+    "nspell",
+    "write-good",
+    "dictionary-en",
   ],
 };
 

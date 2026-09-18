@@ -42,6 +42,14 @@ export function inputKind(tool: Pick<ToolMeta, "inputTypes">): InputKind {
   return tool.inputTypes.includes("url") ? "url" : "text";
 }
 
+/**
+ * True for tools that take a file *or* typed text (07-word-ppt-tools.md: Grammar Checker, Text
+ * Formatter). `inputKind` still says "file" for them; the page adds a text box beside the upload.
+ */
+export function acceptsTypedText(tool: Pick<ToolMeta, "inputTypes">): boolean {
+  return inputKind(tool) === "file" && tool.inputTypes.includes("text");
+}
+
 /** Value for an <input type="file" accept>; undefined means any file. */
 export function acceptAttribute(tool: Pick<ToolMeta, "inputTypes">): string | undefined {
   const types = fileInputTypes(tool);
