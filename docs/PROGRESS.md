@@ -15,7 +15,7 @@
 | 05  | 05-pdf-tools-core.md             | Complete    | 2026-09-18   | All 11 core PDF tools real and registered; per-tool Options mechanism added to the registry + tool page; 306 unit + 83 real-browser checks pass.                                |
 | 06  | 06-pdf-tools-advanced.md         | Complete    | 2026-09-18   | All 15 advanced PDF tools real, registered and offline-verified; shared `office-convert` (LibreOffice optional); 339 unit + 84 real-browser checks pass.                        |
 | 07  | 07-word-ppt-tools.md             | Complete    | 2026-09-18   | All 24 Word/PowerPoint tools real, registered and offline-verified; OOXML merge/split/slide surgery; local grammar/summary/translation. 388 unit + 84 real-browser checks pass. |
-| 08  | 08-excel-csv-data-tools.md       | Not started |              |                                                                                                                                                                                 |
+| 08  | 08-excel-csv-data-tools.md       | Complete    | 2026-09-18   | All 30 Excel/CSV/data tools real, registered and offline-verified; typed round trips, located validator errors, 50k-row smoke test. 435 unit + 84 real-browser checks pass.     |
 | 09  | 09-image-tools.md                | Not started |              |                                                                                                                                                                                 |
 | 10  | 10-audio-video-tools.md          | Not started |              |                                                                                                                                                                                 |
 | 11  | 11-qr-tools.md                   | Not started |              |                                                                                                                                                                                 |
@@ -87,6 +87,13 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 - **07 — New built-in converters:** `.rtf` (own RTF reader: groups, hex and Unicode escapes, skipped destinations) and `.odt` (`content.xml` headings/paragraphs) were added to `officeToPdf`'s built-in list, so Document → PDF works fully offline for docx/odt/rtf/txt. Only binary `.doc`/`.ppt` still need LibreOffice; without it they fail with the same actionable message as phase 06.
 - **07 — Compression:** pictures are decoded with `@napi-rs/canvas`, downscaled (Balanced 1920 px, Strong 1280 px) and re-encoded — opaque PNG/BMP/TIFF become JPEG (renamed; relationships and content types updated), transparent PNGs stay PNG. A picture is replaced only if it shrinks by more than 5%, unreachable parts are dropped, the package is re-zipped at level 9, and the original is returned if nothing got smaller. Light is lossless.
 - **07 — File-or-text tools.** Grammar Checker and Text Formatter accept a file _or_ pasted text. `acceptsTypedText(tool)` (registry `io.ts`) marks them; the generic tool page shows an "…or paste text instead" box under the upload zone, and the pipeline's shape check accepts `text` for them (saying "Choose a file or enter some text first." when both are empty).
+- **08 — One table model for every data tool.** `apps/api/src/data/common.ts` defines `Table` (headers, typed rows, and provenance: each row's source row number and each column's source column). Every reader (CSV, Excel sheet, JSON records, XML records) produces one and every writer consumes one, so there are 30 tools but only 5 readers and 5 writers. Provenance is what lets messages say "Row 12, column C (\"Email\")" and lets Excel results keep the formatting of the rows that survive a clean.
+- **08 — Typing rules (shared by CSV and XML):** a value becomes a number only if it is unambiguous: no leading zeros, and integers within 2^53. So "007", "02139" and 20-digit ids stay text. `true`/`false` become booleans. ISO dates become real `Date`s _only_ when the target has a date type (Excel); in JSON/CSV/XML they stay ISO text. Excel dates come out as `2024-01-15` (UTC midnight) or `2024-01-15T10:30:00Z`. Formulas come out as their saved result; a formula with no cached result is reported, not silently blanked.
+- **08 — Libraries:** `papaparse` (CSV, parsed row by row with `step`), `fast-xml-parser` 5 (validation + parsing), `js-yaml` 5 (safe core schema), `ajv` 8 + `ajv-formats` (JSON Schema drafts 07/2019-09/2020-12), and `exceljs`/`docx` reused from phase 06. All MIT, pure JS, offline. SheetJS was not used: the npm build is stale and `exceljs` was already a dependency.
+- **08 — JSON errors come from OneStop's own locating scanner** (`scanJson`). Values are parsed with native `JSON.parse`; only on failure (or for schema line mapping / duplicate-key detection) does a small strict reader walk the text, giving messages like "Line 3, column 1: Trailing comma before '}' — remove the comma after the last property." It recognises trailing commas, single quotes, unquoted keys, missing commas, unclosed brackets, comments, NaN/undefined/True, bad escapes and raw line breaks in strings.
+- **08 — XML safety:** any `<!ENTITY` declaration is refused before parsing (entity-expansion bombs), and a single-root check was added because `fast-xml-parser`'s validator accepts `<a/><b/>`. The XML formatter tokenises instead of round-tripping a parse tree, so comments, CDATA, PIs and entity references come through byte-for-byte.
+- **08 — CSV output guards against formula injection by default** ("Protect against formula injection", on): text starting with `=` or `@`, or `+`/`-` followed by a letter or `(`, gets a leading `'`. Numbers and phone numbers like `+44 20…` are untouched. CSV → CSV tools (merger/splitter) never escape, since they must write back exactly what they read.
+- **08 — Validators succeed with a report.** "This file has problems" is the tool working, so JSON/XML/Data Validator return `ok` with the findings in the summary and a JSON report. Only unreadable input is a failed job. Conversions still fail with the located message.
 
 ---
 
@@ -142,6 +149,11 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 - **07 — Document Metadata** "remove" also anonymises the names on comments and tracked changes (option, on by default), removes the preview thumbnail, `custom.xml`, the template path and revision-session ids, and re-reads the cleaned file before returning it — if anything descriptive survived, the tool fails instead of claiming success.
 - **07 — Tests that used `ocr-to-word` as the "not built yet" example** now use `ai-pdf-summarizer` (phase 16).
 
+- **08 — Paths:** the build file says `apps/api/data/{excel,csv,json,xml,yaml,clean,validate,transform}.ts`; following earlier phases they live in `apps/api/src/data/`, with those eight plus `common.ts` (table model, typing, errors), `columns.ts` (column references by name/letter/number), `tabular.ts` (CSV-or-Excel in, same kind out), `convert.ts` (all conversion + formatter executors), `spreadsheet.ts` (mergers/splitters), `index.ts` and `data.test.ts`. Registry options for the 30 tools are in `packages/tool-registry/src/options-data.ts`, spread into `TOOL_OPTIONS`.
+- **08 — Registry:** `defineCategory` defaults gained an optional `status`, so both phase-08 categories are marked `available` once instead of on 30 lines. No input/output types changed.
+- **08 — Tool behaviours worth knowing:** cleaners return the same kind of file they were given (CSV → CSV, Excel → Excel) and copy Excel cell styles for surviving rows. Duplicate Row Remover compares chosen columns (or all), can ignore case/extra spaces, keeps first or last, and names the removed rows. Empty Row/Column Remover removes a column only if its header was blank too, unless "also remove named empty columns" is set. Excel Merger either keeps every sheet (a whole-sheet copy: formulas, styles, merges) or stacks rows with columns matched by name. Splitters split by sheet, row count, number of parts or column value, and a ZIP is returned for multiple results. Column/Row Transformer does rename / choose & reorder / delete / split / merge / sort / transpose. Spreadsheet Formatter styles an Excel sheet in place (formulas survive) or builds one from CSV. Data Validator takes plain-language rules (`Email: required, email`, `Age: integer, min=0`, `Status: in=a|b`, `ID: unique`, `pattern=`) plus automatic checks (ragged CSV rows, stray text in numeric columns).
+- **08 — The performance test measures CPU time, not wall-clock.** 50,000 rows through dedupe + CSV→JSON + CSV→Excel take ~3 s alone. Under `npm test` the other test files run in parallel and wall-clock reached 19 s, so the 10 s budget is asserted on `process.cpuUsage()`, with a 45 s wall-clock backstop. `tests/lint.test.ts` ("passes on the real scaffold") got a 120 s timeout because type-aware linting of the whole repo now exceeds the global 30 s.
+
 ---
 
 ## Known Issues / Tech Debt
@@ -177,6 +189,12 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 - **07:** Merge Documents drops comment anchors from appended documents (the comment text lives in their comments part). Merge Presentations drops the speaker notes of appended decks only when the first deck has no notes master.
 - **07:** the offline translator is deliberately basic (word-by-word glossary); real quality needs phase 16. The grammar checker is English-only. OCR → Word is English-only and inherits phase 06's ~2 s/page speed (same long-job question).
 
+- **08:** `.xls`/`.ods` need LibreOffice (converted to .xlsx first); without it they fail with the usual "install LibreOffice or save as .xlsx" message. Only the "missing" path is tested (LibreOffice isn't on the dev machine).
+- **08:** the whole upload is in memory (phase 04's route buffers it anyway). CSV parsing is row by row, but the parsed table is held in full. That's fine at the 100 MB limit (50k rows ≈ 3 s), but a true streaming pipeline would need a streaming upload route first.
+- **08:** XML Validator checks well-formedness only. No free, pure-JS XSD/DTD validator is worth depending on, and the report says so. The Data Validator's `date` rule accepts ISO, `dd/mm/yyyy`-style and month-name dates without checking which of day/month comes first.
+- **08:** Excel → Word stops at 5,000 rows per sheet (the summary says how many were left out), to keep the document openable. Excel → PDF reuses phase 06's built-in sheet layout when LibreOffice is absent.
+- **08:** rows-to-sheets transforms that move cells (transpose) drop the source formatting; sort keeps it per row.
+
 ---
 
 ## Open Questions
@@ -189,12 +207,12 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 
 ## Next Up
 
-Phase 08 — Excel, CSV & data tools (`docs/build/08-excel-csv-data-tools.md`).
+Phase 09 — Image tools (`docs/build/09-image-tools.md`).
 
-What phase 07 leaves it:
+What phase 08 leaves it:
 
-1. `officeToPdf(bytes, "xlsx" | "xls" | "ods" | "csv")` already exists (phase 06; built-in path for xlsx). Excel → PDF should be a thin executor like `toPdfExecutor` in `apps/api/src/documents/convert.ts`.
-2. `apps/api/src/documents/ooxml.ts` works for any OOXML package, so `.xlsx` package edits (metadata, `compressOoxml`, copying parts between workbooks) can reuse it; `documents/common.ts` has `readDocInputs`, `ensureOoxml` (legacy → OOXML via LibreOffice), `parseSelection`/`parseOrder` and `runDocTool`.
-3. The "not built yet" test examples now use `ai-pdf-summarizer` (phase 16), so phase 08 does not need to touch them.
+1. The data module pattern (`apps/api/src/data/`) is the cleanest template so far: engines are pure functions (`parseCsv`, `cleanTable`, `transformTable`, `validateJson`…) exported from `index.ts` for phases 15/16, and executors are thin wrappers using `runDataTool`.
+2. `packages/tool-registry/src/options-data.ts` shows how to keep a phase's options in their own file; `defineCategory(..., { status: "available" })` marks a whole category as built.
+3. Phase 09 will likely need `sharp` (prebuilt binaries, free). Phase 05's Known Issues note that Compress PDF could reuse it for per-image downsampling.
 
 Verify any phase with `npm run lint && npm run typecheck && npm test && npm run build && npm run test:e2e`, then run the new tools once against a real `next start`.

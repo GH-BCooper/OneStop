@@ -19,5 +19,6 @@ describe("lint wiring", () => {
     const results = await eslint.lintFiles(["apps", "packages"]);
     const errors = results.reduce((n, r) => n + r.errorCount + r.warningCount, 0);
     expect(errors).toBe(0);
-  });
+    // Linting every workspace with type-aware rules grows with the codebase; 30 s is no longer enough.
+  }, 120_000);
 });

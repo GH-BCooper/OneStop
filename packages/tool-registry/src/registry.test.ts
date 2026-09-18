@@ -170,12 +170,44 @@ describe("registry contents", () => {
         "word-to-html",
         "word-to-pdf",
         "word-to-text",
+        // 08-excel-csv-data-tools.md
+        "excel-to-pdf",
+        "excel-to-word",
+        "excel-to-csv",
+        "excel-to-json",
+        "excel-to-xml",
+        "csv-to-excel",
+        "csv-to-json",
+        "csv-to-xml",
+        "json-to-excel",
+        "json-to-xml",
+        "json-to-csv",
+        "json-to-yaml",
+        "xml-to-excel",
+        "xml-to-json",
+        "xml-to-csv",
+        "yaml-to-json",
+        "excel-merger",
+        "excel-splitter",
+        "csv-merger",
+        "csv-splitter",
+        "spreadsheet-cleaner",
+        "duplicate-row-remover",
+        "empty-row-column-remover",
+        "column-row-transformer",
+        "spreadsheet-formatter",
+        "data-validator",
+        "json-formatter",
+        "json-validator",
+        "xml-formatter",
+        "xml-validator",
       ].sort(),
     );
     for (const tool of tools.filter((t) => t.status === "available")) {
-      expect(["05", "06", "07"], `${tool.id} is available but not from a built phase`).toContain(
-        tool.phase,
-      );
+      expect(
+        ["05", "06", "07", "08"],
+        `${tool.id} is available but not from a built phase`,
+      ).toContain(tool.phase);
     }
   });
 

@@ -25,6 +25,8 @@ export interface CategoryDefaults {
   phase: ToolPhase;
   sub: string;
   net?: NetworkNeed;
+  /** Set once the phase that owns these tools has built them all. */
+  status?: ToolStatus;
 }
 
 /** "PDF → Word" → "pdf-to-word", "Wi-Fi → QR" → "wi-fi-to-qr". */
@@ -63,7 +65,7 @@ export function defineCategory(
       keywords: s.kw ?? [],
       description: s.desc,
       phase: s.phase ?? defaults.phase,
-      status: s.status ?? "stub",
+      status: s.status ?? defaults.status ?? "stub",
       popularity: s.pop ?? 10,
       sources: s.src,
     };

@@ -8,6 +8,8 @@
 // Keep this declarative: no React, no `node:` imports. `showWhen` is the only bit of logic, and
 // it is a plain equality test so a form can evaluate it without running arbitrary code.
 
+import { DATA_TOOL_OPTIONS } from "./options-data";
+
 export interface ToolOptionBase {
   id: string;
   label: string;
@@ -178,6 +180,7 @@ const translatorLanguages = [
 
 /** Tool id → its options. A tool with no entry simply has none. */
 export const TOOL_OPTIONS: Record<string, ToolOption[]> = {
+  ...DATA_TOOL_OPTIONS,
   "pdf-to-images": [
     {
       id: "format",

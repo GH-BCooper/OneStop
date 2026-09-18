@@ -2,7 +2,7 @@ import { defineCategory } from "../define";
 
 // Features §3 (Excel / Spreadsheet) and §4 (Data Conversion). The conversions listed in both
 // sections, and the JSON/XML formatters/validators also listed in §12, have one entry each.
-const spreadsheet = defineCategory("data", { phase: "08", sub: "Excel / Spreadsheet" }, [
+const spreadsheet = defineCategory("data", { phase: "08", sub: "Excel / Spreadsheet", status: "available" }, [
   { src: ["3.1"], name: "Excel → PDF", in: ["xls", "xlsx"], out: ["pdf"], batch: true, pop: 60, kw: ["xlsx", "spreadsheet", "convert"], desc: "Convert an Excel workbook to PDF." },
   { src: ["3.2"], name: "Excel → Word", in: ["xls", "xlsx"], out: ["docx"], kw: ["xlsx", "spreadsheet", "table", "convert"], desc: "Put spreadsheet tables into a Word document." },
   { src: ["3.11"], name: "Excel Merger", in: ["xls", "xlsx"], out: ["xlsx"], batch: true, kw: ["combine", "join", "workbooks", "sheets"], desc: "Combine several workbooks or sheets into one." },
@@ -17,7 +17,7 @@ const spreadsheet = defineCategory("data", { phase: "08", sub: "Excel / Spreadsh
   { src: ["3.20"], name: "Data Validator", in: ["xls", "xlsx", "csv"], out: ["json"], kw: ["validate", "check", "rules", "errors"], desc: "Check rows against rules and list invalid values." },
 ]);
 
-const conversion = defineCategory("data", { phase: "08", sub: "Data Conversion" }, [
+const conversion = defineCategory("data", { phase: "08", sub: "Data Conversion", status: "available" }, [
   { src: ["3.3", "4.11"], name: "Excel → CSV", in: ["xls", "xlsx"], out: ["csv"], pop: 55, kw: ["xlsx", "spreadsheet", "convert", "export"], desc: "Export an Excel sheet as CSV." },
   { src: ["3.4", "4.10"], name: "Excel → JSON", in: ["xls", "xlsx"], out: ["json"], kw: ["xlsx", "spreadsheet", "convert"], desc: "Convert spreadsheet rows into JSON objects." },
   { src: ["3.5", "4.12"], name: "Excel → XML", in: ["xls", "xlsx"], out: ["xml"], kw: ["xlsx", "spreadsheet", "convert"], desc: "Convert spreadsheet rows into XML." },

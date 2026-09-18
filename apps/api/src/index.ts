@@ -7,3 +7,5 @@ export * from "./pdf/index.ts";
 export * from "./shared/office-convert.ts";
 // Importing the documents module registers the phase-07 Word & PowerPoint executors.
 export * from "./documents/index.ts";
+// Importing the data module registers the phase-08 Excel, CSV & data-conversion executors.
+export * from "./data/index.ts";
