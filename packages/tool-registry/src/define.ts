@@ -1,6 +1,13 @@
 // Compact authoring helper for registry entries. Fills the defaults every entry shares so each
 // entries/*.ts file stays a readable list; the loader still validates the expanded result.
-import type { NetworkNeed, ToolCategory, ToolMeta, ToolPhase, ToolStatus } from "./schema";
+import type {
+  LocalModelNeed,
+  NetworkNeed,
+  ToolCategory,
+  ToolMeta,
+  ToolPhase,
+  ToolStatus,
+} from "./schema";
 
 export interface ToolSpec {
   name: string;
@@ -19,6 +26,8 @@ export interface ToolSpec {
   sub?: string;
   pop?: number;
   status?: ToolStatus;
+  /** Can use a local AI model (see `ToolMeta.localModel`). */
+  model?: LocalModelNeed;
 }
 
 export interface CategoryDefaults {
@@ -68,6 +77,7 @@ export function defineCategory(
       status: s.status ?? defaults.status ?? "stub",
       popularity: s.pop ?? 10,
       sources: s.src,
+      ...(s.model ? { localModel: s.model } : {}),
     };
   });
 }

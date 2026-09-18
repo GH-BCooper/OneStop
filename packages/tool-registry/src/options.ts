@@ -9,6 +9,7 @@
 // it is a plain equality test so a form can evaluate it without running arbitrary code.
 
 import { DATA_TOOL_OPTIONS } from "./options-data";
+import { IMAGE_TOOL_OPTIONS } from "./options-images";
 
 export interface ToolOptionBase {
   id: string;
@@ -181,6 +182,7 @@ const translatorLanguages = [
 /** Tool id → its options. A tool with no entry simply has none. */
 export const TOOL_OPTIONS: Record<string, ToolOption[]> = {
   ...DATA_TOOL_OPTIONS,
+  ...IMAGE_TOOL_OPTIONS,
   "pdf-to-images": [
     {
       id: "format",

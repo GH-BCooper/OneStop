@@ -9,3 +9,5 @@ export * from "./shared/office-convert.ts";
 export * from "./documents/index.ts";
 // Importing the data module registers the phase-08 Excel, CSV & data-conversion executors.
 export * from "./data/index.ts";
+// Importing the images module registers the phase-09 image executors.
+export * from "./images/index.ts";

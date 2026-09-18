@@ -26,6 +26,13 @@ export type ToolPhase = "05" | "06" | "07" | "08" | "09" | "10" | "11" | "12" | 
  */
 export type NetworkNeed = "none" | "optional" | "required";
 
+/**
+ * Whether a tool can use a local AI model (09-image-tools.md). "optional": it has a built-in
+ * method and uses the model when one is configured; "required": it does nothing useful without
+ * one. Absent means the tool never uses a model. The model runtime itself is 16-ai-assistant.md.
+ */
+export type LocalModelNeed = "optional" | "required";
+
 /** `stub` = executor not built yet; `demo` = wired to the phase-03 echo executor. */
 export type ToolStatus = "stub" | "demo" | "available";
 
@@ -55,6 +62,7 @@ export interface ToolMeta {
   popularity: number;
   /** "section.item" references into docs/OneStop_Features.md, e.g. ["3.7", "4.4"]. */
   sources: string[];
+  localModel?: LocalModelNeed;
 }
 
 /**

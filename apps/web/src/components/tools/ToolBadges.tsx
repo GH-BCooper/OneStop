@@ -17,6 +17,12 @@ export function ToolBadges({ tool, showPhase = true }: { tool: ToolMeta; showPha
       {tool.requiresAuth && <Badge>Account required</Badge>}
       {tool.supportsBatch && <Badge>Batch</Badge>}
       {tool.category === "ai" && <Badge tone="primary">AI</Badge>}
+      {tool.localModel === "optional" && (
+        <Badge title="Works without AI; uses a local AI model when one is enabled in Settings">
+          AI optional
+        </Badge>
+      )}
+      {tool.localModel === "required" && <Badge tone="warning">Needs local AI model</Badge>}
       {showPhase &&
         (tool.status === "stub" ? (
           <Badge title={`Built in ${PHASE_FILES[tool.phase]}`}>Coming in phase {tool.phase}</Badge>

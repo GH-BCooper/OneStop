@@ -2,7 +2,9 @@ import { defineCategory } from "../define";
 
 // Features §6. PDF → Image (§6.2) is the pdf-to-images entry in pdf.ts. The five fit modes of
 // §6.25/§6.26 (fill, contain, stretch, repeat, blur background) are options, not separate tools.
-export const imageTools = defineCategory("images", { phase: "09", sub: "Images" }, [
+// `model: "optional"` marks the tools that use a local AI model when one is configured and fall
+// back to a built-in method otherwise (09-image-tools.md, apps/api/src/images/model.ts).
+export const imageTools = defineCategory("images", { phase: "09", sub: "Images", status: "available" }, [
   { src: ["6.1"], name: "Image → PDF", in: ["image"], out: ["pdf"], batch: true, pop: 92, kw: ["jpg", "png", "photo", "picture", "scan", "convert"], desc: "Combine one or more images into a PDF." },
   { src: ["6.3"], name: "Image Resizer", in: ["image"], out: ["image"], batch: true, pop: 80, kw: ["resize", "dimensions", "scale", "width", "height", "photo"], desc: "Resize images to exact dimensions or a percentage." },
   { src: ["6.4"], name: "Image Cropper", in: ["image"], out: ["image"], pop: 55, kw: ["crop", "trim", "cut", "aspect ratio", "photo"], desc: "Crop an image to a region or aspect ratio." },
@@ -12,13 +14,13 @@ export const imageTools = defineCategory("images", { phase: "09", sub: "Images" 
   { src: ["6.8"], name: "JPG ↔ WebP", slug: "jpg-webp-converter", in: ["jpg", "jpeg", "webp"], out: ["jpg", "webp"], batch: true, kw: ["jpeg", "convert"], desc: "Convert between JPG and WebP." },
   { src: ["6.9"], name: "PNG ↔ WebP", slug: "png-webp-converter", in: ["png", "webp"], out: ["png", "webp"], batch: true, kw: ["convert"], desc: "Convert between PNG and WebP." },
   { src: ["6.10"], name: "Image → GIF", in: ["image"], out: ["gif"], batch: true, kw: ["animation", "animated", "slideshow"], desc: "Turn one or more images into a GIF." },
-  { src: ["6.11"], name: "Background Blur", in: ["image"], out: ["image"], kw: ["portrait", "bokeh", "blur background", "photo"], desc: "Blur the background behind the subject of a photo." },
-  { src: ["6.12"], name: "Background Removal", in: ["image"], out: ["png"], batch: true, pop: 90, kw: ["remove background", "transparent", "cutout", "bg", "photo"], desc: "Remove the background from a photo, leaving a transparent PNG." },
-  { src: ["6.13"], name: "Object Removal", in: ["image"], out: ["image"], kw: ["erase", "inpaint", "remove object", "photo"], desc: "Erase unwanted objects from a photo." },
-  { src: ["6.14"], name: "Image Upscaler", in: ["image"], out: ["image"], pop: 45, kw: ["upscale", "enlarge", "super resolution", "higher resolution"], desc: "Enlarge an image while keeping it sharp." },
-  { src: ["6.15"], name: "Image Enhancer", in: ["image"], out: ["image"], kw: ["enhance", "improve", "auto fix", "photo"], desc: "Automatically improve exposure, contrast and clarity." },
-  { src: ["6.16"], name: "Image Sharpening", in: ["image"], out: ["image"], kw: ["sharpen", "blurry", "focus"], desc: "Sharpen a soft or slightly blurry image." },
-  { src: ["6.17"], name: "Image Denoiser", in: ["image"], out: ["image"], kw: ["denoise", "noise", "grain"], desc: "Reduce noise and grain in a photo." },
+  { src: ["6.11"], name: "Background Blur", model: "optional", in: ["image"], out: ["image"], kw: ["portrait", "bokeh", "blur background", "photo"], desc: "Blur the background behind the subject of a photo." },
+  { src: ["6.12"], name: "Background Removal", model: "optional", in: ["image"], out: ["png"], batch: true, pop: 90, kw: ["remove background", "transparent", "cutout", "bg", "photo"], desc: "Remove the background from a photo, leaving a transparent PNG." },
+  { src: ["6.13"], name: "Object Removal", model: "optional", in: ["image"], out: ["image"], kw: ["erase", "inpaint", "remove object", "photo"], desc: "Erase unwanted objects from a photo." },
+  { src: ["6.14"], name: "Image Upscaler", model: "optional", in: ["image"], out: ["image"], pop: 45, kw: ["upscale", "enlarge", "super resolution", "higher resolution"], desc: "Enlarge an image while keeping it sharp." },
+  { src: ["6.15"], name: "Image Enhancer", model: "optional", in: ["image"], out: ["image"], kw: ["enhance", "improve", "auto fix", "photo"], desc: "Automatically improve exposure, contrast and clarity." },
+  { src: ["6.16"], name: "Image Sharpening", model: "optional", in: ["image"], out: ["image"], kw: ["sharpen", "blurry", "focus"], desc: "Sharpen a soft or slightly blurry image." },
+  { src: ["6.17"], name: "Image Denoiser", model: "optional", in: ["image"], out: ["image"], kw: ["denoise", "noise", "grain"], desc: "Reduce noise and grain in a photo." },
   { src: ["6.18"], name: "Image Watermark", in: ["image"], out: ["image"], batch: true, kw: ["watermark", "logo", "stamp", "copyright"], desc: "Add a text or logo watermark to images." },
   { src: ["6.19"], name: "Add Text to Image", in: ["image"], out: ["image"], kw: ["caption", "overlay", "label", "write on photo"], desc: "Place text on top of an image." },
   { src: ["6.20"], name: "Image Metadata Viewer", in: ["image"], out: ["json"], kw: ["exif", "gps", "camera", "properties"], desc: "View EXIF and other metadata inside an image." },

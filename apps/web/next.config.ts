@@ -31,6 +31,11 @@ const nextConfig: NextConfig = {
     "nspell",
     "write-good",
     "dictionary-en",
+    // 09-image-tools.md: native libvips binding, and the HEIC decoder's WebAssembly bundle.
+    "sharp",
+    "heic-decode",
+    "libheif-js",
+    "exif-reader",
   ],
 };
 

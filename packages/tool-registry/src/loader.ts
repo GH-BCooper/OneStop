@@ -95,6 +95,35 @@ export const VERIFIED_OFFLINE: readonly string[] = [
   "xml-to-json",
   "xml-validator",
   "yaml-to-json",
+  // 09-image-tools.md — apps/api/src/images/images.test.ts "offline" suite (built-in methods; a
+  // local AI model, when configured, is a user choice on top).
+  "add-text-to-image",
+  "background-blur",
+  "background-removal",
+  "basic-image-editor",
+  "fit-image-to-circle",
+  "fit-image-to-square",
+  "flip-image",
+  "image-color-adjustment",
+  "image-compressor",
+  "image-cropper",
+  "image-denoiser",
+  "image-enhancer",
+  "image-format-converter",
+  "image-metadata-viewer",
+  "image-resizer",
+  "image-sharpening",
+  "image-to-gif",
+  "image-to-pdf",
+  "image-upscaler",
+  "image-watermark",
+  "jpg-png-converter",
+  "jpg-webp-converter",
+  "meme-generator",
+  "object-removal",
+  "png-webp-converter",
+  "remove-image-metadata",
+  "rotate-image",
 ];
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -159,6 +188,13 @@ export function validateEntry(entry: unknown): string[] {
     isStringArray(e.sources) && e.sources.length > 0 && e.sources.every((s) => SOURCE_RE.test(s)),
     'sources must be non-empty "section.item" references',
   );
+
+  if (e.localModel !== undefined) {
+    need(
+      e.localModel === "optional" || e.localModel === "required",
+      "localModel must be optional|required",
+    );
+  }
 
   if (e.offline === true && !VERIFIED_OFFLINE.includes(label)) {
     problems.push(`${label}: offline:true without a passing offline test (see VERIFIED_OFFLINE)`);

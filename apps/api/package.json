@@ -25,8 +25,10 @@
     "dictionary-en": "^4.0.0",
     "docx": "^9.7.1",
     "exceljs": "^4.4.0",
+    "exif-reader": "^2.0.3",
     "fast-xml-parser": "^5.11.1",
     "fontkit": "^2.0.4",
+    "heic-decode": "^2.1.0",
     "js-yaml": "^5.4.2",
     "jszip": "^3.10.2",
     "mammoth": "^1.12.3",
@@ -35,6 +37,7 @@
     "papaparse": "^5.7.0",
     "pdfjs-dist": "^6.3.289",
     "pptxgenjs": "^4.0.1",
+    "sharp": "^0.35.4",
     "tesseract.js": "^7.0.0",
     "write-good": "^1.0.8"
   },
