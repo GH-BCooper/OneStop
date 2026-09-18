@@ -12,8 +12,9 @@ import {
   type ToolTag,
 } from "@onestop/tool-registry";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { readRecentTools } from "@/lib/recent-tools";
+import { useMemo, useState } from "react";
+import { useFavorites } from "@/lib/use-favorites";
+import { useUsage } from "@/lib/use-usage";
 import { type ExplorerParams } from "@/lib/tool-search-params";
 import { ToolCard } from "./ToolCard";
 
@@ -49,9 +50,11 @@ function toQueryString(p: ExplorerParams): string {
 export function ToolsExplorer({ initial }: { initial: ExplorerParams }) {
   const router = useRouter();
   const [params, setParams] = useState(initial);
-  const [recentIds, setRecentIds] = useState<string[]>([]);
-
-  useEffect(() => setRecentIds(readRecentTools()), []);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  // "Popularity" and "recently used" are backed by real runs since 14-history-favorites.md;
+  // starred tools float to the top of whichever ordering is picked.
+  const { counts, recent: recentIds } = useUsage();
+  const { favorites, synced } = useFavorites();
 
   const update = (patch: Partial<ExplorerParams>) => {
     const next = { ...params, ...patch };
@@ -68,8 +71,11 @@ export function ToolsExplorer({ initial }: { initial: ExplorerParams }) {
         tags: params.tags,
         sort: params.sort || undefined,
         recentIds,
+        usageCounts: counts,
+        favoriteIds: favorites,
+        favoritesOnly,
       }),
-    [params, recentIds],
+    [params, recentIds, counts, favorites, favoritesOnly],
   );
   const subcategories = params.category ? subcategoriesOf(params.category) : [];
 
@@ -176,6 +182,19 @@ export function ToolsExplorer({ initial }: { initial: ExplorerParams }) {
               </button>
             );
           })}
+          <button
+            type="button"
+            aria-pressed={favoritesOnly}
+            onClick={() => setFavoritesOnly((on) => !on)}
+            title={synced ? "Starred on your account" : "Starred on this device"}
+            className={`rounded-full border px-3 py-1 text-sm ${
+              favoritesOnly
+                ? "border-primary bg-primary text-primary-fg"
+                : "border-border bg-surface"
+            }`}
+          >
+            <span aria-hidden="true">★</span> Favourites
+          </button>
         </fieldset>
       </div>
 

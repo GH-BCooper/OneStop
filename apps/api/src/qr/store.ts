@@ -117,7 +117,8 @@ function dataDir(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 export interface QrStore {
-  readonly file: string;
+  /** Only the interim JSON store has one; the Postgres store does not. */
+  readonly file?: string;
   list(ownerToken?: string | null): Promise<QrLink[]>;
   get(id: string): Promise<QrLink | undefined>;
   create(input: CreateQrLinkInput): Promise<QrLink>;
@@ -315,11 +316,28 @@ class JsonQrStore implements QrStore {
 }
 
 let store: QrStore | undefined;
+let factory: (() => QrStore | undefined) | undefined;
+
+/** The default location of the interim JSON file, also used by the phase-14 migration. */
+export function qrDataFile(env: NodeJS.ProcessEnv = process.env): string {
+  return path.join(dataDir(env), "qr-links.json");
+}
+
+/**
+ * Registers the store the process should use (14-history-favorites.md). `./register.ts` calls
+ * this with the Postgres-backed store. A factory that returns undefined - because there is no
+ * DATABASE_URL - falls back to the interim JSON file, so a machine with no Postgres keeps
+ * working (CLAUDE.md §2.2).
+ */
+export function registerQrStoreFactory(next: (() => QrStore | undefined) | undefined): void {
+  factory = next;
+  store = undefined;
+}
 
 /** The process-wide store. `file` is only passed by tests. */
 export function getQrStore(file?: string): QrStore {
   if (file) return new JsonQrStore(file);
-  if (!store) store = new JsonQrStore(path.join(dataDir(), "qr-links.json"));
+  if (!store) store = factory?.() ?? new JsonQrStore(qrDataFile());
   return store;
 }
 

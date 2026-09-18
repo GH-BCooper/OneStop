@@ -5,6 +5,8 @@
 import { registerExecutor } from "@onestop/tool-registry";
 
 import { qrAnalyticsExecutor } from "./analytics.ts";
+// Registering the Postgres-backed store (14-history-favorites.md); a no-op without a database.
+import "./register.ts";
 import { contentPageExecutor, dynamicQrExecutor, landingPageExecutor } from "./dynamic.ts";
 import {
   audioToQrExecutor,
@@ -57,6 +59,8 @@ export {
   appBaseUrl,
   getQrStore,
   isQrLinkId,
+  qrDataFile,
+  registerQrStoreFactory,
   setQrStore,
   shortUrlFor,
   validatePage,
@@ -68,6 +72,7 @@ export {
   type QrStore,
   type UpdateQrLinkInput,
 } from "./store.ts";
+export { createPrismaQrStore, migrateJsonQrLinks, type QrMigrationResult } from "./prisma-store.ts";
 export { hostedQrCode, resolveQrLink, type ResolvedQr } from "./dynamic.ts";
 export { qrAnalytics, scansByDay, statsFor, type QrStats } from "./analytics.ts";
 

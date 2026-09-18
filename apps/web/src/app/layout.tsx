@@ -1,7 +1,7 @@
 import { themeCss, themeInitScript } from "@onestop/ui";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { authIsConfigured } from "@/auth";
+import { authIsConfigured } from "@/lib/auth-config";
 import { SessionProvider } from "@/components/auth/SessionProvider";
 import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";

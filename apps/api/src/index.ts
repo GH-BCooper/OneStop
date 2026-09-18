@@ -6,6 +6,9 @@ export * from "./file-processing/index.ts";
 export * from "./db/index.ts";
 import "./db/register.ts";
 export * from "./auth/index.ts";
+// History, favourites and settings sync (14-history-favorites.md).
+export * from "./history/index.ts";
+export * from "./favorites/index.ts";
 // Importing the PDF module registers the phase-05 and phase-06 executors.
 export * from "./pdf/index.ts";
 // The shared Office ⇄ PDF interface (06-pdf-tools-advanced.md), reused by phases 07 and 08.

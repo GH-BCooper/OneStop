@@ -10,16 +10,10 @@ import {
   validatePasswordChange,
   validateSignup,
 } from "@/lib/validation";
-import { navigation } from "./setup";
+import { navigation, signInMock as signIn } from "./setup";
 
-const signIn = vi.fn();
-vi.mock("next-auth/react", () => ({
-  signIn: (...args: unknown[]) => signIn(...args),
-  signOut: vi.fn(),
-  useSession: () => ({ data: null, status: "unauthenticated" }),
-  SessionProvider: ({ children }: { children: React.ReactNode }) => children,
-}));
-
+// `next-auth/react` is mocked globally in the test setup (14-history-favorites.md); this suite
+// drives the signIn spy that mock exposes.
 const search = { params: new URLSearchParams() };
 vi.mock("next/navigation", async () => {
   const actual = await vi.importActual<Record<string, unknown>>("next/navigation");

@@ -13,6 +13,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { PrismaClient } from "./generated/client.ts";
 
+export type { PrismaClient };
+
 let loaded = false;
 
 /** Loads `.env` once so a local run sees the same settings as the dev server. */
@@ -113,6 +115,9 @@ export async function dropTestSchema(schema: string): Promise<void> {
 /** Empties every table this phase owns, so each test starts from a known state. */
 export async function resetTestDatabase(prisma: PrismaClient): Promise<void> {
   await prisma.passwordResetToken.deleteMany({});
+  await prisma.qrScan.deleteMany({});
+  await prisma.qrLink.deleteMany({});
+  await prisma.favorite.deleteMany({});
   await prisma.job.deleteMany({});
   await prisma.workflow.deleteMany({});
   await prisma.userSettings.deleteMany({});

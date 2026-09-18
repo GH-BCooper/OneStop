@@ -19,6 +19,12 @@ export default defineConfig({
     // Inlining it makes Vite apply the alias above (13-auth-database.md).
     server: { deps: { inline: ["next-auth", "@auth/core"] } },
     setupFiles: ["apps/web/src/test/setup.tsx"],
-    testTimeout: 30000,
+    // The heaviest cases are a jsdom render that first imports the whole `@onestop/api` barrel
+    // (sharp, pdfjs, tesseract…) and the Postgres suites' per-test reset. Both are seconds when a
+    // file runs alone and can be several times that on a machine running every file at once, so
+    // the budgets are generous on purpose - they are there to catch a hang, not to measure speed
+    // (see PROGRESS.md, phases 08/10 and 14).
+    testTimeout: 60000,
+    hookTimeout: 30000,
   },
 });

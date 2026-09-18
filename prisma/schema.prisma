@@ -29,6 +29,8 @@ model User {
   workflows           Workflow[]
   settings            UserSettings?
   passwordResetTokens PasswordResetToken[]
+  favorites           Favorite[]
+  qrLinks             QrLink[]
 
   @@map("users")
 }
@@ -137,4 +139,56 @@ model UserSettings {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_settings")
+}
+
+/// A tool the user starred (14-history-favorites.md). `toolId` is a registry id; the registry is
+/// the source of truth for what that id means, so nothing here duplicates a tool's metadata.
+model Favorite {
+  userId    String
+  toolId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, toolId])
+  @@index([userId, createdAt])
+  @@map("favorites")
+}
+
+/// A dynamic QR code (14-history-favorites.md), moved out of phase 11's interim JSON file.
+/// `userId` is null for a code made by a guest or before accounts existed - it still resolves.
+model QrLink {
+  id            String    @id
+  userId        String?
+  kind          String
+  title         String
+  target        String?
+  page          Json?
+  active        Boolean   @default(true)
+  scanCount     Int       @default(0)
+  lastScannedAt DateTime?
+  /// Every destination this code has had, oldest first, as { at, target }.
+  history       Json      @default("[]")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user  User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  scans QrScan[]
+
+  @@index([userId, createdAt])
+  @@map("qr_links")
+}
+
+/// One scan of a dynamic QR code. Coarse hints only: never an IP address (master plan §15).
+model QrScan {
+  id       String   @id @default(uuid())
+  linkId   String
+  at       DateTime @default(now())
+  device   String?
+  referrer String?
+
+  link QrLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  @@index([linkId, at])
+  @@map("qr_scans")
 }

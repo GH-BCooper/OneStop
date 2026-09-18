@@ -229,9 +229,11 @@ export function ToolStateView({
             ) : (
               <Button onClick={onDownload}>Download</Button>
             )}
-            <Button variant="secondary" disabled title="Saving results arrives with accounts">
-              Save
-            </Button>
+            {/* Every run is recorded now (14-history-favorites.md): to the account when signed
+                in, to this device's IndexedDB otherwise. So "Save" became "go and see it". */}
+            <Link href="/history" className={buttonClasses("secondary")}>
+              Saved to history
+            </Link>
             <Button variant="ghost" onClick={onReset}>
               Run again
             </Button>

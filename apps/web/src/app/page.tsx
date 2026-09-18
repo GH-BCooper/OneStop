@@ -1,15 +1,10 @@
-import { GROUPS, popularTools, toolHref, toolsForCatalogPage } from "@onestop/tool-registry";
-import { Badge, buttonClasses, Card, CardDescription, CardTitle } from "@onestop/ui";
+import { GROUPS, toolsForCatalogPage } from "@onestop/tool-registry";
+import { buttonClasses, Card, CardDescription, CardTitle } from "@onestop/ui";
 import Link from "next/link";
 import { HomeSearch } from "@/components/home/HomeSearch";
+import { PopularTools } from "@/components/home/PopularTools";
+import { RecentJobs } from "@/components/home/RecentJobs";
 import { RecentTools } from "@/components/home/RecentTools";
-import { recentJobs, type RecentJob } from "@/lib/mock-data";
-
-const statusTone: Record<RecentJob["status"], "success" | "danger" | "primary"> = {
-  completed: "success",
-  failed: "danger",
-  processing: "primary",
-};
 
 export default function HomePage() {
   return (
@@ -68,50 +63,9 @@ export default function HomePage() {
       <RecentTools />
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        <section aria-labelledby="popular-heading" className="flex flex-col gap-4">
-          <h2 id="popular-heading" className="text-xl font-semibold">
-            Popular tools
-          </h2>
-          <ul className="flex flex-wrap gap-2">
-            {popularTools(8).map((t) => (
-              <li key={t.id}>
-                <Link
-                  href={toolHref(t)}
-                  className="inline-block rounded-full border border-border bg-surface px-3 py-1.5 text-sm hover:border-primary hover:text-primary"
-                >
-                  {t.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        <section aria-labelledby="jobs-heading" className="flex flex-col gap-4">
-          <div className="flex items-center gap-2">
-            <h2 id="jobs-heading" className="text-xl font-semibold">
-              Recent jobs
-            </h2>
-            <Badge>Sample data</Badge>
-          </div>
-          <Card className="p-0">
-            <ul className="divide-y divide-border">
-              {recentJobs.map((j) => (
-                <li key={j.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{j.tool}</p>
-                    <p className="truncate text-xs text-fg-muted">
-                      {j.file} · {j.when}
-                    </p>
-                  </div>
-                  <Badge tone={statusTone[j.status]}>{j.status}</Badge>
-                </li>
-              ))}
-            </ul>
-          </Card>
-          <p className="text-xs text-fg-muted">
-            Shown for signed-in users. Real history arrives with accounts.
-          </p>
-        </section>
+        {/* Both panels now read real usage and real history (14-history-favorites.md). */}
+        <PopularTools />
+        <RecentJobs />
       </div>
     </div>
   );

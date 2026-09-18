@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { authIsConfigured } from "@/auth";
+import { authIsConfigured } from "@/lib/auth-config";
 import { ResetPasswordForm } from "@/components/auth/forms";
 
 export const metadata: Metadata = { title: "Reset password" };

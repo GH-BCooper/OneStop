@@ -13,19 +13,12 @@ import type { Adapter } from "@auth/core/adapters";
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
+// The three env-only helpers live in `@/lib/auth-config` so a page that only needs the boolean
+// does not pull this module - and `@onestop/api` behind it - into its bundle
+// (14-history-favorites.md). They are re-exported here, so existing imports keep working.
+import { authIsConfigured, authSecret, googleIsConfigured } from "@/lib/auth-config";
 
-export function googleIsConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
-  return Boolean(env.GOOGLE_CLIENT_ID?.trim() && env.GOOGLE_CLIENT_SECRET?.trim());
-}
-
-export function authSecret(env: NodeJS.ProcessEnv = process.env): string | undefined {
-  return env.AUTH_SECRET?.trim() || env.NEXTAUTH_SECRET?.trim() || undefined;
-}
-
-/** True when signing in is possible at all: it needs both a database and a session secret. */
-export function authIsConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
-  return Boolean(env.DATABASE_URL?.trim()) && Boolean(authSecret(env));
-}
+export { authIsConfigured, authSecret, googleIsConfigured };
 
 function providers() {
   const list: NextAuthConfig["providers"] = [

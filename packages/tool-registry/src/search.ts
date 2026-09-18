@@ -366,6 +366,16 @@ export interface SearchOptions {
   sort?: SortKey;
   /** Most-recent-first tool ids, used by `sort: "recent"`. */
   recentIds?: readonly string[];
+  /**
+   * Real run counts per tool id (14-history-favorites.md). When given, they lead the popularity
+   * sort and the hand-set `popularity` number only breaks ties - so the ordering reflects what
+   * this user actually uses, and a tool nobody has run keeps its editorial rank.
+   */
+  usageCounts?: Readonly<Record<string, number>>;
+  /** Starred tool ids. When given, favourites sort ahead of everything else.  */
+  favoriteIds?: readonly string[];
+  /** Restricts the results to `favoriteIds`. */
+  favoritesOnly?: boolean;
 }
 
 export function matchesCategory(tool: ToolMeta, category: string): boolean {
@@ -381,6 +391,7 @@ export function searchTools(tools: readonly ToolMeta[], options: SearchOptions =
   const filtered = tools.filter((tool) => {
     if (options.category && !matchesCategory(tool, options.category)) return false;
     if (options.subcategory && tool.subcategory !== options.subcategory) return false;
+    if (options.favoritesOnly && !(options.favoriteIds ?? []).includes(tool.id)) return false;
     if (tags.length > 0) {
       const own = toolTags(tool);
       if (!tags.every((t) => own.includes(t))) return false;
@@ -394,25 +405,35 @@ export function searchTools(tools: readonly ToolMeta[], options: SearchOptions =
   });
 
   const byName = (a: ToolMeta, b: ToolMeta) => a.name.localeCompare(b.name);
-  const byPopularity = (a: ToolMeta, b: ToolMeta) => b.popularity - a.popularity || byName(a, b);
+  const usage = options.usageCounts ?? {};
+  const runs = (t: ToolMeta) => usage[t.id] ?? 0;
+  const byPopularity = (a: ToolMeta, b: ToolMeta) =>
+    runs(b) - runs(a) || b.popularity - a.popularity || byName(a, b);
   const sort = options.sort ?? (query ? "relevance" : "popularity");
+  // Favourites float to the top of whatever ordering was asked for, rather than replacing it.
+  const favorites = new Set(options.favoriteIds ?? []);
+  const withFavorites = (compare: (a: ToolMeta, b: ToolMeta) => number) =>
+    favorites.size === 0
+      ? compare
+      : (a: ToolMeta, b: ToolMeta) =>
+          Number(favorites.has(b.id)) - Number(favorites.has(a.id)) || compare(a, b);
 
   switch (sort) {
     case "name":
-      return filtered.sort(byName);
+      return filtered.sort(withFavorites(byName));
     case "popularity":
-      return filtered.sort(byPopularity);
+      return filtered.sort(withFavorites(byPopularity));
     case "recent": {
       const recent = options.recentIds ?? [];
       const rank = (t: ToolMeta) => {
         const i = recent.indexOf(t.id);
         return i < 0 ? Number.POSITIVE_INFINITY : i;
       };
-      return filtered.sort((a, b) => rank(a) - rank(b) || byPopularity(a, b));
+      return filtered.sort(withFavorites((a, b) => rank(a) - rank(b) || byPopularity(a, b)));
     }
     case "relevance":
       return filtered.sort(
-        (a, b) => (scores.get(b) ?? 0) - (scores.get(a) ?? 0) || byPopularity(a, b),
+        withFavorites((a, b) => (scores.get(b) ?? 0) - (scores.get(a) ?? 0) || byPopularity(a, b)),
       );
   }
 }

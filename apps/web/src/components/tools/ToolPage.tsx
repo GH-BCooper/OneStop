@@ -20,7 +20,11 @@ import {
   type OutputFileRef,
 } from "@onestop/types";
 import { Button, Card } from "@onestop/ui";
+import { useSession } from "next-auth/react";
 import { useCallback, useEffect, useId, useReducer, useState } from "react";
+import { FavoriteButton } from "./FavoriteButton";
+import { recordLocalRun } from "@/lib/localHistory";
+import { readLocalPreferences } from "@/lib/preferences";
 import { recordRecentTool } from "@/lib/recent-tools";
 import {
   initialToolState,
@@ -88,6 +92,8 @@ export interface ToolPageProps {
 
 export function ToolPage({ tool, initialState }: ToolPageProps) {
   const kind = inputKind(tool);
+  const { data: session, status: sessionStatus } = useSession();
+  const signedIn = Boolean(session?.user);
   const [state, dispatch] = useReducer(
     toolReducer,
     initialState ?? initialToolState(kind !== "none"),
@@ -146,6 +152,26 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
   const setOption = (id: string, value: string | number | boolean) =>
     setOptionValues((current) => ({ ...current, [id]: value }));
 
+  /**
+   * Writes this run to the device's history (14-history-favorites.md). A signed-in user's runs
+   * are already rows in Postgres - the pipeline creates the job - so the device copy would only
+   * duplicate them. Guests get the local copy, unless they turned history off in Settings.
+   */
+  const remember = useCallback(
+    async (status: "success" | "failed", data: RunResponse) => {
+      if (signedIn) return;
+      if (!readLocalPreferences().saveHistory) return;
+      await recordLocalRun({
+        toolId: tool.id,
+        status,
+        summary: data.summary ?? null,
+        inputs: files.map((f) => f.name),
+        error: status === "failed" ? (data.error?.message ?? null) : null,
+      });
+    },
+    [signedIn, tool.id, files],
+  );
+
   const run = useCallback(async () => {
     dispatch({ type: "VALIDATE" });
     const problem = validateToolInput(tool, state.input);
@@ -157,8 +183,7 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
       dispatch({ type: "UNAVAILABLE", reason: "offline", message: OFFLINE_MESSAGE });
       return;
     }
-    if (tool.requiresAuth) {
-      // TODO(13-auth-database.md): check the real session instead of assuming signed out.
+    if (tool.requiresAuth && !signedIn && sessionStatus !== "loading") {
       dispatch({
         type: "UNAVAILABLE",
         reason: "auth-required",
@@ -179,6 +204,7 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
     try {
       const response = await fetch(RUN_ENDPOINT, { method: "POST", body });
       const data = (await response.json()) as RunResponse;
+      void remember(data.ok ? "success" : "failed", data);
       if (data.ok) {
         dispatch({
           type: "SUCCEED",
@@ -209,7 +235,16 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
         dispatch({ type: "FAIL", message: "The tool stopped unexpectedly. Please try again." });
       }
     }
-  }, [tool, state.input, files, toolOptions.length, optionValues]);
+  }, [
+    tool,
+    state.input,
+    files,
+    toolOptions.length,
+    optionValues,
+    signedIn,
+    sessionStatus,
+    remember,
+  ]);
 
   /** Fallback download for tools whose result is JSON shown on the page. */
   const download = () => {
@@ -335,6 +370,12 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
             Clear
           </Button>
         )}
+        <FavoriteButton
+          toolId={tool.id}
+          toolName={tool.name}
+          variant="standalone"
+          className="h-11"
+        />
       </div>
 
       <ToolStateView

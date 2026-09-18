@@ -94,4 +94,54 @@ export const ERROR_MESSAGES = {
   offline: "This tool needs an Internet connection. Connect and try again.",
 } as const;
 
+/** One stored output file as history shows it. Mirrors `OutputFileRef` minus the live URL. */
+export interface HistoryFile {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  expiresAt: string;
+}
+
+/**
+ * One row of `/history` (14-history-favorites.md). The same shape is used for a signed-in user's
+ * Postgres jobs and for a guest's IndexedDB entries, so the page renders both with one component.
+ */
+export interface HistoryEntry {
+  id: string;
+  toolId: string;
+  status: JobStatus;
+  createdAt: string;
+  summary: string | null;
+  /** Names of the input files (or "text" for a typed input), for the list row. */
+  inputs: string[];
+  /** Files the run produced. They may already have expired - the page says so. */
+  outputs: HistoryFile[];
+  /** Short, user-facing reason the run failed. */
+  error: string | null;
+  /** Where this entry is stored: the account (synced) or this device only. */
+  scope: "account" | "device";
+}
+
+/** Filters `/history` understands. Everything is optional; omitted means "no filter". */
+export interface HistoryFilter {
+  toolId?: string;
+  /** Restricts to a category/group: the registry resolves it to these tool ids. */
+  toolIds?: string[];
+  status?: JobStatus;
+  /** Inclusive ISO date bounds (a plain `YYYY-MM-DD` is accepted too). */
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface HistoryPage {
+  entries: HistoryEntry[];
+  total: number;
+  page: number;
+  pageSize: number;
+  pageCount: number;
+}
+
 export * from "./db";
