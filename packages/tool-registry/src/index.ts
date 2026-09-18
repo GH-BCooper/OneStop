@@ -23,6 +23,7 @@ export * from "./schema";
 export * from "./io";
 export * from "./search";
 export * from "./options";
+export * from "./input-hints";
 export { loadRegistry, validateEntry, RegistryError, VERIFIED_OFFLINE } from "./loader";
 export {
   getExecutor,

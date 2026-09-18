@@ -130,6 +130,11 @@ const unavailableTitles: Record<UnavailableReason, string> = {
   "auth-required": "Sign in required",
 };
 
+/** Result files a browser can show inline. At most four, so a big batch stays readable. */
+function previewable(files: OutputFileRef[] | undefined): OutputFileRef[] {
+  return (files ?? []).filter((f) => f.mimeType.startsWith("image/")).slice(0, 4);
+}
+
 /** Renders the result/progress panel for the current state. */
 export function ToolStateView({
   state,
@@ -187,6 +192,21 @@ export function ToolStateView({
             <p className="text-xs text-fg-muted">
               Result files are deleted from the server automatically — download them now.
             </p>
+          )}
+          {/* An image result is worth seeing before downloading it — a QR code especially, since
+              the whole point is to point a phone at it (11-qr-tools.md). */}
+          {previewable(state.files).length > 0 && (
+            <div className="flex flex-wrap gap-3" data-testid="result-preview">
+              {previewable(state.files).map((file) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={file.id}
+                  src={file.url}
+                  alt={file.name}
+                  className="max-h-64 w-auto rounded-lg border border-border bg-white p-2"
+                />
+              ))}
+            </div>
           )}
           {state.output !== undefined && (
             <pre className="max-h-64 overflow-auto rounded-md bg-surface-muted p-3 text-xs">

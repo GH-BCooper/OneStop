@@ -4,6 +4,7 @@ import {
   acceptsTypedText,
   defaultOptionValues,
   fileInputTypes,
+  getToolInputHint,
   getToolOptions,
   inputKind,
   PHASE_FILES,
@@ -99,6 +100,9 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
     defaultOptionValues(tool.id),
   );
   const inputId = useId();
+  // Some tools need their one text box labelled ("Network name (SSID)" rather than "Text input");
+  // the label lives in the registry, so the page still knows nothing about individual tools.
+  const hint = getToolInputHint(tool.id);
   const busy = state.status === "validating" || state.status === "processing";
   const accepted = typeLabel(fileInputTypes(tool));
 
@@ -265,24 +269,30 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
         )}
         {kind === "text" && (
           <>
-            <label htmlFor={inputId} className="sr-only">
-              Text input
+            <label htmlFor={inputId} className={hint ? "text-sm font-medium" : "sr-only"}>
+              {hint?.label ?? "Text input"}
             </label>
             <textarea
               id={inputId}
               value={text}
               disabled={busy}
               onChange={(e) => onTextChange(e.target.value)}
-              rows={6}
-              placeholder="Paste or type here"
+              rows={hint ? 3 : 6}
+              placeholder={hint?.placeholder ?? "Paste or type here"}
+              aria-describedby={hint?.help ? `${inputId}-hint` : undefined}
               className="w-full rounded-lg border border-border bg-surface p-3 font-mono text-sm text-fg focus-visible:outline-2 focus-visible:outline-ring"
             />
+            {hint?.help && (
+              <p id={`${inputId}-hint`} className="text-sm text-fg-muted">
+                {hint.help}
+              </p>
+            )}
           </>
         )}
         {kind === "url" && (
           <>
-            <label htmlFor={inputId} className="sr-only">
-              Link
+            <label htmlFor={inputId} className={hint ? "text-sm font-medium" : "sr-only"}>
+              {hint?.label ?? "Link"}
             </label>
             <input
               id={inputId}
@@ -290,9 +300,15 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
               value={text}
               disabled={busy}
               onChange={(e) => onTextChange(e.target.value)}
-              placeholder="https://"
+              placeholder={hint?.placeholder ?? "https://"}
+              aria-describedby={hint?.help ? `${inputId}-hint` : undefined}
               className="h-12 w-full rounded-lg border border-border bg-surface px-3 text-fg focus-visible:outline-2 focus-visible:outline-ring"
             />
+            {hint?.help && (
+              <p id={`${inputId}-hint`} className="text-sm text-fg-muted">
+                {hint.help}
+              </p>
+            )}
           </>
         )}
         {kind === "none" && <p className="text-sm text-fg-muted">This tool needs no input.</p>}

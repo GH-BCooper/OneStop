@@ -177,10 +177,22 @@ describe("runPipeline — validation", () => {
   });
 
   it("requires a session for a tool marked requiresAuth", async () => {
-    const tool = getTool("dynamic-qr-code")!;
-    expect(tool.requiresAuth).toBe(true);
-    const outcome = await runPipeline({ toolId: tool.id, text: "https://example.com" }, deps());
-    expect(outcome.error?.code).toBe("AUTH_REQUIRED");
+    // No tool carries `requiresAuth` today: 11-qr-tools.md turned it off for the dynamic QR tools
+    // until 13-auth-database.md brings real accounts. The pipeline rule still has to hold, so the
+    // flag is flipped on one tool for the length of this test.
+    const tool = getTool(DEMO_TOOL)!;
+    tool.requiresAuth = true;
+    try {
+      const outcome = await runPipeline({ toolId: tool.id, files: [{ name: "a.txt", mimeType: "text/plain", bytes: bytes("a") }] }, deps());
+      expect(outcome.error?.code).toBe("AUTH_REQUIRED");
+      const signedIn = await runPipeline(
+        { toolId: tool.id, userId: "user-1", files: [{ name: "a.txt", mimeType: "text/plain", bytes: bytes("a") }] },
+        deps(),
+      );
+      expect(signedIn.ok).toBe(true);
+    } finally {
+      tool.requiresAuth = false;
+    }
   });
 
   it("throws only for an unknown tool id", async () => {

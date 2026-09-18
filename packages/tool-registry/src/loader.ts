@@ -152,6 +152,19 @@ export const VERIFIED_OFFLINE: readonly string[] = [
   "subtitle-conversion",
   "change-video-resolution",
   "change-video-quality",
+  // 11-qr-tools.md - apps/api/src/qr/qr.test.ts "offline" suite. The four dynamic tools are not
+  // here: they resolve through a OneStop URL, which is exactly what needs the network.
+  "qr-code-generator",
+  "qr-code-scanner",
+  "url-to-qr",
+  "text-to-qr",
+  "image-to-qr",
+  "audio-to-qr",
+  "contact-to-qr",
+  "email-to-qr",
+  "phone-to-qr",
+  "wifi-to-qr",
+  "qr-code-customization",
 ];
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

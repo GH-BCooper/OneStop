@@ -257,11 +257,27 @@ describe("registry contents", () => {
         "subtitle-conversion",
         "change-video-resolution",
         "change-video-quality",
+        // 11-qr-tools.md
+        "qr-code-generator",
+        "qr-code-scanner",
+        "url-to-qr",
+        "text-to-qr",
+        "image-to-qr",
+        "audio-to-qr",
+        "contact-to-qr",
+        "email-to-qr",
+        "phone-to-qr",
+        "wifi-to-qr",
+        "dynamic-qr-code",
+        "custom-qr-landing-page",
+        "qr-code-customization",
+        "qr-code-analytics",
+        "qr-content-page",
       ].sort(),
     );
     for (const tool of tools.filter((t) => t.status === "available")) {
       expect(
-        ["05", "06", "07", "08", "09", "10"],
+        ["05", "06", "07", "08", "09", "10", "11"],
         `${tool.id} is available but not from a built phase`,
       ).toContain(tool.phase);
     }

@@ -11,6 +11,7 @@
 import { DATA_TOOL_OPTIONS } from "./options-data";
 import { IMAGE_TOOL_OPTIONS } from "./options-images";
 import { MEDIA_TOOL_OPTIONS } from "./options-media";
+import { QR_TOOL_OPTIONS } from "./options-qr";
 
 export interface ToolOptionBase {
   id: string;
@@ -60,7 +61,23 @@ export interface SignatureOption extends ToolOptionBase {
   default: "";
 }
 
-export type ToolOption = SelectOption | TextOption | NumberOption | BooleanOption | SignatureOption;
+/**
+ * An image the user picks from their device (11-qr-tools.md, QR Code Customization's logo). Like
+ * `signature`, the value is a `data:image/...;base64,...` URL, read in the browser and never
+ * uploaded as a separate file; the server decodes and re-validates it.
+ */
+export interface ImageOption extends ToolOptionBase {
+  type: "image";
+  default: "";
+}
+
+export type ToolOption =
+  | SelectOption
+  | TextOption
+  | NumberOption
+  | BooleanOption
+  | SignatureOption
+  | ImageOption;
 
 /** A page-selection field, used by six of the phase-05 tools with the same wording. */
 function pageSelection(overrides: Partial<TextOption> = {}): TextOption {
@@ -185,6 +202,7 @@ export const TOOL_OPTIONS: Record<string, ToolOption[]> = {
   ...DATA_TOOL_OPTIONS,
   ...IMAGE_TOOL_OPTIONS,
   ...MEDIA_TOOL_OPTIONS,
+  ...QR_TOOL_OPTIONS,
   "pdf-to-images": [
     {
       id: "format",
@@ -1061,6 +1079,7 @@ export function redactOptionValues(
     if (!(option.id in out)) continue;
     if (option.type === "text" && option.secret) out[option.id] = "[redacted]";
     else if (option.type === "signature" && out[option.id]) out[option.id] = "[signature]";
+    else if (option.type === "image" && out[option.id]) out[option.id] = "[image]";
   }
   return out;
 }

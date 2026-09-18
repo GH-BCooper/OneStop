@@ -18,7 +18,7 @@
 | 08  | 08-excel-csv-data-tools.md       | Complete    | 2026-09-18   | All 30 Excel/CSV/data tools real, registered and offline-verified; typed round trips, located validator errors, 50k-row smoke test. 435 unit + 84 real-browser checks pass.              |
 | 09  | 09-image-tools.md                | Complete    | 2026-09-18   | All 27 image tools real, registered and offline-verified (PDF → Image is phase 05’s); 5+5 fit modes; local-AI interface with built-in fallbacks. 475 unit + 89 real-browser checks pass. |
 | 10  | 10-audio-video-tools.md          | Complete    | 2026-09-18   | All 27 audio/video tools real, registered and offline-verified via local FFmpeg 9.0; own SRT/VTT/ASS engine; one FFmpeg-missing message. 535 unit + 93 real-browser checks pass.          |
-| 11  | 11-qr-tools.md                   | Not started |              |                                                                                                                                                                                          |
+| 11  | 11-qr-tools.md                   | Complete    | 2026-09-18   | All 15 QR tools real: offline generation and decoding (qrcode + jsQR), every payload convention proved by decoding it back, in-browser camera scanning, dynamic codes and hosted pages on an interim JSON store. 605 unit + 93 real-browser checks pass. |
 | 12  | 12-dev-utility-tools.md          | Not started |              |                                                                                                                                                                                          |
 | 13  | 13-auth-database.md              | Not started |              |                                                                                                                                                                                          |
 | 14  | 14-history-favorites.md          | Not started |              |                                                                                                                                                                                          |
@@ -110,6 +110,15 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 - **10 - Volume Normalizer is two-pass EBU R128 `loudnorm`** (measure, then a linear gain onto -14/-16/-23 LUFS with a true-peak ceiling), with a simple `volumedetect` + `volume` peak mode as the alternative. The test measures the output and asserts it lands within 1.5 LU of the target.
 - **10 - The waveform is computed, not drawn by FFmpeg.** FFmpeg decodes to mono 16-bit PCM at a rate chosen to stay under 20 M samples; OneStop reduces that to min/max peaks per column and renders its own SVG (three styles), rasterised to PNG with sharp. `output.files[].peaks` returns the same array, so a frontend - or phase 15/16 - can draw it itself.
 
+- **11 - Two new dependencies, both offline and permissively licensed:** `qrcode` (MIT) for the module matrix only, and `jsqr` (Apache-2.0) for decoding. Neither touches the network. All drawing is OneStop's own: `qr/generate.ts` renders the matrix to SVG by hand and to PNG with `@napi-rs/canvas` (already a phase-06 dependency), which is what makes dot/rounded modules, custom finder patterns and a centre logo possible through one code path for both formats.
+- **11 - A QR code counts as valid only if it can be read back.** Every generating tool is tested by decoding its own output (SVG results rasterised with sharp first), across all eight content types, plus a logo'd code, an inverted code and a 128 px code. The decoder retries a photographed code as supplied, high-contrast, sharpened, thresholded, rotated 90/180/270, inverted and enlarged, so a real phone photo decodes.
+- **11 - Dense codes are enlarged rather than shipped unreadable.** `minimumSizeFor()` raises the requested size to at least 3 px per module, so a version-40 payload (177 modules) is never returned as an unscannable 512 px image. The summary reports the size actually used.
+- **11 - Payload conventions live in one file** (`qr/formats.ts`): `WIFI:` with proper escaping, vCard 3.0 with RFC 6350 escaping and 75-octet line folding, `mailto:`/`tel:`/`sms:`/`geo:`, plus a parser that names what a scanned code holds. Both directions are tested, and the same module is what phase 16's assistant should call.
+- **11 - Only http(s) is ever encoded or redirected to.** A QR code is opened by a phone the instant it is scanned, so `buildUrl`, the hosted-page links and the `PATCH /api/qr/links/:id` destination all refuse `javascript:`, `data:` and any other scheme (master plan 15).
+- **11 - Colour pairs are checked before anything is rendered.** Below a 3:1 contrast ratio the tool refuses with a plain explanation instead of producing a code no phone can read, and a logo automatically raises error correction to Q or H so the covered modules stay recoverable.
+- **11 - Camera scanning never uploads anything.** `QRScanner.tsx` uses `BarcodeDetector` where the browser has it and jsQR everywhere else, decoding frames in the page; the stream is stopped on unmount. Every `getUserMedia` rejection maps to its own actionable sentence ("Camera access is needed to scan...", "No camera was found...", "The camera is already in use..."), tested with a mocked denial.
+- **11 - Scan analytics are deliberately thin:** a timestamp, a coarse device family derived from the user-agent (iOS/Android/Windows/macOS/Linux/other) and the referrer's host. No IP address, no full user-agent string, and at most the 500 most recent scans per code.
+
 ---
 
 ## Deviations From Plan
@@ -182,6 +191,13 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 - **10 - Tool behaviours worth knowing:** batch tools return one ZIP by default ("Separate downloads" option). The Audio and Video compressors never return something bigger than the input - they hand the original back and say so; Change Video Resolution does the same when the file is already smaller than the target (upscaling is opt-in). Resolution targets apply to the *short* side, so vertical videos work. Video Merger matches the first clip's size and frame rate, letterboxes rather than stretches, and generates silence for a clip with no sound so nothing drifts. Extract Audio copies the track out untouched when the codec suits a container (AAC -> M4A, Opus -> .opus, PCM -> WAV...). Extract Frames caps at 300 frames and seeks accurately per frame. Video -> GIF caps at 60 s and builds a per-clip palette. Audio Metadata's "edit" mode is `-c copy`, so the audio is bit-identical; raw ADTS `.aac` says plainly that it cannot hold tags.
 - **10 - Rotation is a re-encode.** FFmpeg can rewrite the display matrix losslessly, but only for MP4/MOV; one consistent behaviour (with a quality option defaulting to High) was judged simpler than a mode that silently works for only some containers.
 
+- **11 - Paths:** the build file says `apps/api/qr/{generate,formats,dynamic,analytics}.ts` and `apps/web/components/qr/*`; following earlier phases these live in `apps/api/src/qr/` (all four listed modules plus `decode.ts`, `store.ts`, `common.ts`, `tools.ts`, `index.ts`, `qr.test.ts`) and `apps/web/src/components/qr/` (`QRScanner.tsx`, `QRLandingPage.tsx`, plus `DynamicQRManager.tsx` for the editing list). Options: `packages/tool-registry/src/options-qr.ts`. Browser tests: `apps/web/src/test/qr.test.tsx`.
+- **11 - The interim store is a server-side JSON file, not IndexedDB.** The build file suggests local storage as the interim store, but a dynamic QR code is resolved on the *server* (`/q/<id>` has to redirect a phone that has never visited the app), so browser storage cannot back it at all. `qr/store.ts` keeps one JSON file under `QR_DATA_DIR` (default `.onestop-data/qr-links.json`, gitignored), written atomically write-then-rename, with row-shaped records so the phase-14 migration to Postgres is a copy rather than a redesign. **Exactly what is interim: dynamic destinations, hosted page content (attachments inlined as data URLs, 2 MB each / 8 MB per page), ownership (`ownerToken`, always null for now) and every scan record.** The QR images themselves, payload building and decoding are final.
+- **11 - `requiresAuth` is off for the four dynamic tools, temporarily.** The registry marked Dynamic QR Code, Custom QR Landing Page, QR Code Analytics and QR Code -> Content Page `auth: true`, and the phase-04 pipeline refuses any such tool while every session is a guest - so they could not have been built or tested at all. They keep `network: "required"`. TODO(13-auth-database.md): restore `auth: true` and key `ownerToken` to the real user id. The pipeline's auth rule is still covered, by a test that flips the flag on another tool for the length of the test.
+- **11 - "Image -> QR" and "Audio -> QR" cannot put a real file inside a code** (the format holds about 2 KB). They embed the file as a data URL when it genuinely fits and otherwise create a hosted page and encode its short URL; a "How to store it" option makes the choice explicit, and asking to embed something too large fails with the size in the message rather than silently switching.
+- **11 - Two small generic additions rather than per-tool UI:** a new `image` option type (a logo picked in the browser and passed as a data URL, like the phase-06 signature pad, and redacted from job records) and `packages/tool-registry/src/input-hints.ts`, which labels a tool's one text box ("Network name (SSID)" instead of "Text input"). Both live in the registry, so the generic tool page still holds no per-tool knowledge. The result panel now previews image outputs, which every QR tool and phase 09 benefit from.
+- **11 - Route additions:** `/q/[id]` (resolve, count the scan, then redirect or render the hosted page), `GET /api/qr/links` and `PATCH`/`DELETE /api/qr/links/[id]`. The scanner page mounts the camera panel above the normal upload form; the dynamic tools mount the manager below it.
+
 ---
 
 ## Known Issues / Tech Debt
@@ -238,6 +254,13 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 - **10:** the waveform decodes the whole track into memory (at most 20 M samples, about 40 MB); a 3-hour recording is handled by lowering the sample rate rather than streaming.
 - **08/10:** phase 08's 50k-row CPU budget was raised from 10 s to 15 s. The media tests spawn FFmpeg in parallel test files, and a saturated machine inflates even a process's own measured CPU time; the underlying work is unchanged (about 3 s alone). Phase 19 should still move this to a separate perf run.
 
+- **11:** the interim JSON store has no file lock, so two server processes writing at the same instant could lose one change (a single `next start` is safe - writes inside one process are serialised, and every operation re-reads the file). Phase 14's Postgres migration removes this; until then, run one instance.
+- **11:** hosted-page attachments are base64 data URLs inside that JSON file, which is why they are capped at 2 MB each and 8 MB per page. Phase 14 should move them into the file store and keep only a reference.
+- **11:** a dynamic code encodes `<APP_URL>/q/<id>`, so codes made while `APP_URL` is still `http://localhost:3000` are useless once printed. `.env.example` now says so; phase 18's `/status` or phase 20 could warn when it still points at localhost.
+- **11:** QR Code Analytics reports every code on the instance, because there is no session to filter by and the executor has no request context. Phase 13/14 should filter by user id.
+- **11:** the camera scanner is covered by unit tests with a mocked `getUserMedia`; a real camera is not exercised anywhere (there isn't one on the dev machine or in CI). Phase 19 should decide whether that deserves a manual checklist entry.
+- **11:** the decoder reads the first code in an image only. Scanning a sheet of several codes at once would need a tiling pass; nobody has asked for it.
+
 ---
 
 ## Open Questions
@@ -250,13 +273,13 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 
 ## Next Up
 
-Phase 11 - QR tools (`docs/build/11-qr-tools.md`).
+Phase 12 - Developer & file utilities (`docs/build/12-dev-utility-tools.md`).
 
-What phase 10 leaves it:
+What phase 11 leaves it:
 
-1. `apps/api/src/media/` follows the same shape as phases 08/09: pure engines plus thin executors built on `eachMedia` (one file in, one file out, ZIP when several).
-2. `media/ffmpegCheck.ts` is the pattern for a **required** local binary (detect once, cache, one consistent setup message, `ffmpegStatus()` for phase 18's `/status`), just as `shared/libreoffice.ts` is the pattern for an optional one. Phase 17's yt-dlp should copy it, and can hand downloaded files straight to `encodeAudio`/`encodeVideo`.
-3. The subtitle engine (`media/subtitles.ts`) is dependency-free and reusable: phase 16 for transcription output, phase 17 for downloaded captions.
-4. `executorTimeoutMs` in the pipeline now gives audio/video 10 minutes (`MEDIA_TIMEOUT_SECONDS`); any later phase with long-running work should extend that function rather than raise the global default.
+1. `apps/api/src/qr/` follows the shape of phases 08-10: pure engines (`formats`, `generate`, `decode`) plus thin executors, with `common.ts` holding the error contract and the shared option reading.
+2. `qr/store.ts` is the first piece of **durable** (non-temp) state in the app. Phase 13 should bring it into Prisma, and phase 14 must do the migration described above before anything else is built on it.
+3. Two registry facilities are new and reusable: the `image` option type (a browser-picked file as a data URL) and `input-hints.ts` (a label for a tool's one text box). Several phase-12 tools would read better with a labelled input.
+4. `packages/tool-registry/src/loader.ts` now lists the eleven static QR tools as offline-verified; the four dynamic ones are deliberately not there.
 
 Verify any phase with `npm run lint && npm run typecheck && npm test && npm run build && npm run test:e2e`, then run the new tools once against a real `next start`.

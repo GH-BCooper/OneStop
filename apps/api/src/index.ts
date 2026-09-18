@@ -13,3 +13,5 @@ export * from "./data/index.ts";
 export * from "./images/index.ts";
 // Importing the media module registers the phase-10 audio & video executors.
 export * from "./media/index.ts";
+// Importing the QR module registers the phase-11 QR executors.
+export * from "./qr/index.ts";

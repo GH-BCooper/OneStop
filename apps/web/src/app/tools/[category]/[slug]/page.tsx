@@ -5,6 +5,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ToolBadges } from "@/components/tools/ToolBadges";
 import { ToolPage } from "@/components/tools/ToolPage";
+import { DynamicQRManager } from "@/components/qr/DynamicQRManager";
+import { QRScanner } from "@/components/qr/QRScanner";
+
+/** Tools whose codes are managed from a list under the form (11-qr-tools.md). */
+const DYNAMIC_QR_TOOLS = new Set([
+  "dynamic-qr-code",
+  "custom-qr-landing-page",
+  "qr-content-page",
+]);
 
 interface Props {
   params: Promise<{ category: string; slug: string }>;
@@ -68,7 +77,14 @@ export default async function ToolRoute({ params }: Props) {
           </Card>
         </div>
       ) : (
-        <ToolPage tool={tool} />
+        <>
+          {/* Camera scanning happens entirely in the browser, so it sits beside the upload form
+              rather than inside the pipeline (11-qr-tools.md). */}
+          {tool.id === "qr-code-scanner" && <QRScanner />}
+          <ToolPage tool={tool} />
+          {DYNAMIC_QR_TOOLS.has(tool.id) && <DynamicQRManager />}
+          {tool.id === "qr-code-analytics" && <DynamicQRManager mode="analytics" />}
+        </>
       )}
     </div>
   );

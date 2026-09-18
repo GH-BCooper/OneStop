@@ -8,6 +8,7 @@
 import { isOptionVisible, type ToolOption } from "@onestop/tool-registry";
 import { Input } from "@onestop/ui";
 import { useId } from "react";
+import { ImagePicker } from "./ImagePicker";
 import { SignaturePad } from "./SignaturePad";
 
 export type OptionValues = Record<string, string | number | boolean>;
@@ -117,6 +118,20 @@ export function ToolOptions({ options, values, disabled, onChange }: ToolOptions
               id={fieldId}
               label={option.label}
               value={String(values[option.id] ?? "")}
+              {...(disabled !== undefined ? { disabled } : {})}
+              onChange={(value) => onChange(option.id, value)}
+            />
+          );
+        }
+
+        if (option.type === "image") {
+          return (
+            <ImagePicker
+              key={option.id}
+              id={fieldId}
+              label={option.label}
+              value={String(values[option.id] ?? "")}
+              {...(option.help ? { help: option.help } : {})}
               {...(disabled !== undefined ? { disabled } : {})}
               onChange={(value) => onChange(option.id, value)}
             />
