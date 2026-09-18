@@ -5,7 +5,9 @@
 // or a hosted page - is stored server-side and can be edited afterwards, so a code that is already
 // printed on a poster can be pointed somewhere else.
 //
-// Storage is interim (see store.ts) until 13-auth-database.md brings Postgres.
+// Storage is interim (see store.ts) until phase 14 brings it into Postgres. Since
+// 13-auth-database.md a code created by a signed-in user is owned by their user id (the
+// executor reads it from the ExecContext); a guest's code stays unowned, exactly as before.
 import type { ExecContext, ExecResult, FileRef } from "@onestop/types";
 import type { Executor } from "@onestop/tool-registry";
 import { buildUrl } from "./formats.ts";
@@ -79,19 +81,20 @@ export async function hostedQrCode(
 }
 
 /** Dynamic QR Code: a redirect you can re-point at any time. */
-export const dynamicQrExecutor: Executor = (input, options) =>
+export const dynamicQrExecutor: Executor = (input, options, ctx) =>
   runQrTool("dynamic-qr-code", async () => {
     const target = buildUrl(textInput(input, "the link this code should open"));
     const title = optString(options, "title") || new URL(target).host;
     return hostedQrCode("dynamic-qr-code", options, {
       title,
       target,
+      ownerToken: (ctx as ExecContext).userId ?? null,
       note: `It currently opens ${target}.`,
     });
   });
 
 /** Custom QR Landing Page: a small OneStop-hosted page, no external hosting needed. */
-export const landingPageExecutor: Executor = (input, options) =>
+export const landingPageExecutor: Executor = (input, options, ctx) =>
   runQrTool("custom-qr-landing-page", async () => {
     const body = textInput(input, "the text for the page");
     const title = optString(options, "title") || "OneStop page";
@@ -113,6 +116,7 @@ export const landingPageExecutor: Executor = (input, options) =>
     return hostedQrCode("custom-qr-landing-page", options, {
       title,
       page: validatePage(page),
+      ownerToken: (ctx as ExecContext).userId ?? null,
       note: "The page is hosted by OneStop; edit its text whenever you like.",
     });
   });
@@ -156,6 +160,7 @@ export const contentPageExecutor: Executor = (input, options, ctx) =>
     return hostedQrCode("qr-content-page", options, {
       title,
       page: validatePage(page),
+      ownerToken: (ctx as ExecContext).userId ?? null,
       note: `The page holds ${blocks.length} item${blocks.length === 1 ? "" : "s"}.`,
     });
   });

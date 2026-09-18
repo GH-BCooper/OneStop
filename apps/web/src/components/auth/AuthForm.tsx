@@ -2,7 +2,7 @@
 
 import { Button, Card, Input } from "@onestop/ui";
 import Link from "next/link";
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import type { FieldErrors } from "@/lib/validation";
 
 export interface AuthField<K extends string> {
@@ -10,45 +10,82 @@ export interface AuthField<K extends string> {
   label: string;
   type: "text" | "email" | "password";
   autoComplete: string;
+  hint?: string;
+}
+
+/** What a submit handler reports back to the form. */
+export interface AuthSubmitResult<K extends string> {
+  /** A short confirmation to show in place of the form's status line. */
+  message?: string;
+  /** Field-level problems the server found, keyed the same way as the client's validation. */
+  errors?: FieldErrors<K>;
+  /** A problem that belongs to the whole form (wrong credentials, database down). */
+  formError?: string;
 }
 
 export interface AuthFormProps<K extends string> {
   title: string;
+  description?: ReactNode;
   submitLabel: string;
+  pendingLabel?: string;
   fields: AuthField<K>[];
   validate: (values: Record<K, string>) => FieldErrors<K>;
-  successMessage: string;
+  onSubmit: (values: Record<K, string>) => Promise<AuthSubmitResult<K> | void>;
   footer?: { text: string; linkLabel: string; href: string }[];
-  showGoogle?: boolean;
+  /** Rendered under the submit button - the Google button lives here. */
+  extra?: ReactNode;
 }
 
 export function AuthForm<K extends string>({
   title,
+  description,
   submitLabel,
+  pendingLabel = "Working…",
   fields,
   validate,
-  successMessage,
+  onSubmit,
   footer = [],
-  showGoogle,
+  extra,
 }: AuthFormProps<K>) {
   const empty = Object.fromEntries(fields.map((f) => [f.name, ""])) as Record<K, string>;
   const [values, setValues] = useState(empty);
   const [errors, setErrors] = useState<FieldErrors<K>>({});
-  const [submitted, setSubmitted] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
 
-  const onSubmit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault();
+    if (pending) return;
     const next = validate(values);
     setErrors(next);
-    // TODO(13-auth-database.md): call Auth.js instead of just acknowledging.
-    setSubmitted(Object.keys(next).length === 0);
+    setFormError(null);
+    setMessage(null);
+    if (Object.keys(next).length > 0) return;
+
+    setPending(true);
+    try {
+      const result = (await onSubmit(values)) ?? {};
+      if (result.errors && Object.keys(result.errors).length > 0) setErrors(result.errors);
+      if (result.formError) setFormError(result.formError);
+      if (result.message) setMessage(result.message);
+    } catch (err) {
+      // Anything unexpected (a dropped connection) gets the same short, actionable line.
+      console.error("[auth] submit failed", err);
+      setFormError("Something went wrong. Please try again.");
+    } finally {
+      setPending(false);
+    }
   };
 
   return (
     <div className="mx-auto w-full max-w-md">
       <Card className="flex flex-col gap-5 p-6">
-        <h1 className="text-2xl font-bold">{title}</h1>
-        <form noValidate onSubmit={onSubmit} className="flex flex-col gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-bold">{title}</h1>
+          {description && <p className="text-sm text-fg-muted">{description}</p>}
+        </div>
+        <form noValidate onSubmit={submit} className="flex flex-col gap-4">
           {fields.map((f) => (
             <Input
               key={f.name}
@@ -56,33 +93,32 @@ export function AuthForm<K extends string>({
               label={f.label}
               type={f.type}
               autoComplete={f.autoComplete}
+              hint={f.hint}
               value={values[f.name]}
               error={errors[f.name]}
+              disabled={pending}
               onChange={(e) => {
                 setValues((v) => ({ ...v, [f.name]: e.target.value }));
-                setSubmitted(false);
+                setMessage(null);
+                setFormError(null);
               }}
             />
           ))}
-          <Button type="submit" className="w-full">
-            {submitLabel}
+          {formError && (
+            <p role="alert" className="rounded-md border border-danger/40 bg-danger/10 p-3 text-sm">
+              {formError}
+            </p>
+          )}
+          <Button type="submit" className="w-full" disabled={pending}>
+            {pending ? pendingLabel : submitLabel}
           </Button>
         </form>
-        {submitted && (
+        {message && (
           <p role="status" className="rounded-md border border-border bg-surface-muted p-3 text-sm">
-            {successMessage}
+            {message}
           </p>
         )}
-        {showGoogle && (
-          <Button
-            variant="secondary"
-            className="w-full"
-            disabled
-            title="Available once accounts launch"
-          >
-            Continue with Google
-          </Button>
-        )}
+        {extra}
         {footer.map((f) => (
           <p key={f.href} className="text-center text-sm text-fg-muted">
             {f.text}{" "}

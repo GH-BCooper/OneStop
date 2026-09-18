@@ -1,4 +1,30 @@
+import fs from "node:fs";
+import path from "node:path";
 import type { NextConfig } from "next";
+
+// The repository keeps one `.env` at its root (see `.env.example`), but Next only reads the one
+// beside the app it is running. Load the root file here - without overriding anything the shell
+// or the host already set, so a deployed instance always wins (13-auth-database.md).
+function loadRootEnv(): void {
+  const file = path.resolve(import.meta.dirname, "../../.env");
+  let contents: string;
+  try {
+    contents = fs.readFileSync(file, "utf8");
+  } catch {
+    return; // No root .env: the app runs on defaults, as it always could.
+  }
+  for (const line of contents.split(/\r?\n/)) {
+    if (line.trimStart().startsWith("#")) continue;
+    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/.exec(line);
+    if (!match) continue;
+    const [, key, rawValue] = match;
+    if (!key || process.env[key] !== undefined) continue;
+    const value = (rawValue ?? "").trim().replace(/^(['"])(.*)\1$/, "$2");
+    if (value !== "") process.env[key] = value;
+  }
+}
+
+loadRootEnv();
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -36,6 +62,10 @@ const nextConfig: NextConfig = {
     "heic-decode",
     "libheif-js",
     "exif-reader",
+    // 13-auth-database.md: Prisma loads its query compiler and driver outside the bundle.
+    "@prisma/client",
+    "@prisma/adapter-pg",
+    "pg",
   ],
 };
 

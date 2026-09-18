@@ -1,5 +1,5 @@
 // Client-side form validation for the auth pages.
-// TODO(13-auth-database.md): the server re-validates; this is only for fast feedback.
+// The server re-validates everything (apps/api/src/auth); this is only for fast feedback.
 
 export type FieldErrors<K extends string> = Partial<Record<K, string>>;
 
@@ -47,4 +47,23 @@ export function validateSignup(v: {
 
 export function validateResetRequest(v: { email: string }) {
   return compact({ email: validateEmail(v.email) });
+}
+
+export function validateNewPassword(v: { password: string; confirm: string }) {
+  return compact({
+    password: validatePassword(v.password),
+    confirm: v.confirm === v.password ? undefined : "Passwords don't match.",
+  });
+}
+
+export function validatePasswordChange(v: {
+  currentPassword: string;
+  newPassword: string;
+  confirm: string;
+}) {
+  return compact({
+    currentPassword: v.currentPassword ? undefined : "Enter your current password.",
+    newPassword: validatePassword(v.newPassword),
+    confirm: v.confirm === v.newPassword ? undefined : "Passwords don't match.",
+  });
 }

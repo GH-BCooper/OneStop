@@ -1,0 +1,140 @@
+// OneStop database schema (13-auth-database.md; master plan §16).
+//
+// Kept deliberately small: the four business tables from §16 plus the three tables Auth.js
+// needs for OAuth and password reset. No file binaries are ever stored here - only metadata.
+generator client {
+  provider   = "prisma-client"
+  output     = "../apps/api/src/db/generated"
+  engineType = "client"
+  runtime    = "nodejs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// master plan §16. `passwordHash` is null for accounts created through Google only.
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  avatar        String?
+  passwordHash  String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+
+  accounts            Account[]
+  sessions            Session[]
+  jobs                Job[]
+  workflows           Workflow[]
+  settings            UserSettings?
+  passwordResetTokens PasswordResetToken[]
+
+  @@map("users")
+}
+
+/// Auth.js: one row per linked OAuth provider account.
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+/// Auth.js: only used when the session strategy is "database". Kept so the Prisma adapter's
+/// full surface type-checks; OneStop signs sessions as JWTs so this table normally stays empty.
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+/// Auth.js: email-verification / magic-link tokens. Unused today, required by the adapter.
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+/// Single-use password reset token. Only the SHA-256 hash of the token is stored, so a database
+/// leak cannot be replayed against the reset endpoint.
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+/// master plan §16. `userId` is null for guest jobs.
+model Job {
+  id             String   @id @default(uuid())
+  userId         String?
+  toolId         String
+  status         String
+  inputMetadata  Json     @default("{}")
+  outputMetadata Json?
+  createdAt      DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+  @@map("jobs")
+}
+
+/// master plan §16. The run engine arrives in phase 15; this phase only creates the table.
+model Workflow {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  description String?
+  steps       Json     @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("workflows")
+}
+
+/// master plan §16: theme, preferred AI runtime and other small preferences.
+model UserSettings {
+  userId      String   @id
+  theme       String   @default("system")
+  preferredAI String?
+  preferences Json     @default("{}")
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}

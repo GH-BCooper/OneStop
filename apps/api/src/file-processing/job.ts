@@ -140,10 +140,24 @@ export function createInMemoryJobStore(options: InMemoryJobStoreOptions = {}): J
 }
 
 let shared: JobStore | null = null;
+let factory: (() => JobStore) | null = null;
 
-/** The process-wide job store used by the API routes. Phase 13 swaps this for Postgres. */
+/**
+ * Registers the store the app should use. Phase 13's database module calls this so that
+ * `getJobStore()` returns the Postgres-backed store when DATABASE_URL is set, without this file
+ * importing Prisma (which would pull the database into every offline tool test).
+ */
+export function registerJobStoreFactory(create: (() => JobStore) | null): void {
+  factory = create;
+  shared = null;
+}
+
+/**
+ * The process-wide job store used by the API routes: Postgres when a database is configured
+ * (13-auth-database.md), otherwise the in-memory store, so the app still runs with no database.
+ */
 export function getJobStore(): JobStore {
-  shared ??= createInMemoryJobStore();
+  shared ??= factory ? factory() : createInMemoryJobStore();
   return shared;
 }
 

@@ -5,6 +5,8 @@ dist/
 coverage/
 # Interim dynamic-QR store (11-qr-tools.md); replaced by Postgres in phase 14.
 .onestop-data/
+# Prisma client, generated from prisma/schema.prisma by `npm run db:generate`.
+apps/api/src/db/generated/
 *.tsbuildinfo
 next-env.d.ts
 .env

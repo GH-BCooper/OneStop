@@ -1,6 +1,8 @@
 import { themeCss, themeInitScript } from "@onestop/ui";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
+import { authIsConfigured } from "@/auth";
+import { SessionProvider } from "@/components/auth/SessionProvider";
 import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
 import "./globals.css";
@@ -30,11 +32,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         >
           Skip to content
         </a>
-        <Header />
-        <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-          {children}
-        </main>
-        <Footer />
+        <SessionProvider>
+          <Header accountsEnabled={authIsConfigured()} />
+          <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+            {children}
+          </main>
+          <Footer />
+        </SessionProvider>
       </body>
     </html>
   );

@@ -274,6 +274,7 @@ export async function runPipeline(
 
     const ctx: ExecContext = {
       jobId: job.id,
+      userId: input.userId ?? null,
       readFile: async (file) => {
         if (!file.tempId) throw new Error("This file has no temp handle.");
         if (!stored.some((s) => s.id === file.tempId)) {

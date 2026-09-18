@@ -50,6 +50,12 @@ export type ExecResult =
  */
 export interface ExecContext {
   jobId: string;
+  /**
+   * The signed-in user, or null for a guest (13-auth-database.md). A tool must keep working for
+   * a guest: this is for attributing what a tool *stores* (a dynamic QR code's owner), never for
+   * deciding whether the tool may run - the pipeline does that from the registry's requiresAuth.
+   */
+  userId?: string | null;
   /** Reads the validated bytes of an input file. Throws if the ref has no temp handle. */
   readFile(file: FileRef): Promise<Uint8Array>;
   /** Cancellation signal for long-running work. */
@@ -87,3 +93,5 @@ export const ERROR_MESSAGES = {
   tooLarge: "The file is too large for local processing. Try a smaller file.",
   offline: "This tool needs an Internet connection. Connect and try again.",
 } as const;
+
+export * from "./db";

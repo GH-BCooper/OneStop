@@ -20,7 +20,7 @@
 | 10  | 10-audio-video-tools.md          | Complete    | 2026-09-18   | All 27 audio/video tools real, registered and offline-verified via local FFmpeg 9.0; own SRT/VTT/ASS engine; one FFmpeg-missing message. 535 unit + 93 real-browser checks pass.                                                                                                                                                                                                                                                                                                                         |
 | 11  | 11-qr-tools.md                   | Complete    | 2026-09-18   | All 15 QR tools real: offline generation and decoding (qrcode + jsQR), every payload convention proved by decoding it back, in-browser camera scanning, dynamic codes and hosted pages on an interim JSON store. 605 unit + 93 real-browser checks pass.                                                                                                                                                                                                                                                 |
 | 12  | 12-dev-utility-tools.md          | Complete    | 2026-09-18   | All 25 developer & file utilities real and fully offline: Prettier-backed HTML/CSS/JS formatting, Markdown to HTML/text/Word, Base64 & URL codecs, CSPRNG UUID/password generation, hashes and checksums with published test vectors, timestamp and regex testing, user-agent viewing, ZIP create/extract, compress, split/merge, metadata removal, duplicate detection, and a File Type Converter that routes to earlier phases instead of reimplementing them. 697 unit + 99 real-browser checks pass. |
-| 13  | 13-auth-database.md              | Not started |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| 13  | 13-auth-database.md              | Complete    | 2026-09-19   | Real Postgres via Prisma (master plan section 16 tables plus the three Auth.js needs), Auth.js v5 with email/password (bcrypt, cost 12) and Google OAuth, single-use hashed reset tokens delivered by console/Resend/SMTP, a wired `/account`, and the phase-04 job store moved onto Postgres behind the same interface. The app still runs with no database at all. 748 unit + 103 real-browser checks pass.                                                                                            |     |
 | 14  | 14-history-favorites.md          | Not started |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | 15  | 15-workflows.md                  | Not started |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | 16  | 16-ai-assistant.md               | Not started |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
@@ -128,6 +128,15 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 
 ---
 
+- **13 - Postgres host: whatever `DATABASE_URL` points at; the dev machine used a throwaway local cluster.** `docker-compose.yml` (Postgres 17, port 5432) stays the documented local option and Neon/Supabase/Railway the hosted ones - nothing in the code knows which. The dev machine already had a Postgres 15 service on 5432 whose superuser password nobody has, and the Docker daemon was not running, so the phase was built and tested against a scratch cluster on port 55433 (`initdb` + `pg_ctl`). Only `.env` (untracked) names it.
+- **13 - Prisma 7 with the `pg` driver adapter.** Prisma 7 removed `url` from `datasource`: the CLI reads it from `prisma.config.ts` and the client from `new PrismaPg(...)`. The generated client is TypeScript under `apps/api/src/db/generated` (gitignored, excluded from lint/typecheck/prettier) and `npm run build` regenerates it first. Note for later phases: the schema is passed to the **adapter**, not in the URL.
+- **13 - Passwords: bcrypt via `bcryptjs`, cost 12.** Pure JS, so no native build on any platform, and the build file allows bcrypt or argon2. `apps/api/src/dev-utils/hashing.ts` is deliberately untouched - those are fast file-integrity hashes and would be the wrong tool here.
+- **13 - Sessions are JWTs, not database rows.** Auth.js's Credentials provider requires the JWT strategy anyway; it also means a guest request never costs a database round trip. The `sessions` table exists because the Prisma adapter's type surface needs it, and stays empty (a password reset clears it regardless).
+- **13 - Reset email: three free paths, console by default.** With nothing configured the link is written to the server console (fully local, nothing to sign up for); `RESEND_API_KEY` uses Resend's free tier over plain `fetch` (no dependency); `SMTP_URL` uses `nodemailer` if it is installed (optional dependency, never required). Chosen by `MAIL_TRANSPORT` or by whichever key is present.
+- **13 - Accounts are optional, everywhere.** With no `DATABASE_URL` the app still boots, every tool runs, jobs are kept in memory, and the auth pages say accounts are switched off instead of failing. With a database that then goes away, `createResilientJobStore` falls back to memory for 30 s at a time rather than taking running tools down.
+- **13 - The repo-root `.env` is loaded by `apps/web/next.config.ts`.** Next only reads the `.env` beside the app it runs, but the repository documents a single root `.env`; the config loads it without overriding anything the shell or host already set.
+- **13 - Database tests isolate themselves by schema.** Vitest runs files in parallel, so each database-touching file creates its own Postgres schema, applies `prisma/migrations` into it and drops it afterwards. Without a database (`TEST_DATABASE_URL`/`DATABASE_URL` unset) those suites skip and the rest of the suite still passes.
+
 ## Deviations From Plan
 
 (Anything you built differently than a build file specified, and why.)
@@ -213,6 +222,11 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 
 ---
 
+- **13 - Paths:** the build file names `packages/types/db.ts` and `apps/api/auth/*`; following phase 01's `src/` layout these are `packages/types/src/db.ts` and `apps/api/src/auth/*`, with the database module in `apps/api/src/db/*`. `packages/types/src/db.ts` is hand-written rather than re-exported Prisma output, so the shared types package stays free of generated code and safe in the browser bundle.
+- **13 - Three extra tables beyond master plan section 16.** `accounts`, `sessions` and `verification_tokens` are required by the Auth.js Prisma adapter (Google sign-in stores its link in `accounts`), and `password_reset_tokens` is required by the reset flow the build file asks for. `User` gains `passwordHash` and `emailVerified` for the same reason. No other field was added.
+- **13 - Route protection is in the page, not middleware.** `/account` redirects guests from its server component; middleware runs on the edge runtime, where the Node-only Prisma client cannot go.
+- **13 - Phase-11 follow-ups, partly done.** The session is now wired into `POST /api/tools/run`, `ExecContext` carries `userId`, a dynamic QR code made while signed in is owned by that user, and QR analytics / `GET /api/qr/links` filter by the signed-in user. The four dynamic QR tools keep `auth: false` (master plan section 9: guests may use public tools) and the QR store stays the interim JSON file - phase 11's own note assigns that migration to phase 14.
+
 ## Known Issues / Tech Debt
 
 (Anything acceptance-criteria-adjacent that's deliberately deferred, with the reason and which phase should pick it up.)
@@ -283,6 +297,13 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 
 ---
 
+- **13:** the Google OAuth round trip is **not** verified end to end - that needs a real Google Cloud project and the owner's credentials. The provider is only registered when `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` are set (so no dead button), `allowDangerousEmailAccountLinking` is on so a Google sign-in joins an existing email account, and the adapter writes the `accounts` row. Someone with a Google project should do one manual sign-in; phase 19 should list it as a manual check.
+- **13:** there is no rate limit on `/api/auth/signup`, `/api/auth/reset` or sign-in. bcrypt at cost 12 makes guessing slow and the reset endpoint answers identically for every address, but a public instance wants a per-IP limit - the same one phases 04 and 12 already flagged. Phase 19/20 should decide.
+- **13:** email addresses are never verified. Signing up does not send a confirmation mail, and `emailVerified` stays null for credentials accounts. For a personal instance that is the honest trade; a public one would want it (the `verification_tokens` table is already there).
+- **13:** `purgeExpiredResetTokens()` exists but nothing calls it on a schedule - tokens are single-use and time-limited, so stale rows are harmless, but phase 20 could run it at startup alongside the temp-file sweep.
+- **13:** the generated Prisma client is gitignored, so a fresh clone must run `npm run db:generate` (or `npm run build`, which does it) before `npm run typecheck` will pass.
+- **13:** `UserSettings` is stored and read but nothing edits it yet beyond the account page reporting the theme - phase 14 owns settings sync.
+
 ## Open Questions
 
 (Anything ambiguous that needs a decision from the user rather than a guess.)
@@ -293,13 +314,14 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 
 ## Next Up
 
-Phase 13 - Auth & database (`docs/build/13-auth-database.md`).
+Phase 14 - History & favorites (`docs/build/14-history-favorites.md`).
 
-What phase 12 leaves it:
+What phase 13 leaves it:
 
-1. **Every tool in the catalogue now runs.** 174 of the 206 registry tools are now `available`; the 32 stubs left are all AI (phase 16) or online-media/network (phase 17). From here the phases are about the app around the tools, not the tools.
-2. `packages/tool-registry/src/options-utilities.ts` and the new `client` option type complete the option vocabulary: select, text (incl. secret/multiline), number, boolean, signature, image, client. Phases 15/16 can drive any tool from metadata alone.
-3. Phase 13 should restore `auth: true` on the four dynamic QR tools (see the phase-11 note), wire the session into `POST /api/tools/run`, and bring `qr/store.ts` into Prisma.
-4. `apps/api/src/dev-utils/hashing.ts` already has the password-grade primitives (`createHash`/`createHmac`, constant-time `digestsMatch`) - but phase 13 must hash passwords with **bcrypt or argon2**, not with these; they are file-integrity tools and say so.
+1. **Postgres is real and wired.** `getJobStore()` returns the Postgres-backed store whenever `DATABASE_URL` is set (`apps/api/src/db/register.ts`), so every job any tool runs is already a row, with a `userId` when the visitor is signed in. History sync is mostly a matter of reading it back.
+2. **The session is available server-side** through `currentUserId()` (`apps/web/src/auth.ts`), already used by `POST /api/tools/run`, `/api/account*` and `/api/qr/links`. Use it rather than re-reading the session.
+3. **`UserSettings` exists** with `theme`, `preferredAI` and a free-form `preferences` JSON column, plus `getUserSettings`/`updateUserSettings`. Phase 14's settings sync should use these instead of adding columns.
+4. **`Workflow` is a table already** (phase 15 owns the logic); nothing writes to it yet.
+5. **Still interim:** the dynamic-QR JSON store (`apps/api/src/qr/store.ts`) - phase 11's note asks phase 14 to move it into Postgres, and it now has a real user id to key ownership on.
 
-Verify any phase with `npm run lint && npm run typecheck && npm test && npm run build && npm run test:e2e`, then run the new tools once against a real `next start`.
+Verify any phase with `npm run lint && npm run typecheck && npm test && npm run build && npm run test:e2e`, then run the new flows once against a real `next start`. The database-backed suites need `TEST_DATABASE_URL` (or `DATABASE_URL`) pointing at a throwaway database; without one they skip.

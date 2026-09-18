@@ -3,6 +3,7 @@
 // Deliberately minimal and privacy-first (master plan 15): a scan is a timestamp plus a coarse
 // device family, never an IP address or anything that identifies a person. That is enough to
 // answer the questions the tool exists for - is this poster working, and when was it last used.
+import type { ExecContext } from "@onestop/types";
 import type { Executor } from "@onestop/tool-registry";
 import { optEnum, runQrTool } from "./common.ts";
 import { getQrStore, shortUrlFor, type QrLink } from "./store.ts";
@@ -59,11 +60,12 @@ export async function qrAnalytics(ownerToken?: string | null): Promise<QrStats[]
   return links.map((link) => statsFor(link));
 }
 
-export const qrAnalyticsExecutor: Executor = (_input, options) =>
+export const qrAnalyticsExecutor: Executor = (_input, options, ctx) =>
   runQrTool("qr-code-analytics", async () => {
-    // TODO(13-auth-database.md): filter by the signed-in user once accounts exist. Until then the
-    // executor has no request context, so it reports every code this OneStop instance holds.
-    const links = await getQrStore().list();
+    // Signed in: only this user's codes (13-auth-database.md). A guest still sees every code on
+    // the instance, which is the honest behaviour for a personal one and what phase 11 shipped.
+    const userId = (ctx as ExecContext | undefined)?.userId ?? null;
+    const links = await getQrStore().list(userId);
     const detail = optEnum(options, "detail", ["summary", "full"] as const, "summary");
     const codes = links.map((link) => ({
       ...statsFor(link),

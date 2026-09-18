@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { AccountMenu } from "@/components/auth/AccountMenu";
 import { ConnectionBadge } from "./ConnectionBadge";
 import { Nav } from "./Nav";
 import { ThemeToggle } from "./ThemeToggle";
 
-export function Header() {
+export function Header({ accountsEnabled = false }: { accountsEnabled?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
 
@@ -33,6 +34,7 @@ export function Header() {
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-2 lg:ml-0">
           <ConnectionBadge />
+          {accountsEnabled && <AccountMenu />}
           <ThemeToggle />
           <button
             type="button"

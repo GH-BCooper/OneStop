@@ -10,6 +10,7 @@
 import { loadFileCoreConfig, runPipeline, UnknownToolError } from "@onestop/api";
 import { ERROR_MESSAGES } from "@onestop/types";
 import { NextResponse } from "next/server";
+import { currentUserId } from "@/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,8 +89,10 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    // TODO(13-auth-database.md): read the signed-in user id from the session instead of null.
-    const outcome = await runPipeline({ toolId, userId: null, files, text, options }, { config });
+    // Signed in: the job (and anything a tool stores) is attributed to the user. Guest: null,
+    // and every public tool still runs - auth is never required to use one (master plan 9).
+    const userId = await currentUserId();
+    const outcome = await runPipeline({ toolId, userId, files, text, options }, { config });
     return NextResponse.json(
       {
         ok: outcome.ok,

@@ -13,7 +13,7 @@
   },
   "scripts": {
     "dev": "npm run dev -w @onestop/web",
-    "build": "npm run build -w @onestop/web",
+    "build": "npm run db:generate && npm run build -w @onestop/web",
     "start": "npm run start -w @onestop/web",
     "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix",
@@ -23,7 +23,11 @@
     "format": "prettier . --write",
     "format:check": "prettier . --check",
     "bridge:hello": "npm run bridge:hello -w @onestop/api",
-    "test:e2e": "vitest run --config vitest.e2e.config.ts"
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:studio": "prisma studio"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -31,6 +35,7 @@
     "@testing-library/dom": "^10.4.2",
     "@testing-library/react": "^16.3.3",
     "@types/node": "^24.13.5",
+    "@types/pg": "^8.23.1",
     "dom-accessibility-api": "^0.5.16",
     "eslint": "^10.10.0",
     "eslint-config-prettier": "^10.1.8",
@@ -41,5 +46,9 @@
     "typescript": "~6.0",
     "typescript-eslint": "^8.70.0",
     "vitest": "^5.0.1"
+  },
+  "allowScripts": {
+    "prisma@7.10.0": true,
+    "@prisma/engines@7.10.0": true
   }
 }

@@ -1,6 +1,11 @@
 export { PYTHON_PROCESSORS_DIR, PythonBridgeError, runPython } from "./python-bridge.ts";
 export type { PythonBridgeErrorCode, RunPythonOptions } from "./python-bridge.ts";
 export * from "./file-processing/index.ts";
+// The database module: the Prisma client, the Postgres job store and the auth services
+// (13-auth-database.md). Importing `./db/register.ts` makes `getJobStore()` durable.
+export * from "./db/index.ts";
+import "./db/register.ts";
+export * from "./auth/index.ts";
 // Importing the PDF module registers the phase-05 and phase-06 executors.
 export * from "./pdf/index.ts";
 // The shared Office ⇄ PDF interface (06-pdf-tools-advanced.md), reused by phases 07 and 08.
