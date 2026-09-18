@@ -42,6 +42,34 @@ export const TOOL_INPUT_HINTS: Record<string, ToolInputHint> = {
     label: "Page text (optional)",
     placeholder: "A note to go with the files",
   },
+  // 12-dev-utility-tools.md — the formatters, encoders and testers all have one text box, and
+  // "Paste or type here" would not say which of the two things a two-sided tool wants.
+  "html-formatter": { label: "HTML", placeholder: "<p>Paste your markup here</p>" },
+  "css-formatter": { label: "CSS", placeholder: "body { margin: 0 }" },
+  "javascript-formatter": { label: "JavaScript", placeholder: "const hello = () => 'hi'" },
+  "markdown-converter": { label: "Markdown", placeholder: "# Title, then some **bold** text." },
+  "markdown-to-html": { label: "Markdown", placeholder: "# Title, then some **bold** text." },
+  "base64-encoder": {
+    label: "Text to encode",
+    placeholder: "Anything — or choose a file instead",
+  },
+  "base64-decoder": {
+    label: "Base64 to decode",
+    placeholder: "SGVsbG8sIHdvcmxkIQ==",
+    help: "A data: URL works too.",
+  },
+  "url-encoder": { label: "Text to encode", placeholder: "search terms & symbols" },
+  "url-decoder": { label: "Encoded text", placeholder: "search%20terms%20%26%20symbols" },
+  "hash-generator": { label: "Text to hash", placeholder: "Anything you want a fingerprint of" },
+  "timestamp-converter": {
+    label: "Timestamp or date",
+    placeholder: "1700000000, 2023-11-14T22:13:20Z, or now",
+  },
+  "regex-tester": {
+    label: "Sample text",
+    placeholder: "The text to run the expression against",
+    help: "The expression itself goes in the options below.",
+  },
 };
 
 export function getToolInputHint(toolId: string): ToolInputHint | undefined {

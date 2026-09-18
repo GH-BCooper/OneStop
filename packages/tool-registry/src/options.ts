@@ -12,6 +12,7 @@ import { DATA_TOOL_OPTIONS } from "./options-data";
 import { IMAGE_TOOL_OPTIONS } from "./options-images";
 import { MEDIA_TOOL_OPTIONS } from "./options-media";
 import { QR_TOOL_OPTIONS } from "./options-qr";
+import { UTILITY_TOOL_OPTIONS } from "./options-utilities";
 
 export interface ToolOptionBase {
   id: string;
@@ -71,13 +72,32 @@ export interface ImageOption extends ToolOptionBase {
   default: "";
 }
 
+/**
+ * A value the *browser* knows and the server cannot (12-dev-utility-tools.md): the visitor's own
+ * user-agent string, their time zone, their locale. The executor runs server-side — which may be
+ * a machine in another country — so "what am I browsing with?" and "show me that in my time zone"
+ * have to be answered with something the page fills in.
+ *
+ * Declaring it here rather than special-casing a tool keeps the generic tool page free of per-tool
+ * knowledge, and lets phases 15/16 supply the same values when they run a tool without a page.
+ * The value is still just an option, so a tool must treat it as untrusted input like any other.
+ */
+export interface ClientOption extends ToolOptionBase {
+  type: "client";
+  source: "userAgent" | "timeZone" | "locale";
+  default: "";
+  /** Shown read-only beside the other options; false hides it from the form entirely. */
+  visible?: boolean;
+}
+
 export type ToolOption =
   | SelectOption
   | TextOption
   | NumberOption
   | BooleanOption
   | SignatureOption
-  | ImageOption;
+  | ImageOption
+  | ClientOption;
 
 /** A page-selection field, used by six of the phase-05 tools with the same wording. */
 function pageSelection(overrides: Partial<TextOption> = {}): TextOption {
@@ -203,6 +223,7 @@ export const TOOL_OPTIONS: Record<string, ToolOption[]> = {
   ...IMAGE_TOOL_OPTIONS,
   ...MEDIA_TOOL_OPTIONS,
   ...QR_TOOL_OPTIONS,
+  ...UTILITY_TOOL_OPTIONS,
   "pdf-to-images": [
     {
       id: "format",

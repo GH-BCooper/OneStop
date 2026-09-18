@@ -165,6 +165,33 @@ export const VERIFIED_OFFLINE: readonly string[] = [
   "phone-to-qr",
   "wifi-to-qr",
   "qr-code-customization",
+  // 12-dev-utility-tools.md - apps/api/src/dev-utils/dev-utils.test.ts "offline" suite. Every
+  // tool of this phase is here: they are all pure local computation, which is the point of them.
+  "html-formatter",
+  "css-formatter",
+  "javascript-formatter",
+  "markdown-converter",
+  "markdown-to-html",
+  "base64-encoder",
+  "base64-decoder",
+  "url-encoder",
+  "url-decoder",
+  "uuid-generator",
+  "password-generator",
+  "hash-generator",
+  "timestamp-converter",
+  "regex-tester",
+  "user-agent-viewer",
+  "file-compressor",
+  "zip-creator",
+  "zip-extractor",
+  "file-merger",
+  "file-splitter",
+  "file-type-converter",
+  "file-metadata-viewer",
+  "metadata-remover",
+  "checksum-generator",
+  "duplicate-file-detector",
 ];
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

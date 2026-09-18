@@ -3,7 +3,7 @@ import { defineCategory } from "../define";
 // Features §12 (Developer), §13 (Network) and §14 (File Utilities). JSON/XML formatters and
 // validators (§12.1–12.4) live in data.ts; ZIP, file metadata and checksum tools listed in both
 // §12 and §14 have one entry each here.
-export const devTools = defineCategory("dev-utility", { phase: "12", sub: "Developer / Utility" }, [
+export const devTools = defineCategory("dev-utility", { phase: "12", sub: "Developer / Utility", status: "available" }, [
   { src: ["12.5"], name: "HTML Formatter", in: ["html", "text"], out: ["html"], kw: ["beautify", "pretty print", "indent", "minify"], desc: "Pretty-print or minify HTML." },
   { src: ["12.6"], name: "CSS Formatter", in: ["css", "text"], out: ["css"], kw: ["beautify", "pretty print", "minify", "stylesheet"], desc: "Pretty-print or minify CSS." },
   { src: ["12.7"], name: "JavaScript Formatter", in: ["js", "text"], out: ["js"], kw: ["js", "beautify", "pretty print", "minify"], desc: "Pretty-print or minify JavaScript." },
@@ -37,14 +37,14 @@ export const networkTools = defineCategory(
   ],
 );
 
-export const fileUtilityTools = defineCategory("file-utility", { phase: "12", sub: "File Utilities" }, [
+export const fileUtilityTools = defineCategory("file-utility", { phase: "12", sub: "File Utilities", status: "available" }, [
   { src: ["14.1"], name: "File Compressor", in: ["any"], out: ["zip"], batch: true, pop: 45, kw: ["compress", "shrink", "reduce size", "zip"], desc: "Compress any files to save space." },
   { src: ["14.2", "12.22"], name: "ZIP Creator", in: ["any"], out: ["zip"], batch: true, pop: 55, kw: ["zip", "archive", "bundle", "compress folder"], desc: "Bundle files into a ZIP archive." },
   { src: ["14.3", "12.23"], name: "ZIP Extractor", in: ["zip"], out: ["any"], pop: 55, kw: ["unzip", "extract", "decompress", "open zip"], desc: "Extract the files from a ZIP archive." },
   { src: ["14.4"], name: "File Merger", in: ["any"], out: ["any"], batch: true, kw: ["combine", "join", "concatenate"], desc: "Join split file parts back into one file." },
   { src: ["14.5"], name: "File Splitter", in: ["any"], out: ["zip"], kw: ["split", "chunks", "parts", "divide"], desc: "Split a large file into smaller parts." },
   { src: ["14.6"], name: "File Type Converter", in: ["any"], out: ["any"], batch: true, pop: 50, kw: ["convert", "change format", "file format"], desc: "Convert a file to another format using the matching OneStop tool." },
-  { src: ["14.7", "12.21"], name: "File Metadata Viewer", in: ["any"], out: ["json"], batch: true, pop: 30, status: "demo", kw: ["file info", "properties", "size", "mime type"], desc: "See a file's name, size, real format, checksums and last-modified date." },
+  { src: ["14.7", "12.21"], name: "File Metadata Viewer", in: ["any"], out: ["json"], batch: true, pop: 30, kw: ["file info", "properties", "size", "mime type"], desc: "See a file's name, size, real format, checksums and last-modified date." },
   { src: ["14.8"], name: "Metadata Remover", in: ["any"], out: ["any"], batch: true, kw: ["strip metadata", "privacy", "clean", "exif"], desc: "Strip hidden metadata from files before sharing." },
   { src: ["14.9", "12.17"], name: "File Checksum Generator", slug: "checksum-generator", in: ["any"], out: ["text"], batch: true, pop: 30, kw: ["checksum", "sha256", "md5", "verify", "integrity", "hash"], desc: "Compute checksums to verify a file hasn't changed." },
   { src: ["14.10"], name: "Duplicate File Detector", in: ["any"], out: ["json"], batch: true, kw: ["duplicates", "identical files", "dedupe"], desc: "Find identical files in a set of uploads." },

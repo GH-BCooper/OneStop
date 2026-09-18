@@ -273,11 +273,37 @@ describe("registry contents", () => {
         "qr-code-customization",
         "qr-code-analytics",
         "qr-content-page",
+        // 12-dev-utility-tools.md (File Metadata Viewer is listed above: phase 04 wired it
+        // to the echo executor, and phase 12 replaced that with the real one).
+        "html-formatter",
+        "css-formatter",
+        "javascript-formatter",
+        "markdown-converter",
+        "markdown-to-html",
+        "base64-encoder",
+        "base64-decoder",
+        "url-encoder",
+        "url-decoder",
+        "uuid-generator",
+        "password-generator",
+        "hash-generator",
+        "timestamp-converter",
+        "regex-tester",
+        "user-agent-viewer",
+        "file-compressor",
+        "zip-creator",
+        "zip-extractor",
+        "file-merger",
+        "file-splitter",
+        "file-type-converter",
+        "metadata-remover",
+        "checksum-generator",
+        "duplicate-file-detector",
       ].sort(),
     );
     for (const tool of tools.filter((t) => t.status === "available")) {
       expect(
-        ["05", "06", "07", "08", "09", "10", "11"],
+        ["05", "06", "07", "08", "09", "10", "11", "12"],
         `${tool.id} is available but not from a built phase`,
       ).toContain(tool.phase);
     }

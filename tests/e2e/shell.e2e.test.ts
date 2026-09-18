@@ -246,8 +246,10 @@ describe("tools catalogue", () => {
 
   it("runs a stub tool to a clear 'coming in a later phase' state, never fake success", async () => {
     const page = await newPage(1440);
-    await page.goto(baseUrl() + "/tools/dev-utility/uuid-generator");
-    await page.getByRole("button", { name: /^Run UUID Generator$/ }).click();
+    // Phase 12 built the UUID Generator this used to use; an AI tool is still a stub (phase 16).
+    await page.goto(baseUrl() + "/tools/ai/ai-text-generator");
+    await page.getByRole("textbox").first().fill("write me a haiku");
+    await page.getByRole("button", { name: /^Run AI Text Generator$/ }).click();
     // Phase 04 moved execution to POST /api/tools/run, so the panel settles asynchronously.
     await page.locator('[data-state="unavailable"]').waitFor({ timeout: 15_000 });
     await expect(page.getByRole("status").textContent()).resolves.toMatch(

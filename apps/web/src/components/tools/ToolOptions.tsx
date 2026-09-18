@@ -8,6 +8,7 @@
 import { isOptionVisible, type ToolOption } from "@onestop/tool-registry";
 import { Input } from "@onestop/ui";
 import { useId } from "react";
+import { ClientValue } from "./ClientValue";
 import { ImagePicker } from "./ImagePicker";
 import { SignaturePad } from "./SignaturePad";
 
@@ -119,6 +120,18 @@ export function ToolOptions({ options, values, disabled, onChange }: ToolOptions
               label={option.label}
               value={String(values[option.id] ?? "")}
               {...(disabled !== undefined ? { disabled } : {})}
+              onChange={(value) => onChange(option.id, value)}
+            />
+          );
+        }
+
+        if (option.type === "client") {
+          return (
+            <ClientValue
+              key={option.id}
+              id={fieldId}
+              option={option}
+              value={String(values[option.id] ?? "")}
               onChange={(value) => onChange(option.id, value)}
             />
           );

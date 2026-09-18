@@ -15,3 +15,5 @@ export * from "./images/index.ts";
 export * from "./media/index.ts";
 // Importing the QR module registers the phase-11 QR executors.
 export * from "./qr/index.ts";
+// Importing the dev-utils module registers the phase-12 developer & file utility executors.
+export * from "./dev-utils/index.ts";
