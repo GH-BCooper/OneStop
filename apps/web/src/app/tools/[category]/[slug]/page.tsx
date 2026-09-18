@@ -9,11 +9,7 @@ import { DynamicQRManager } from "@/components/qr/DynamicQRManager";
 import { QRScanner } from "@/components/qr/QRScanner";
 
 /** Tools whose codes are managed from a list under the form (11-qr-tools.md). */
-const DYNAMIC_QR_TOOLS = new Set([
-  "dynamic-qr-code",
-  "custom-qr-landing-page",
-  "qr-content-page",
-]);
+const DYNAMIC_QR_TOOLS = new Set(["dynamic-qr-code", "custom-qr-landing-page", "qr-content-page"]);
 
 interface Props {
   params: Promise<{ category: string; slug: string }>;

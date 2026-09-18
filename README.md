@@ -63,12 +63,12 @@ A free hosted Postgres (Neon, Supabase) works just as well: put its URL in `DATA
 The audio and video tools (phase 10) run entirely locally through FFmpeg, which is free and open
 source. Install it once:
 
-| OS             | Command                                                                            |
-| -------------- | ---------------------------------------------------------------------------------- |
-| macOS          | `brew install ffmpeg`                                                              |
-| Ubuntu/Debian  | `sudo apt install ffmpeg`                                                          |
-| Fedora         | `sudo dnf install ffmpeg`                                                          |
-| Windows        | `winget install Gyan.FFmpeg` (or download a build from [ffmpeg.org](https://ffmpeg.org/download.html) and add its `bin` folder to `PATH`) |
+| OS            | Command                                                                                                                                   |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| macOS         | `brew install ffmpeg`                                                                                                                     |
+| Ubuntu/Debian | `sudo apt install ffmpeg`                                                                                                                 |
+| Fedora        | `sudo dnf install ffmpeg`                                                                                                                 |
+| Windows       | `winget install Gyan.FFmpeg` (or download a build from [ffmpeg.org](https://ffmpeg.org/download.html) and add its `bin` folder to `PATH`) |
 
 Check it with `ffmpeg -version` and `ffprobe -version` — OneStop needs both, and they ship together.
 Open a new terminal after installing on Windows so the new `PATH` is picked up, then restart the dev

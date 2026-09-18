@@ -44,7 +44,19 @@ export const extractAudioExecutor: Executor = eachMedia(
       const [ext, muxer] = copy;
       const out = `out-${ctx.index}.${ext}`;
       await runFfmpeg(
-        [...input(m.path), "-map", `0:${m.audio!.index}`, "-vn", "-sn", "-dn", "-c:a", "copy", "-f", muxer, out],
+        [
+          ...input(m.path),
+          "-map",
+          `0:${m.audio!.index}`,
+          "-vn",
+          "-sn",
+          "-dn",
+          "-c:a",
+          "copy",
+          "-f",
+          muxer,
+          out,
+        ],
         { cwd: ctx.dir, signal: ctx.signal },
       );
       return {
@@ -54,10 +66,19 @@ export const extractAudioExecutor: Executor = eachMedia(
     }
     // An unusual codec with "original" chosen → M4A (AAC), which plays everywhere.
     const format: AudioFormat = choice === "original" ? "m4a" : choice;
-    const bytes = await encodeAudio(m, ctx.dir, format, { bitrate: 192, signal: ctx.signal }, `out-${ctx.index}`);
+    const bytes = await encodeAudio(
+      m,
+      ctx.dir,
+      format,
+      { bitrate: 192, signal: ctx.signal },
+      `out-${ctx.index}`,
+    );
     return {
       file: outFile(outName(m, "audio", format), format, bytes),
-      note: choice === "original" ? `The ${codec} track was converted to M4A so it plays everywhere.` : undefined,
+      note:
+        choice === "original"
+          ? `The ${codec} track was converted to M4A so it plays everywhere.`
+          : undefined,
     };
   },
   { verb: "Extracted the audio from", need: "video", zipStem: "extracted-audio", max: 10 },

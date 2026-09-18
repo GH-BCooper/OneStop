@@ -98,14 +98,24 @@ export function waveformSvg(peaks: Peak[], s: WaveformStyle): string {
       .join("");
     shape = `<g fill="${s.colour}">${shape}</g>`;
   } else {
-    const top = peaks.map((p, i) => `${((i * width) / (peaks.length - 1 || 1)).toFixed(2)},${scale(p.max).toFixed(2)}`);
-    const bottom = peaks.map((p, i) => `${((i * width) / (peaks.length - 1 || 1)).toFixed(2)},${scale(p.min).toFixed(2)}`).reverse();
+    const top = peaks.map(
+      (p, i) => `${((i * width) / (peaks.length - 1 || 1)).toFixed(2)},${scale(p.max).toFixed(2)}`,
+    );
+    const bottom = peaks
+      .map(
+        (p, i) =>
+          `${((i * width) / (peaks.length - 1 || 1)).toFixed(2)},${scale(p.min).toFixed(2)}`,
+      )
+      .reverse();
     shape =
       s.style === "filled"
         ? `<polygon points="${[...top, ...bottom].join(" ")}" fill="${s.colour}"/>`
         : `<polyline points="${top.join(" ")}" fill="none" stroke="${s.colour}" stroke-width="1.5" stroke-linejoin="round"/><polyline points="${bottom.join(" ")}" fill="none" stroke="${s.colour}" stroke-width="1.5" stroke-linejoin="round"/>`;
   }
-  const bg = s.background === "none" ? "" : `<rect width="${width}" height="${height}" fill="${s.background}"/>`;
+  const bg =
+    s.background === "none"
+      ? ""
+      : `<rect width="${width}" height="${height}" fill="${s.background}"/>`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${bg}${shape}</svg>`;
 }
 
@@ -119,12 +129,29 @@ export async function decodePcm(
   const sampleRate = Math.max(200, Math.min(8000, Math.floor(MAX_SAMPLES / duration)));
   const out = "wave.pcm";
   await runFfmpeg(
-    [...input(m.path), "-map", `0:${m.audio!.index}`, "-vn", "-ac", "1", "-ar", String(sampleRate), "-c:a", "pcm_s16le", "-f", "s16le", out],
+    [
+      ...input(m.path),
+      "-map",
+      `0:${m.audio!.index}`,
+      "-vn",
+      "-ac",
+      "1",
+      "-ar",
+      String(sampleRate),
+      "-c:a",
+      "pcm_s16le",
+      "-f",
+      "s16le",
+      out,
+    ],
     { cwd: dir, signal },
   );
   const bytes = await readOutput(dir, out);
   const aligned = bytes.byteLength - (bytes.byteLength % 2);
-  return { pcm: new Int16Array(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + aligned)), sampleRate };
+  return {
+    pcm: new Int16Array(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + aligned)),
+    sampleRate,
+  };
 }
 
 export const waveformExecutor: Executor = eachMedia(
@@ -136,12 +163,17 @@ export const waveformExecutor: Executor = eachMedia(
       width: optNumber(options, "width", 1200, { min: 200, max: 4000 }),
       height: optNumber(options, "height", 300, { min: 60, max: 2000 }),
       colour: svgColour(optString(options, "colour", "#3b82f6"), "#3b82f6"),
-      background: optBool(options, "transparent", false) ? "none" : svgColour(optString(options, "background", "#ffffff"), "#ffffff"),
+      background: optBool(options, "transparent", false)
+        ? "none"
+        : svgColour(optString(options, "background", "#ffffff"), "#ffffff"),
       style: optEnum(options, "style", ["bars", "line", "filled"], "bars"),
     };
     const { pcm, sampleRate } = await decodePcm(m, ctx.dir, ctx.signal);
     if (pcm.length === 0) throw unsupported(`"${m.ref.name}" contains no audible audio.`);
-    const columns = Math.min(style.style === "bars" ? Math.floor(style.width / 3) : style.width, pcm.length);
+    const columns = Math.min(
+      style.style === "bars" ? Math.floor(style.width / 3) : style.width,
+      pcm.length,
+    );
     const peaks = peaksFromPcm(pcm, Math.max(2, columns));
     const svg = waveformSvg(peaks, style);
     let file: OutputFile;

@@ -11,13 +11,39 @@ import { getTool } from "@onestop/tool-registry";
 import type { ExecContext, ExecResult, FileRef, OutputFile } from "@onestop/types";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import { clock, describe as describeMedia, parseTime, probe, withWorkdir, type Probe } from "./common.ts";
-import { FFMPEG_MISSING_MESSAGE, ffmpegVersion, findFfmpeg, setFfmpegLocator } from "./ffmpegCheck.ts";
+import {
+  clock,
+  describe as describeMedia,
+  parseTime,
+  probe,
+  withWorkdir,
+  type Probe,
+} from "./common.ts";
+import {
+  FFMPEG_MISSING_MESSAGE,
+  ffmpegVersion,
+  findFfmpeg,
+  setFfmpegLocator,
+} from "./ffmpegCheck.ts";
 import { makeAudio, makeVideo, makeVideoWithSubtitles, SAMPLE_SRT } from "./fixtures.ts";
 import { MEDIA_EXECUTORS } from "./index.ts";
 import { frameTimes, MAX_FRAMES } from "./extractFrames.ts";
-import { canRemux, padColour, resizeFilters, rotationFilters, targetBitrate } from "./convertVideo.ts";
-import { convertSubtitles, decodeSubtitleBytes, detectSubtitleFormat, formatTimestamp, parseSubtitles, parseTimestamp, writeSubtitles } from "./subtitles.ts";
+import {
+  canRemux,
+  padColour,
+  resizeFilters,
+  rotationFilters,
+  targetBitrate,
+} from "./convertVideo.ts";
+import {
+  convertSubtitles,
+  decodeSubtitleBytes,
+  detectSubtitleFormat,
+  formatTimestamp,
+  parseSubtitles,
+  parseTimestamp,
+  writeSubtitles,
+} from "./subtitles.ts";
 import { parseLoudnorm, parseVolumeDetect, loudnormFilter } from "./normalize.ts";
 import { peaksFromPcm, svgColour } from "./waveform.ts";
 import { trimRange } from "./trim.ts";
@@ -35,7 +61,11 @@ type Fixture = { name: string; bytes: Uint8Array };
 const f = (name: string, bytes: Uint8Array): Fixture => ({ name, bytes });
 const tool = (id: string) => MEDIA_EXECUTORS.find(([k]) => k === id)![1];
 
-async function run(id: string, input: Fixture[] | string | null, options: Record<string, unknown> = {}) {
+async function run(
+  id: string,
+  input: Fixture[] | string | null,
+  options: Record<string, unknown> = {},
+) {
   const files = Array.isArray(input) ? input : [];
   const refs: FileRef[] | string | null = Array.isArray(input)
     ? input.map((x, i) => ({ name: x.name, size: x.bytes.length, type: "", tempId: `f-${i}` }))
@@ -80,7 +110,10 @@ async function info(name: string, bytes: Uint8Array) {
 }
 
 const near = (actual: number, expected: number, tolerance = 0.15) => {
-  expect(Math.abs(actual - expected), `${actual} should be within ${tolerance} of ${expected}`).toBeLessThanOrEqual(tolerance);
+  expect(
+    Math.abs(actual - expected),
+    `${actual} should be within ${tolerance} of ${expected}`,
+  ).toBeLessThanOrEqual(tolerance);
 };
 
 // ---- fixtures ---------------------------------------------------------------------------------
@@ -140,7 +173,11 @@ describe("subtitles", () => {
 
   it("parses SRT into cues with millisecond timing and kept markup", () => {
     expect(cues).toHaveLength(2);
-    expect(cues[0]).toMatchObject({ start: 500, end: 2000, text: "Hello there.\nThis is <i>line two</i>." });
+    expect(cues[0]).toMatchObject({
+      start: 500,
+      end: 2000,
+      text: "Hello there.\nThis is <i>line two</i>.",
+    });
     expect(cues[1]!.text).toContain("Second cue & special");
   });
 
@@ -187,9 +224,14 @@ Bye
   });
 
   it("shifts timing and refuses a file with no cues", () => {
-    const shifted = parseSubtitles(convertSubtitles(SAMPLE_SRT, "srt", "srt", { offsetMs: 1500 }).text, "srt");
+    const shifted = parseSubtitles(
+      convertSubtitles(SAMPLE_SRT, "srt", "srt", { offsetMs: 1500 }).text,
+      "srt",
+    );
     expect(shifted[0]!.start).toBe(2000);
-    expect(() => convertSubtitles("not a subtitle file", "srt", "vtt")).toThrow(/No subtitles were found/);
+    expect(() => convertSubtitles("not a subtitle file", "srt", "vtt")).toThrow(
+      /No subtitles were found/,
+    );
   });
 
   it("detects the format from the content, not just the name", () => {
@@ -221,7 +263,13 @@ describe("pure video helpers", () => {
       format: { format_name: "mov,mp4", duration: "10" },
       streams: [
         { index: 0, codec_type: "video", codec_name: codec, width, height, avg_frame_rate: "30/1" },
-        { index: 1, codec_type: "audio", codec_name: audioCodec, sample_rate: "44100", channels: 2 },
+        {
+          index: 1,
+          codec_type: "audio",
+          codec_name: audioCodec,
+          sample_rate: "44100",
+          channels: 2,
+        },
       ],
     });
 
@@ -263,7 +311,9 @@ describe("pure video helpers", () => {
     expect(frameTimes(m, { mode: "interval", interval: "2" })).toHaveLength(6);
     expect(frameTimes(m, { mode: "times", times: "0:01, 2, 3.5" })).toEqual([1, 2, 3.5]);
     expect(frameTimes(m, { mode: "single", time: "4" })).toEqual([4]);
-    expect(() => frameTimes({ ...m, duration: 3600 }, { mode: "interval", interval: "1" })).toThrow(/longer interval/);
+    expect(() => frameTimes({ ...m, duration: 3600 }, { mode: "interval", interval: "1" })).toThrow(
+      /longer interval/,
+    );
     expect(() => frameTimes(m, { mode: "single", time: "30" })).toThrow(/past the end/);
     expect(MAX_FRAMES).toBe(300);
   });
@@ -290,9 +340,15 @@ describe("pure video helpers", () => {
   });
 
   it("parses FFmpeg's loudness reports", () => {
-    expect(parseLoudnorm('junk\n{"input_i":"-23.5","input_tp":"-2.0","input_lra":"3.0","input_thresh":"-33","target_offset":"0.5"}')).toMatchObject({ input_i: "-23.5" });
+    expect(
+      parseLoudnorm(
+        'junk\n{"input_i":"-23.5","input_tp":"-2.0","input_lra":"3.0","input_thresh":"-33","target_offset":"0.5"}',
+      ),
+    ).toMatchObject({ input_i: "-23.5" });
     expect(parseLoudnorm("no json here")).toBeNull();
-    expect(parseVolumeDetect("[Parsed_volumedetect_0 @ x] max_volume: -6.5 dB\nmean_volume: -20.1 dB")).toEqual({ maxVolume: -6.5, meanVolume: -20.1 });
+    expect(
+      parseVolumeDetect("[Parsed_volumedetect_0 @ x] max_volume: -6.5 dB\nmean_volume: -20.1 dB"),
+    ).toEqual({ maxVolume: -6.5, meanVolume: -20.1 });
   });
 });
 
@@ -356,7 +412,9 @@ suite("audio tools", () => {
   });
 
   it("refuses to extract audio from a silent video", async () => {
-    expect(fail(await run("extract-audio", [f("silent.mp4", silentClip)])).message).toMatch(/no audio track/i);
+    expect(fail(await run("extract-audio", [f("silent.mp4", silentClip)])).message).toMatch(
+      /no audio track/i,
+    );
   });
 
   it("compresses audio to a smaller file, or keeps the original when it cannot", async () => {
@@ -364,19 +422,31 @@ suite("audio tools", () => {
     const file = out(smaller);
     expect(file.bytes.length).toBeLessThan(wav.length);
     expect(file.name).toBe("tone-compressed.mp3");
-    const already = await run("audio-compressor", [f("tone.mp3", shortTone)], { level: "light", bitrate: 320 });
+    const already = await run("audio-compressor", [f("tone.mp3", shortTone)], {
+      level: "light",
+      bitrate: 320,
+    });
     expect(ok(already).summary).toMatch(/original was kept|smaller/);
   });
 
   it("trims audio to the requested length, with fades", async () => {
-    const file = out(await run("audio-trimmer", [f("tone.wav", wav)], { start: "0:01", end: "2.5", fadeIn: 0.2, fadeOut: 0.2 }));
+    const file = out(
+      await run("audio-trimmer", [f("tone.wav", wav)], {
+        start: "0:01",
+        end: "2.5",
+        fadeIn: 0.2,
+        fadeOut: 0.2,
+      }),
+    );
     const m = await info(file.name, file.bytes);
     near(m.duration, 1.5, 0.15);
     expect(file.name).toBe("tone-trimmed.wav");
   });
 
   it("merges audio into one file whose duration is the sum", async () => {
-    const result = await run("audio-merger", [f("a.mp3", mp3), f("b.mp3", shortTone)], { format: "wav" });
+    const result = await run("audio-merger", [f("a.mp3", mp3), f("b.mp3", shortTone)], {
+      format: "wav",
+    });
     const file = out(result);
     const m = await info(file.name, file.bytes);
     near(m.duration, 5, 0.3);
@@ -388,18 +458,28 @@ suite("audio tools", () => {
   });
 
   it("normalises loudness to the chosen target", async () => {
-    const file = out(await run("volume-normalizer", [f("quiet.wav", quietTone)], { target: "podcast" }));
+    const file = out(
+      await run("volume-normalizer", [f("quiet.wav", quietTone)], { target: "podcast" }),
+    );
     const measured = await withWorkdir(async (dir) => {
       const { writeFile } = await import("node:fs/promises");
       await writeFile(`${dir}/${file.name}`, file.bytes);
-      const m = describeMedia({ name: file.name, size: file.bytes.length, type: "" }, file.name, file.bytes.length, await probe(file.name, dir));
+      const m = describeMedia(
+        { name: file.name, size: file.bytes.length, type: "" },
+        file.name,
+        file.bytes.length,
+        await probe(file.name, dir),
+      );
       return (await loudnormFilter(m, dir, -16, -1)).measured;
     });
     near(Number(measured!.input_i), -16, 1.5);
   }, 120_000);
 
   it("normalises by peak too", async () => {
-    const result = await run("volume-normalizer", [f("quiet.wav", quietTone)], { mode: "peak", peakDb: -1 });
+    const result = await run("volume-normalizer", [f("quiet.wav", quietTone)], {
+      mode: "peak",
+      peakDb: -1,
+    });
     expect(ok(result).summary).toMatch(/Peak .* dB → -1 dB/);
   });
 
@@ -407,7 +487,13 @@ suite("audio tools", () => {
     const view = await run("audio-metadata-editor", [f("tone.mp3", mp3)]);
     expect(out(view).name).toBe("tone-metadata.json");
     expect(ok(view).summary).toMatch(/MP3, 0:0?3/);
-    const edited = out(await run("audio-metadata-editor", [f("tone.mp3", mp3)], { mode: "edit", title: "Test Tone", artist: "OneStop" }));
+    const edited = out(
+      await run("audio-metadata-editor", [f("tone.mp3", mp3)], {
+        mode: "edit",
+        title: "Test Tone",
+        artist: "OneStop",
+      }),
+    );
     const m = await info(edited.name, edited.bytes);
     expect({ ...m.probe.format.tags }).toMatchObject({ title: "Test Tone", artist: "OneStop" });
     expect(m.audio!.codec).toBe("mp3");
@@ -415,18 +501,29 @@ suite("audio tools", () => {
 
   it("says plainly when a format cannot hold tags", async () => {
     const aac = await makeAudio("aac", { seconds: 1 });
-    expect(fail(await run("audio-metadata-editor", [f("t.aac", aac)], { mode: "edit", title: "x" })).message).toMatch(/can't store tags/);
+    expect(
+      fail(await run("audio-metadata-editor", [f("t.aac", aac)], { mode: "edit", title: "x" }))
+        .message,
+    ).toMatch(/can't store tags/);
   });
 
   it("draws a waveform as PNG and SVG, and returns the peaks as data", async () => {
-    const png = await run("audio-waveform-generator", [f("tone.mp3", mp3)], { width: 600, height: 200 });
+    const png = await run("audio-waveform-generator", [f("tone.mp3", mp3)], {
+      width: 600,
+      height: 200,
+    });
     const file = out(png);
     const meta = await sharp(Buffer.from(file.bytes)).metadata();
     expect([meta.format, meta.width, meta.height]).toEqual(["png", 600, 200]);
     const peaks = (ok(png).output as { files: { peaks: number[][] }[] }).files[0]!.peaks;
     expect(peaks.length).toBeGreaterThan(50);
     expect(Math.max(...peaks.map((p) => p[1]!))).toBeGreaterThan(0.5);
-    const svg = out(await run("audio-waveform-generator", [f("tone.mp3", mp3)], { output: "svg", style: "filled" }));
+    const svg = out(
+      await run("audio-waveform-generator", [f("tone.mp3", mp3)], {
+        output: "svg",
+        style: "filled",
+      }),
+    );
     expect(new TextDecoder().decode(svg.bytes)).toMatch(/^<svg[^>]*><rect[^>]*\/><polygon/);
   });
 });
@@ -447,13 +544,21 @@ suite("video tools", () => {
   }, 120_000);
 
   it("compresses a video and never returns something bigger", async () => {
-    const big = await makeVideo("mp4", { seconds: 2, width: 640, height: 480, extraArgs: ["-crf", "12"] });
+    const big = await makeVideo("mp4", {
+      seconds: 2,
+      width: 640,
+      height: 480,
+      extraArgs: ["-crf", "12"],
+    });
     const result = await run("video-compressor", [f("big.mp4", big)], { level: "strong" });
     const file = out(result);
     expect(file.bytes.length).toBeLessThan(big.length);
     const m = await info(file.name, file.bytes);
     expect(Math.min(m.video!.width, m.video!.height)).toBeLessThanOrEqual(720);
-    const tiny = await run("video-compressor", [f("clip.mp4", clip)], { level: "size", targetMb: 0.02 });
+    const tiny = await run("video-compressor", [f("clip.mp4", clip)], {
+      level: "size",
+      targetMb: 0.02,
+    });
     expect(ok(tiny).summary).toMatch(/smaller|original was kept/);
   }, 180_000);
 
@@ -464,9 +569,13 @@ suite("video tools", () => {
   });
 
   it("trims video precisely and fast", async () => {
-    const precise = out(await run("video-trimmer", [f("clip.mp4", clip)], { start: "0.5", end: "1.5" }));
+    const precise = out(
+      await run("video-trimmer", [f("clip.mp4", clip)], { start: "0.5", end: "1.5" }),
+    );
     near((await info(precise.name, precise.bytes)).duration, 1, 0.15);
-    const fast = out(await run("video-trimmer", [f("clip.mp4", clip)], { start: "0.5", end: "1.5", mode: "fast" }));
+    const fast = out(
+      await run("video-trimmer", [f("clip.mp4", clip)], { start: "0.5", end: "1.5", mode: "fast" }),
+    );
     const m = await info(fast.name, fast.bytes);
     expect(m.duration).toBeGreaterThan(0.3);
     expect(m.duration).toBeLessThan(1.6);
@@ -489,25 +598,41 @@ suite("video tools", () => {
   }, 120_000);
 
   it("resizes with padding, cropping and stretching", async () => {
-    const padded = out(await run("video-resizer", [f("clip.mp4", clip)], { preset: "1080x1080", quality: "low" }));
+    const padded = out(
+      await run("video-resizer", [f("clip.mp4", clip)], { preset: "1080x1080", quality: "low" }),
+    );
     const m = await info(padded.name, padded.bytes);
     expect([m.video!.width, m.video!.height]).toEqual([1080, 1080]);
-    const cropped = out(await run("video-resizer", [f("clip.mp4", clip)], { width: 200, height: 200, mode: "crop", quality: "low" }));
+    const cropped = out(
+      await run("video-resizer", [f("clip.mp4", clip)], {
+        width: 200,
+        height: 200,
+        mode: "crop",
+        quality: "low",
+      }),
+    );
     const c = await info(cropped.name, cropped.bytes);
     expect([c.video!.width, c.video!.height]).toEqual([200, 200]);
   }, 120_000);
 
   it("rotates a video, swapping its dimensions", async () => {
-    const file = out(await run("rotate-video", [f("clip.mp4", clip)], { angle: "90", quality: "low" }));
+    const file = out(
+      await run("rotate-video", [f("clip.mp4", clip)], { angle: "90", quality: "low" }),
+    );
     const m = await info(file.name, file.bytes);
     expect([m.video!.width, m.video!.height]).toEqual([240, 320]);
   }, 60_000);
 
   it("changes resolution, and leaves a smaller video alone", async () => {
-    const down = await run("change-video-resolution", [f("big.mp4", clipBig)], { resolution: "240", quality: "low" });
+    const down = await run("change-video-resolution", [f("big.mp4", clipBig)], {
+      resolution: "240",
+      quality: "low",
+    });
     const m = await info("out.mp4", out(down).bytes);
     expect(m.video!.height).toBe(240);
-    const already = await run("change-video-resolution", [f("clip.mp4", clip)], { resolution: "1080" });
+    const already = await run("change-video-resolution", [f("clip.mp4", clip)], {
+      resolution: "1080",
+    });
     expect(ok(already).summary).toMatch(/left unchanged/);
   }, 60_000);
 
@@ -518,7 +643,14 @@ suite("video tools", () => {
   }, 60_000);
 
   it("makes an animated GIF from a clip", async () => {
-    const file = out(await run("video-to-gif", [f("clip.mp4", clip)], { start: "0.5", duration: "1", fps: 8, width: 160 }));
+    const file = out(
+      await run("video-to-gif", [f("clip.mp4", clip)], {
+        start: "0.5",
+        duration: "1",
+        fps: 8,
+        width: 160,
+      }),
+    );
     expect(file.name).toBe("clip.gif");
     expect([...file.bytes.subarray(0, 3)]).toEqual([0x47, 0x49, 0x46]);
     const meta = await sharp(Buffer.from(file.bytes), { animated: true }).metadata();
@@ -527,7 +659,12 @@ suite("video tools", () => {
   }, 60_000);
 
   it("extracts evenly spaced frames as images", async () => {
-    const result = await run("extract-frames", [f("clip.mp4", clip)], { mode: "count", count: 4, packaging: "files", width: 160 });
+    const result = await run("extract-frames", [f("clip.mp4", clip)], {
+      mode: "count",
+      count: 4,
+      packaging: "files",
+      width: 160,
+    });
     const frames = files(result);
     expect(frames).toHaveLength(4);
     expect(frames[0]!.name).toMatch(/^clip-001-0-00\.png$/);
@@ -538,10 +675,18 @@ suite("video tools", () => {
   }, 60_000);
 
   it("packs several frames into one ZIP by default and grabs a single frame as JPG", async () => {
-    const zipped = files(await run("extract-frames", [f("clip.mp4", clip)], { mode: "interval", interval: "1" }));
+    const zipped = files(
+      await run("extract-frames", [f("clip.mp4", clip)], { mode: "interval", interval: "1" }),
+    );
     expect(zipped).toHaveLength(1);
     expect(zipped[0]!.name).toBe("clip-frames.zip");
-    const single = out(await run("extract-frames", [f("clip.mp4", clip)], { mode: "single", time: "1", format: "jpg" }));
+    const single = out(
+      await run("extract-frames", [f("clip.mp4", clip)], {
+        mode: "single",
+        time: "1",
+        format: "jpg",
+      }),
+    );
     expect(single.mimeType).toBe("image/jpeg");
   }, 60_000);
 
@@ -556,12 +701,18 @@ suite("video tools", () => {
   }, 60_000);
 
   it("says so when a video has no subtitle tracks", async () => {
-    expect(fail(await run("subtitle-extraction", [f("clip.mp4", clip)])).message).toMatch(/no embedded subtitle tracks/);
+    expect(fail(await run("subtitle-extraction", [f("clip.mp4", clip)])).message).toMatch(
+      /no embedded subtitle tracks/,
+    );
   });
 
   it("converts subtitle files without needing FFmpeg at all", async () => {
     setFfmpegLocator(() => null);
-    const result = await run("subtitle-conversion", [f("movie.srt", new TextEncoder().encode(SAMPLE_SRT))], { format: "vtt", packaging: "files" });
+    const result = await run(
+      "subtitle-conversion",
+      [f("movie.srt", new TextEncoder().encode(SAMPLE_SRT))],
+      { format: "vtt", packaging: "files" },
+    );
     expect(new TextDecoder().decode(out(result).bytes).startsWith("WEBVTT")).toBe(true);
     expect(out(result).name).toBe("movie.vtt");
   });
@@ -569,13 +720,19 @@ suite("video tools", () => {
 
 suite("safety and failure paths", () => {
   it("refuses a playlist pretending to be a video (it would make FFmpeg read other files)", async () => {
-    const playlist = new TextEncoder().encode("#EXTM3U\n#EXT-X-TARGETDURATION:10\nfile:///etc/passwd\n");
-    expect(fail(await run("video-converter", [f("evil.mp4", playlist)])).message).toBe("This file type is not supported.");
+    const playlist = new TextEncoder().encode(
+      "#EXTM3U\n#EXT-X-TARGETDURATION:10\nfile:///etc/passwd\n",
+    );
+    expect(fail(await run("video-converter", [f("evil.mp4", playlist)])).message).toBe(
+      "This file type is not supported.",
+    );
   });
 
   it("reports a damaged file instead of crashing", async () => {
     const junk = new Uint8Array(2048).fill(0x41);
-    expect(fail(await run("audio-converter", [f("broken.mp3", junk)])).message).toMatch(/could not be read/);
+    expect(fail(await run("audio-converter", [f("broken.mp3", junk)])).message).toMatch(
+      /could not be read/,
+    );
   });
 
   it("asks for a file when none was given", async () => {
@@ -583,8 +740,12 @@ suite("safety and failure paths", () => {
   });
 
   it("refuses an audio-only file to a video tool and vice versa", async () => {
-    expect(fail(await run("video-converter", [f("tone.mp3", mp3)])).message).toMatch(/no video track/);
-    expect(fail(await run("audio-converter", [f("silent.mp4", silentClip)])).message).toMatch(/no audio track/);
+    expect(fail(await run("video-converter", [f("tone.mp3", mp3)])).message).toMatch(
+      /no video track/,
+    );
+    expect(fail(await run("audio-converter", [f("silent.mp4", silentClip)])).message).toMatch(
+      /no audio track/,
+    );
   });
 
   it("cancels when the pipeline aborts", async () => {
@@ -605,8 +766,20 @@ describe("missing FFmpeg", () => {
     ["extract-frames", [{ name: "a.mp4", bytes: new Uint8Array([1]) }]],
     ["audio-waveform-generator", [{ name: "a.mp3", bytes: new Uint8Array([1]) }]],
     ["volume-normalizer", [{ name: "a.mp3", bytes: new Uint8Array([1]) }]],
-    ["audio-merger", [{ name: "a.mp3", bytes: new Uint8Array([1]) }, { name: "b.mp3", bytes: new Uint8Array([1]) }]],
-    ["video-merger", [{ name: "a.mp4", bytes: new Uint8Array([1]) }, { name: "b.mp4", bytes: new Uint8Array([1]) }]],
+    [
+      "audio-merger",
+      [
+        { name: "a.mp3", bytes: new Uint8Array([1]) },
+        { name: "b.mp3", bytes: new Uint8Array([1]) },
+      ],
+    ],
+    [
+      "video-merger",
+      [
+        { name: "a.mp4", bytes: new Uint8Array([1]) },
+        { name: "b.mp4", bytes: new Uint8Array([1]) },
+      ],
+    ],
     ["subtitle-extraction", [{ name: "a.mkv", bytes: new Uint8Array([1]) }]],
     ["audio-metadata-editor", [{ name: "a.mp3", bytes: new Uint8Array([1]) }]],
     ["video-trimmer", [{ name: "a.mp4", bytes: new Uint8Array([1]) }]],
@@ -616,8 +789,12 @@ describe("missing FFmpeg", () => {
     setFfmpegLocator(() => null);
     for (const [id, input, options] of cases) {
       const result = fail(await run(id, input, options ?? {}));
-      expect(result.message, `${id} should report the FFmpeg setup message`).toBe(FFMPEG_MISSING_MESSAGE);
-      expect(result.message).toContain("FFmpeg is required for audio/video tools — see setup instructions");
+      expect(result.message, `${id} should report the FFmpeg setup message`).toBe(
+        FFMPEG_MISSING_MESSAGE,
+      );
+      expect(result.message).toContain(
+        "FFmpeg is required for audio/video tools — see setup instructions",
+      );
     }
   });
 
@@ -632,7 +809,13 @@ suite("offline", () => {
     const trap = () => {
       throw new Error("network access attempted");
     };
-    const saved = { fetch: globalThis.fetch, hg: http.get, hr: http.request, sg: https.get, sr: https.request };
+    const saved = {
+      fetch: globalThis.fetch,
+      hg: http.get,
+      hr: http.request,
+      sg: https.get,
+      sr: https.request,
+    };
     globalThis.fetch = trap as typeof fetch;
     http.get = trap as typeof http.get;
     http.request = trap as typeof http.request;

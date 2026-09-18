@@ -14,7 +14,15 @@ import { packageFiles } from "../images/common.ts";
 import { baseName, extOf, plural } from "../documents/common.ts";
 import { FfmpegRunError, requireFfmpeg, runFfprobe } from "./ffmpegCheck.ts";
 
-export { baseName, extOf, optBool, optEnum, optNumber, optString, plural } from "../documents/common.ts";
+export {
+  baseName,
+  extOf,
+  optBool,
+  optEnum,
+  optNumber,
+  optString,
+  plural,
+} from "../documents/common.ts";
 export { formatBytes, packageFiles } from "../images/common.ts";
 
 export function unsupported(message: string, detail?: unknown): PdfToolError {
@@ -28,7 +36,11 @@ export function throwIfAborted(signal?: AbortSignal): void {
 /** Maps FFmpeg's stderr onto a short, actionable message. The full text goes to the server log. */
 function ffmpegFailure(err: FfmpegRunError): { code: ExecErrorCode; message: string } {
   const text = err.stderr;
-  if (/Invalid data found|could not find codec parameters|moov atom not found|EBML header parsing failed|Invalid argument/i.test(text)) {
+  if (
+    /Invalid data found|could not find codec parameters|moov atom not found|EBML header parsing failed|Invalid argument/i.test(
+      text,
+    )
+  ) {
     return {
       code: "UNSUPPORTED_INPUT",
       message: "This file could not be read. It may be damaged or not really an audio/video file.",
@@ -37,13 +49,20 @@ function ffmpegFailure(err: FfmpegRunError): { code: ExecErrorCode; message: str
   if (/Unknown encoder|Encoder not found|encoder .* not found/i.test(text)) {
     return {
       code: "FAILED",
-      message: "Your FFmpeg build is missing an encoder this format needs. Install a full FFmpeg build (see setup instructions).",
+      message:
+        "Your FFmpeg build is missing an encoder this format needs. Install a full FFmpeg build (see setup instructions).",
     };
   }
   if (/No space left/i.test(text)) {
-    return { code: "FAILED", message: "The server ran out of disk space while processing this file." };
+    return {
+      code: "FAILED",
+      message: "The server ran out of disk space while processing this file.",
+    };
   }
-  return { code: "FAILED", message: "FFmpeg could not process this file. Please try another file or setting." };
+  return {
+    code: "FAILED",
+    message: "FFmpeg could not process this file. Please try another file or setting.",
+  };
 }
 
 export async function runMediaTool(
@@ -62,7 +81,11 @@ export async function runMediaTool(
       return { ok: false, ...ffmpegFailure(err) };
     }
     console.error(`[media:${toolId}] unexpected failure`, err);
-    return { ok: false, code: "FAILED", message: "This file could not be processed. Please try again." };
+    return {
+      ok: false,
+      code: "FAILED",
+      message: "This file could not be processed. Please try again.",
+    };
   }
 }
 
@@ -113,13 +136,22 @@ export interface Probe {
 }
 
 /** Demuxers that read *other* files or URLs. An upload must never be opened as one of these. */
-const REFERENCING_FORMATS = /(^|,)(hls|applehttp|concat|ffconcat|dash|sdp|rtsp|rtp|image2|tee|lavfi)(,|$)/;
+const REFERENCING_FORMATS =
+  /(^|,)(hls|applehttp|concat|ffconcat|dash|sdp|rtsp|rtp|image2|tee|lavfi)(,|$)/;
 
 export async function probe(file: string, dir: string, signal?: AbortSignal): Promise<Probe> {
   let json: string;
   try {
     json = await runFfprobe(
-      ["-protocol_whitelist", "file", "-print_format", "json", "-show_format", "-show_streams", file],
+      [
+        "-protocol_whitelist",
+        "file",
+        "-print_format",
+        "json",
+        "-show_format",
+        "-show_streams",
+        file,
+      ],
       { cwd: dir, signal, timeoutMs: 60_000 },
     );
   } catch (err) {
@@ -159,7 +191,14 @@ export interface MediaInput {
   size: number;
   probe: Probe;
   duration: number;
-  video?: { index: number; codec: string; width: number; height: number; fps: number; rotation: number };
+  video?: {
+    index: number;
+    codec: string;
+    width: number;
+    height: number;
+    fps: number;
+    rotation: number;
+  };
   audio?: { index: number; codec: string; sampleRate: number; channels: number; bitRate: number };
   subtitles: ProbeStream[];
 }
@@ -226,7 +265,8 @@ export async function readMedia(
   { min = 1, max = 50, need = "any" }: { min?: number; max?: number; need?: Need } = {},
 ): Promise<MediaInput[]> {
   requireFfmpeg();
-  if (!ctx) throw new PdfToolError("FAILED", "This tool could not read your file. Please try again.");
+  if (!ctx)
+    throw new PdfToolError("FAILED", "This tool could not read your file. Please try again.");
   const noun = need === "video" ? "video" : need === "audio" ? "audio file" : "file";
   if (!Array.isArray(input) || input.length < min) {
     throw unsupported(min > 1 ? `Choose at least ${min} ${noun}s.` : `Choose a ${noun} first.`);
@@ -291,7 +331,9 @@ export function parseTime(text: unknown, field: string): number | null {
     if (m && (m[1] || m[2] || m[3])) seconds = num(m[1]) * 3600 + num(m[2]) * 60 + num(m[3]);
   }
   if (!Number.isFinite(seconds) || seconds < 0) {
-    throw unsupported(`${field}: "${text}" is not a time. Use seconds (90) or minutes:seconds (1:30).`);
+    throw unsupported(
+      `${field}: "${text}" is not a time. Use seconds (90) or minutes:seconds (1:30).`,
+    );
   }
   return seconds;
 }
@@ -385,7 +427,14 @@ export function audioEncodeArgs(format: AudioFormat, o: AudioEncodeOptions = {})
       return ["-c:a", "libvorbis", ...br(192), ...common, "-f", "ogg"];
     case "opus": {
       // Opus only runs at 48 kHz (FFmpeg resamples) and caps at 256 kbps per channel pair.
-      return ["-c:a", "libopus", ...br(128), ...(o.channels ? ["-ac", String(o.channels)] : []), "-f", "ogg"];
+      return [
+        "-c:a",
+        "libopus",
+        ...br(128),
+        ...(o.channels ? ["-ac", String(o.channels)] : []),
+        "-f",
+        "ogg",
+      ];
     }
     case "wma":
       return ["-c:a", "wmav2", ...br(192), ...common, "-f", "asf"];
@@ -417,7 +466,14 @@ export function videoEncodeArgs(format: VideoFormat, o: VideoEncodeOptions): str
   const aKbps = `${o.audioKbps ?? 128}k`;
   const rateArgs = (crf: number) =>
     o.videoKbps
-      ? ["-b:v", `${o.videoKbps}k`, "-maxrate", `${Math.round(o.videoKbps * 1.5)}k`, "-bufsize", `${o.videoKbps * 2}k`]
+      ? [
+          "-b:v",
+          `${o.videoKbps}k`,
+          "-maxrate",
+          `${Math.round(o.videoKbps * 1.5)}k`,
+          "-bufsize",
+          `${o.videoKbps * 2}k`,
+        ]
       : ["-crf", String(crf)];
   const x264 = [
     "-c:v",
@@ -432,14 +488,28 @@ export function videoEncodeArgs(format: VideoFormat, o: VideoEncodeOptions): str
     case "mp4":
     case "m4v":
     case "mov":
-      return [...x264, ...(audio ?? ["-c:a", "aac", "-b:a", aKbps]), "-movflags", "+faststart", "-f", format === "mov" ? "mov" : "mp4"];
+      return [
+        ...x264,
+        ...(audio ?? ["-c:a", "aac", "-b:a", aKbps]),
+        "-movflags",
+        "+faststart",
+        "-f",
+        format === "mov" ? "mov" : "mp4",
+      ];
     case "mkv":
       return [...x264, ...(audio ?? ["-c:a", "aac", "-b:a", aKbps]), "-f", "matroska"];
     case "webm":
       return [
         "-c:v",
         "libvpx-vp9",
-        ...(o.videoKbps ? ["-b:v", `${o.videoKbps}k`] : ["-crf", String(o.crf !== undefined ? Math.min(63, o.crf + 9) : VP9_CRF[quality]), "-b:v", "0"]),
+        ...(o.videoKbps
+          ? ["-b:v", `${o.videoKbps}k`]
+          : [
+              "-crf",
+              String(o.crf !== undefined ? Math.min(63, o.crf + 9) : VP9_CRF[quality]),
+              "-b:v",
+              "0",
+            ]),
         "-deadline",
         "realtime",
         "-cpu-used",
@@ -456,7 +526,9 @@ export function videoEncodeArgs(format: VideoFormat, o: VideoEncodeOptions): str
       return [
         "-c:v",
         "mpeg4",
-        ...(o.videoKbps ? ["-b:v", `${o.videoKbps}k`] : ["-q:v", String({ high: 2, good: 4, medium: 7, low: 12 }[quality])]),
+        ...(o.videoKbps
+          ? ["-b:v", `${o.videoKbps}k`]
+          : ["-q:v", String({ high: 2, good: 4, medium: 7, low: 12 }[quality])]),
         "-tag:v",
         "XVID",
         ...(audio ?? ["-c:a", "libmp3lame", "-b:a", aKbps]),
@@ -499,8 +571,17 @@ export function eachMedia(
     need = "any",
     zipStem = toolId,
     max = 20,
-  }: { verb: string | ((options: Record<string, unknown>) => string); need?: Need; zipStem?: string; max?: number },
-): (input: FileRef[] | string | null, options: Record<string, unknown>, ctx?: ExecContext) => Promise<ExecResult> {
+  }: {
+    verb: string | ((options: Record<string, unknown>) => string);
+    need?: Need;
+    zipStem?: string;
+    max?: number;
+  },
+): (
+  input: FileRef[] | string | null,
+  options: Record<string, unknown>,
+  ctx?: ExecContext,
+) => Promise<ExecResult> {
   return (input, options, ctx) =>
     runMediaTool(toolId, () =>
       withWorkdir(async (dir) => {
@@ -510,20 +591,29 @@ export function eachMedia(
           throwIfAborted(ctx!.signal);
           results.push(await perFile(media, options, { ...ctx!, dir, index }));
         }
-        const notes = [...new Set(results.map((r) => r.note).filter((n): n is string => Boolean(n)))];
+        const notes = [
+          ...new Set(results.map((r) => r.note).filter((n): n is string => Boolean(n))),
+        ];
         const noun = need === "video" ? "video" : need === "audio" ? "audio file" : "file";
         return {
           ok: true,
           output: {
-            files: results.map((r) => ({ name: r.file.name, size: r.file.bytes.length, ...r.info })),
+            files: results.map((r) => ({
+              name: r.file.name,
+              size: r.file.bytes.length,
+              ...r.info,
+            })),
           },
           summary: [
             `${typeof verb === "function" ? verb(options) : verb} ${plural(results.length, noun)}.`,
             ...notes.slice(0, 3),
           ].join(" "),
-          files: packageFiles(results.map((r) => r.file), options, zipStem),
+          files: packageFiles(
+            results.map((r) => r.file),
+            options,
+            zipStem,
+          ),
         };
       }),
     );
 }
-

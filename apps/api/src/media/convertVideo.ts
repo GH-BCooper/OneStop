@@ -35,9 +35,15 @@ const MAX_SIDE = 7680;
 
 /** Codecs each container can take as-is (a remux is instant and lossless). */
 const REMUX: Record<VideoFormat, { video: string[]; audio: string[] }> = {
-  mp4: { video: ["h264", "hevc", "mpeg4", "av1"], audio: ["aac", "mp3", "ac3", "eac3", "alac", "opus"] },
+  mp4: {
+    video: ["h264", "hevc", "mpeg4", "av1"],
+    audio: ["aac", "mp3", "ac3", "eac3", "alac", "opus"],
+  },
   m4v: { video: ["h264", "hevc", "mpeg4"], audio: ["aac", "ac3", "alac"] },
-  mov: { video: ["h264", "hevc", "mpeg4", "prores", "mjpeg"], audio: ["aac", "mp3", "alac", "pcm_s16le", "pcm_s24le"] },
+  mov: {
+    video: ["h264", "hevc", "mpeg4", "prores", "mjpeg"],
+    audio: ["aac", "mp3", "alac", "pcm_s16le", "pcm_s24le"],
+  },
   mkv: { video: ["*"], audio: ["*"] },
   webm: { video: ["vp8", "vp9", "av1"], audio: ["opus", "vorbis"] },
   avi: { video: ["mpeg4", "h264", "mjpeg", "msmpeg4v3"], audio: ["mp3", "ac3", "pcm_s16le"] },
@@ -75,11 +81,32 @@ export async function encodeVideo(
     ...(o.start ? ["-ss", String(o.start)] : []),
     ...(o.duration !== undefined ? ["-t", String(o.duration)] : []),
   ];
-  const maps = ["-map", `0:${m.video.index}`, ...(o.mute ? [] : ["-map", "0:a?"]), "-sn", "-dn", "-map_metadata", "0"];
+  const maps = [
+    "-map",
+    `0:${m.video.index}`,
+    ...(o.mute ? [] : ["-map", "0:a?"]),
+    "-sn",
+    "-dn",
+    "-map_metadata",
+    "0",
+  ];
   if (o.remux && !o.filters?.length && !trim.length && canRemux(m, format)) {
-    const muxer = { mp4: "mp4", m4v: "mp4", mov: "mov", mkv: "matroska", webm: "webm", avi: "avi" }[format];
+    const muxer = { mp4: "mp4", m4v: "mp4", mov: "mov", mkv: "matroska", webm: "webm", avi: "avi" }[
+      format
+    ];
     await runFfmpeg(
-      [...input(m.path), ...maps, "-c", "copy", ...(format === "mp4" || format === "mov" || format === "m4v" ? ["-movflags", "+faststart"] : []), "-f", muxer, out],
+      [
+        ...input(m.path),
+        ...maps,
+        "-c",
+        "copy",
+        ...(format === "mp4" || format === "mov" || format === "m4v"
+          ? ["-movflags", "+faststart"]
+          : []),
+        "-f",
+        muxer,
+        out,
+      ],
       { cwd: dir, signal: o.signal },
     );
     return { bytes: await readOutput(dir, out), remuxed: true };
@@ -152,9 +179,16 @@ export function capShortSide(m: MediaInput, limit: number): string | null {
  * Video bitrate (kbps) that lands a `duration`-second video on `targetMb`, or an error when the
  * target is too small to be worth attempting. 3% is left for container overhead.
  */
-export function targetBitrate(duration: number, targetMb: number, audioKbps: number, hasAudio: boolean): number {
+export function targetBitrate(
+  duration: number,
+  targetMb: number,
+  audioKbps: number,
+  hasAudio: boolean,
+): number {
   if (!(duration > 0)) {
-    throw unsupported("This video's length is unknown, so a target size can't be worked out. Choose a compression level instead.");
+    throw unsupported(
+      "This video's length is unknown, so a target size can't be worked out. Choose a compression level instead.",
+    );
   }
   const videoKbps = Math.floor(((targetMb * 8192) / duration) * 0.97 - (hasAudio ? audioKbps : 0));
   if (videoKbps < 64) {
@@ -173,7 +207,11 @@ export const videoCompressorExecutor: Executor = eachMedia(
     const limit = heightChoice !== "keep" ? Number(heightChoice) : level === "strong" ? 720 : null;
     const scale = limit ? capShortSide(m, limit) : null;
     const audioKbps = level === "strong" ? 64 : 96;
-    const encode: EncodeVideoOptions = { audioKbps, filters: scale ? [scale] : [], signal: ctx.signal };
+    const encode: EncodeVideoOptions = {
+      audioKbps,
+      filters: scale ? [scale] : [],
+      signal: ctx.signal,
+    };
     if (level === "size") {
       const targetMb = optNumber(options, "targetMb", 10, { min: 1, max: 4000 });
       encode.videoKbps = targetBitrate(m.duration, targetMb, audioKbps, Boolean(m.audio));
@@ -204,7 +242,9 @@ export const videoToGifExecutor: Executor = eachMedia(
   async (m, options, ctx) => {
     const start = parseTime(optString(options, "start"), "Start") ?? 0;
     if (m.duration > 0 && start >= m.duration) {
-      throw unsupported(`The start time is past the end of the video (${m.duration.toFixed(1)} s).`);
+      throw unsupported(
+        `The start time is past the end of the video (${m.duration.toFixed(1)} s).`,
+      );
     }
     const remaining = m.duration > 0 ? m.duration - start : MAX_GIF_SECONDS;
     const asked = parseTime(optString(options, "duration"), "Length");
@@ -231,7 +271,8 @@ export const videoToGifExecutor: Executor = eachMedia(
       { cwd: ctx.dir, signal: ctx.signal },
     );
     const bytes = await readOutput(ctx.dir, out);
-    const capped = asked !== null && asked > MAX_GIF_SECONDS ? ` GIFs are limited to ${MAX_GIF_SECONDS} s.` : "";
+    const capped =
+      asked !== null && asked > MAX_GIF_SECONDS ? ` GIFs are limited to ${MAX_GIF_SECONDS} s.` : "";
     return {
       file: outFile(outName(m, "", "gif"), "gif", bytes),
       note: `${duration.toFixed(1)} s at ${fps} fps${width ? `, ${width} px wide` : ""} (${formatBytes(bytes.length)}).${capped}`,
@@ -279,13 +320,17 @@ export function resizeFilters(
   mode: "fit" | "pad" | "crop" | "stretch",
   colour: string,
 ): { filters: string[]; size: string } {
-  if (width > MAX_SIDE || height > MAX_SIDE) throw unsupported(`Keep width and height under ${MAX_SIDE} pixels.`);
+  if (width > MAX_SIDE || height > MAX_SIDE)
+    throw unsupported(`Keep width and height under ${MAX_SIDE} pixels.`);
   if (!width && !height) throw unsupported("Enter a width, a height, or both.");
   const src = displaySize(m);
   if (!width || !height) {
     const w = width || even((src.width * height) / src.height);
     const h = height || even((src.height * width) / src.width);
-    return { filters: [`scale=${even(w)}:${even(h)}`, "setsar=1"], size: `${even(w)} × ${even(h)}` };
+    return {
+      filters: [`scale=${even(w)}:${even(h)}`, "setsar=1"],
+      size: `${even(w)} × ${even(h)}`,
+    };
   }
   const W = even(width);
   const H = even(height);
@@ -293,15 +338,29 @@ export function resizeFilters(
     case "stretch":
       return { filters: [`scale=${W}:${H}`, "setsar=1"], size: `${W} × ${H}` };
     case "crop":
-      return { filters: [`scale=${W}:${H}:force_original_aspect_ratio=increase`, `crop=${W}:${H}`, "setsar=1"], size: `${W} × ${H}` };
+      return {
+        filters: [
+          `scale=${W}:${H}:force_original_aspect_ratio=increase`,
+          `crop=${W}:${H}`,
+          "setsar=1",
+        ],
+        size: `${W} × ${H}`,
+      };
     case "pad":
       return {
-        filters: [`scale=${W}:${H}:force_original_aspect_ratio=decrease`, `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=${padColour(colour)}`, "setsar=1"],
+        filters: [
+          `scale=${W}:${H}:force_original_aspect_ratio=decrease`,
+          `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=${padColour(colour)}`,
+          "setsar=1",
+        ],
         size: `${W} × ${H}`,
       };
     case "fit": {
       const s = Math.min(W / src.width, H / src.height);
-      return { filters: [`scale=${even(src.width * s)}:${even(src.height * s)}`, "setsar=1"], size: `${even(src.width * s)} × ${even(src.height * s)}` };
+      return {
+        filters: [`scale=${even(src.width * s)}:${even(src.height * s)}`, "setsar=1"],
+        size: `${even(src.width * s)} × ${even(src.height * s)}`,
+      };
     }
   }
 }
@@ -315,10 +374,25 @@ export const videoResizerExecutor: Executor = eachMedia(
       optNumber(options, "height", 0, { min: 0, max: MAX_SIDE }),
     ];
     const mode = optEnum(options, "mode", ["fit", "pad", "crop", "stretch"], "pad");
-    const { filters, size } = resizeFilters(m, pw, ph, mode, optString(options, "background", "black"));
+    const { filters, size } = resizeFilters(
+      m,
+      pw,
+      ph,
+      mode,
+      optString(options, "background", "black"),
+    );
     const format = sameVideoFormat(m);
-    const { bytes } = await encodeVideo(m, ctx.dir, format, { filters, quality: quality(options), signal: ctx.signal }, `out-${ctx.index}`);
-    return { file: outFile(outName(m, "resized", format), format, bytes), note: `New size ${size}.` };
+    const { bytes } = await encodeVideo(
+      m,
+      ctx.dir,
+      format,
+      { filters, quality: quality(options), signal: ctx.signal },
+      `out-${ctx.index}`,
+    );
+    return {
+      file: outFile(outName(m, "resized", format), format, bytes),
+      note: `New size ${size}.`,
+    };
   },
   { verb: "Resized", need: "video", zipStem: "resized-videos", max: 10 },
 );
@@ -338,10 +412,22 @@ export const changeResolutionExecutor: Executor = eachMedia(
         note: `"${m.ref.name}" is already ${short}p${short < target ? " (smaller than the target; upscaling is off)" : ""}, so it was left unchanged.`,
       };
     }
-    const filter = src.width >= src.height ? `scale=-2:${target}:flags=lanczos` : `scale=${target}:-2:flags=lanczos`;
+    const filter =
+      src.width >= src.height
+        ? `scale=-2:${target}:flags=lanczos`
+        : `scale=${target}:-2:flags=lanczos`;
     const format = sameVideoFormat(m);
-    const { bytes } = await encodeVideo(m, ctx.dir, format, { filters: [filter, "setsar=1"], quality: quality(options), signal: ctx.signal }, `out-${ctx.index}`);
-    return { file: outFile(outName(m, `${target}p`, format), format, bytes), note: `${short}p → ${target}p.` };
+    const { bytes } = await encodeVideo(
+      m,
+      ctx.dir,
+      format,
+      { filters: [filter, "setsar=1"], quality: quality(options), signal: ctx.signal },
+      `out-${ctx.index}`,
+    );
+    return {
+      file: outFile(outName(m, `${target}p`, format), format, bytes),
+      note: `${short}p → ${target}p.`,
+    };
   },
   { verb: "Changed the resolution of", need: "video", zipStem: "videos", max: 10 },
 );
@@ -352,8 +438,17 @@ export const changeQualityExecutor: Executor = eachMedia(
     const level = quality(options, "medium");
     const audioKbps = optNumber(options, "audioBitrate", 128, { min: 32, max: 320 });
     const format = sameVideoFormat(m);
-    const { bytes } = await encodeVideo(m, ctx.dir, format, { quality: level, audioKbps, signal: ctx.signal }, `out-${ctx.index}`);
-    return { file: outFile(outName(m, level, format), format, bytes), note: `Quality "${level}": ${sizeNote(m, bytes)}` };
+    const { bytes } = await encodeVideo(
+      m,
+      ctx.dir,
+      format,
+      { quality: level, audioKbps, signal: ctx.signal },
+      `out-${ctx.index}`,
+    );
+    return {
+      file: outFile(outName(m, level, format), format, bytes),
+      note: `Quality "${level}": ${sizeNote(m, bytes)}`,
+    };
   },
   { verb: "Re-encoded", need: "video", zipStem: "videos", max: 10 },
 );
@@ -376,8 +471,19 @@ export const rotateVideoExecutor: Executor = eachMedia(
     const filters = rotationFilters(angle, flip);
     if (!filters.length) throw unsupported("Choose an angle or a flip.");
     const format = sameVideoFormat(m);
-    const { bytes } = await encodeVideo(m, ctx.dir, format, { filters, quality: quality(options, "high"), signal: ctx.signal }, `out-${ctx.index}`);
-    const what = [angle ? `rotated ${angle}° clockwise` : "", flip !== "none" ? `flipped ${flip === "both" ? "both ways" : flip}` : ""].filter(Boolean).join(" and ");
+    const { bytes } = await encodeVideo(
+      m,
+      ctx.dir,
+      format,
+      { filters, quality: quality(options, "high"), signal: ctx.signal },
+      `out-${ctx.index}`,
+    );
+    const what = [
+      angle ? `rotated ${angle}° clockwise` : "",
+      flip !== "none" ? `flipped ${flip === "both" ? "both ways" : flip}` : "",
+    ]
+      .filter(Boolean)
+      .join(" and ");
     return { file: outFile(outName(m, "rotated", format), format, bytes), note: `Video ${what}.` };
   },
   { verb: "Rotated", need: "video", zipStem: "rotated-videos", max: 10 },

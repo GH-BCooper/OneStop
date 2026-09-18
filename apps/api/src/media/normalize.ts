@@ -40,7 +40,9 @@ export function parseLoudnorm(stderr: string): LoudnormMeasurement | null {
   }
 }
 
-export function parseVolumeDetect(stderr: string): { maxVolume: number; meanVolume: number } | null {
+export function parseVolumeDetect(
+  stderr: string,
+): { maxVolume: number; meanVolume: number } | null {
   const max = /max_volume:\s*(-?\d+(?:\.\d+)?) dB/.exec(stderr);
   const mean = /mean_volume:\s*(-?\d+(?:\.\d+)?) dB/.exec(stderr);
   return max ? { maxVolume: Number(max[1]), meanVolume: mean ? Number(mean[1]) : NaN } : null;
@@ -59,11 +61,22 @@ export async function loudnormFilter(
 ): Promise<{ filter: string; measured: LoudnormMeasurement | null }> {
   const base = `I=${targetLufs}:TP=${truePeak}:LRA=11`;
   const stderr = await runFfmpeg(
-    [...input(m.path), "-map", `0:${m.audio!.index}`, "-vn", "-af", `loudnorm=${base}:print_format=json`, "-f", "null", "-"],
+    [
+      ...input(m.path),
+      "-map",
+      `0:${m.audio!.index}`,
+      "-vn",
+      "-af",
+      `loudnorm=${base}:print_format=json`,
+      "-f",
+      "null",
+      "-",
+    ],
     { cwd: dir, signal },
   );
   const measured = parseLoudnorm(stderr);
-  if (!measured || !Number.isFinite(Number(measured.input_i))) return { filter: `loudnorm=${base}`, measured: null };
+  if (!measured || !Number.isFinite(Number(measured.input_i)))
+    return { filter: `loudnorm=${base}`, measured: null };
   return {
     filter: `loudnorm=${base}:measured_I=${measured.input_i}:measured_TP=${measured.input_tp}:measured_LRA=${measured.input_lra}:measured_thresh=${measured.input_thresh}:offset=${measured.target_offset}:linear=true`,
     measured,
@@ -76,11 +89,22 @@ export const volumeNormalizerExecutor: Executor = eachMedia(
     if (!m.audio) throw unsupported(`"${m.ref.name}" has no audio track.`);
     const mode = optEnum(options, "mode", ["loudness", "peak"], "loudness");
     const format = sameAudioFormat(m);
-    const bitrate = m.audio.bitRate > 0 ? Math.min(320, Math.max(128, Math.round(m.audio.bitRate / 1000))) : 192;
+    const bitrate =
+      m.audio.bitRate > 0 ? Math.min(320, Math.max(128, Math.round(m.audio.bitRate / 1000))) : 192;
     if (mode === "peak") {
       const ceiling = optNumber(options, "peakDb", -1, { min: -20, max: 0 });
       const stderr = await runFfmpeg(
-        [...input(m.path), "-map", `0:${m.audio.index}`, "-vn", "-af", "volumedetect", "-f", "null", "-"],
+        [
+          ...input(m.path),
+          "-map",
+          `0:${m.audio.index}`,
+          "-vn",
+          "-af",
+          "volumedetect",
+          "-f",
+          "null",
+          "-",
+        ],
         { cwd: ctx.dir, signal: ctx.signal },
       );
       const measured = parseVolumeDetect(stderr);
@@ -100,10 +124,19 @@ export const volumeNormalizerExecutor: Executor = eachMedia(
       };
     }
     const target = optEnum(options, "target", TARGETS, "streaming");
-    const lufs = target === "custom" ? optNumber(options, "lufs", -16, { min: -40, max: -5 }) : TARGET_LUFS[target]!;
+    const lufs =
+      target === "custom"
+        ? optNumber(options, "lufs", -16, { min: -40, max: -5 })
+        : TARGET_LUFS[target]!;
     const truePeak = optNumber(options, "truePeak", -1, { min: -9, max: 0 });
     const { filter, measured } = await loudnormFilter(m, ctx.dir, lufs, truePeak, ctx.signal);
-    const bytes = await encodeAudio(m, ctx.dir, format, { filters: [filter], bitrate, signal: ctx.signal }, `out-${ctx.index}`);
+    const bytes = await encodeAudio(
+      m,
+      ctx.dir,
+      format,
+      { filters: [filter], bitrate, signal: ctx.signal },
+      `out-${ctx.index}`,
+    );
     return {
       file: outFile(outName(m, "normalized", format), format, bytes),
       note: measured

@@ -41,8 +41,10 @@ export interface Cue {
 
 /** UTF-8 (with or without BOM), UTF-16 LE/BE with BOM, else Windows-1252. */
 export function decodeSubtitleBytes(bytes: Uint8Array): string {
-  if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder("utf-16le").decode(bytes.subarray(2));
-  if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder("utf-16be").decode(bytes.subarray(2));
+  if (bytes[0] === 0xff && bytes[1] === 0xfe)
+    return new TextDecoder("utf-16le").decode(bytes.subarray(2));
+  if (bytes[0] === 0xfe && bytes[1] === 0xff)
+    return new TextDecoder("utf-16be").decode(bytes.subarray(2));
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes).replace(/^\uFEFF/, "");
   } catch {
@@ -91,7 +93,10 @@ export function formatTimestamp(ms: number, format: SubtitleFormat): string {
 function cleanTags(text: string): string {
   return text
     .replace(/<v(?:\.[^\s>]*)?\s+([^>]*)>/gi, "")
-    .replace(/<(\/?)([ibu])(?:\.[^>]*)?>/gi, (_, slash: string, tag: string) => `<${slash}${tag.toLowerCase()}>`)
+    .replace(
+      /<(\/?)([ibu])(?:\.[^>]*)?>/gi,
+      (_, slash: string, tag: string) => `<${slash}${tag.toLowerCase()}>`,
+    )
     .replace(/<(?!\/?[ibu]>)[^>]*>/gi, "")
     .replace(/&amp;/g, "&")
     .replace(/&lt;/g, "<")
@@ -170,11 +175,27 @@ function parseAss(text: string): Cue[] {
     }
     if (!inEvents) continue;
     if (/^Format:/i.test(line)) {
-      fields = line.slice(7).split(",").map((f) => f.trim().toLowerCase());
+      fields = line
+        .slice(7)
+        .split(",")
+        .map((f) => f.trim().toLowerCase());
       continue;
     }
     if (!/^Dialogue:/i.test(line)) continue;
-    const order = fields.length ? fields : ["layer", "start", "end", "style", "name", "marginl", "marginr", "marginv", "effect", "text"];
+    const order = fields.length
+      ? fields
+      : [
+          "layer",
+          "start",
+          "end",
+          "style",
+          "name",
+          "marginl",
+          "marginr",
+          "marginv",
+          "effect",
+          "text",
+        ];
     const values = line.slice(9).trimStart().split(",");
     const textIndex = order.indexOf("text");
     const head = values.slice(0, textIndex);
@@ -215,7 +236,10 @@ export function writeSubtitles(cues: Cue[], format: SubtitleFormat): string {
     return (
       ASS_HEADER +
       cues
-        .map((c) => `Dialogue: 0,${formatTimestamp(c.start, "ass")},${formatTimestamp(c.end, "ass")},Default,,0,0,0,,${textToAss(c.text)}`)
+        .map(
+          (c) =>
+            `Dialogue: 0,${formatTimestamp(c.start, "ass")},${formatTimestamp(c.end, "ass")},Default,,0,0,0,,${textToAss(c.text)}`,
+        )
         .join("\n") +
       "\n"
     );
@@ -240,7 +264,10 @@ export function convertSubtitles(
     .map((c) => ({ ...c, start: c.start + offsetMs, end: c.end + offsetMs }))
     .filter((c) => c.end > 0)
     .map((c) => ({ ...c, start: Math.max(0, c.start) }));
-  if (cues.length === 0) throw unsupported("No subtitles were found in this file. Check that it is a valid SRT, VTT or ASS file.");
+  if (cues.length === 0)
+    throw unsupported(
+      "No subtitles were found in this file. Check that it is a valid SRT, VTT or ASS file.",
+    );
   return { text: writeSubtitles(cues, to), cues: cues.length };
 }
 
@@ -252,8 +279,10 @@ const SUB_MIME: Record<SubtitleFormat, string> = {
 
 export const subtitleConversionExecutor: Executor = (input_, options, ctx) =>
   runMediaTool("subtitle-conversion", async () => {
-    if (!ctx) throw new PdfToolError("FAILED", "This tool could not read your file. Please try again.");
-    if (!Array.isArray(input_) || input_.length === 0) throw unsupported("Choose a subtitle file first.");
+    if (!ctx)
+      throw new PdfToolError("FAILED", "This tool could not read your file. Please try again.");
+    if (!Array.isArray(input_) || input_.length === 0)
+      throw unsupported("Choose a subtitle file first.");
     if (input_.length > 50) throw unsupported("Choose at most 50 subtitle files.");
     const to = optEnum(options, "format", SUBTITLE_FORMATS, "vtt");
     const offsetMs = optNumber(options, "offsetMs", 0, { min: -3_600_000, max: 3_600_000 });
@@ -263,10 +292,15 @@ export const subtitleConversionExecutor: Executor = (input_, options, ctx) =>
       throwIfAborted(ctx.signal);
       const text = decodeSubtitleBytes(await ctx.readFile(ref));
       const from = detectSubtitleFormat(text, ref.name);
-      if (!from) throw unsupported(`"${ref.name}" doesn't look like an SRT, VTT or ASS subtitle file.`);
+      if (!from)
+        throw unsupported(`"${ref.name}" doesn't look like an SRT, VTT or ASS subtitle file.`);
       const result = convertSubtitles(text, from, to, { offsetMs });
       total += result.cues;
-      files.push({ name: `${baseName(ref.name)}.${to}`, mimeType: SUB_MIME[to], bytes: new TextEncoder().encode(result.text) });
+      files.push({
+        name: `${baseName(ref.name)}.${to}`,
+        mimeType: SUB_MIME[to],
+        bytes: new TextEncoder().encode(result.text),
+      });
     }
     return {
       ok: true,
@@ -278,7 +312,24 @@ export const subtitleConversionExecutor: Executor = (input_, options, ctx) =>
 
 // ---- extraction -------------------------------------------------------------------------------
 
-const TEXT_CODECS = ["subrip", "srt", "ass", "ssa", "webvtt", "mov_text", "text", "microdvd", "subviewer", "realtext", "sami", "stl", "jacosub", "mpl2", "pjs", "vplayer"];
+const TEXT_CODECS = [
+  "subrip",
+  "srt",
+  "ass",
+  "ssa",
+  "webvtt",
+  "mov_text",
+  "text",
+  "microdvd",
+  "subviewer",
+  "realtext",
+  "sami",
+  "stl",
+  "jacosub",
+  "mpl2",
+  "pjs",
+  "vplayer",
+];
 const IMAGE_CODECS = ["hdmv_pgs_subtitle", "dvd_subtitle", "dvb_subtitle", "xsub", "dvb_teletext"];
 
 function trackLabel(s: ProbeStream, n: number): string {
@@ -293,7 +344,9 @@ export const subtitleExtractionExecutor: Executor = (input_, options, ctx) =>
       const [m] = await readMedia(input_, ctx, dir, { max: 1, need: "any" });
       const video = m!;
       if (video.subtitles.length === 0) {
-        throw unsupported("This video has no embedded subtitle tracks. (Burned-in subtitles are part of the picture and can't be extracted.)");
+        throw unsupported(
+          "This video has no embedded subtitle tracks. (Burned-in subtitles are part of the picture and can't be extracted.)",
+        );
       }
       const format = optEnum(options, "format", SUBTITLE_FORMATS, "srt");
       const which = optString(options, "track", "all").trim().toLowerCase() || "all";
@@ -301,12 +354,17 @@ export const subtitleExtractionExecutor: Executor = (input_, options, ctx) =>
       if (which !== "all") {
         const n = Number(which);
         if (!Number.isInteger(n) || n < 1 || n > tracks.length) {
-          throw unsupported(`This video has ${plural(tracks.length, "subtitle track")}; choose 1–${tracks.length} or "all".`);
+          throw unsupported(
+            `This video has ${plural(tracks.length, "subtitle track")}; choose 1–${tracks.length} or "all".`,
+          );
         }
         tracks = [tracks[n - 1]!];
       }
       const text = tracks.filter(({ s }) => TEXT_CODECS.includes(s.codec_name ?? ""));
-      const images = tracks.filter(({ s }) => IMAGE_CODECS.includes(s.codec_name ?? "") || !TEXT_CODECS.includes(s.codec_name ?? ""));
+      const images = tracks.filter(
+        ({ s }) =>
+          IMAGE_CODECS.includes(s.codec_name ?? "") || !TEXT_CODECS.includes(s.codec_name ?? ""),
+      );
       if (text.length === 0) {
         throw unsupported(
           "This video's subtitles are stored as images (e.g. Blu-ray/DVD subtitles), so they can't be turned into text without OCR.",
@@ -319,23 +377,42 @@ export const subtitleExtractionExecutor: Executor = (input_, options, ctx) =>
         const out = `sub-${n}.srt`;
         // FFmpeg normalises every text codec to SRT; OneStop's own writer produces the final format,
         // so styling rules and timestamps are identical to Subtitle Conversion's.
-        await runFfmpeg([...input(video.path), "-map", `0:${s.index}`, "-c:s", "srt", "-f", "srt", out], {
-          cwd: dir,
-          signal: ctx!.signal,
-        });
+        await runFfmpeg(
+          [...input(video.path), "-map", `0:${s.index}`, "-c:s", "srt", "-f", "srt", out],
+          {
+            cwd: dir,
+            signal: ctx!.signal,
+          },
+        );
         const srt = decodeSubtitleBytes(await readOutput(dir, out));
         const parsed = parseSubtitles(srt, "srt");
         if (parsed.length === 0) continue;
         cues += parsed.length;
-        const lang = s.tags?.language && s.tags.language !== "und" ? `-${s.tags.language.replace(/[^a-z0-9-]/gi, "")}` : "";
+        const lang =
+          s.tags?.language && s.tags.language !== "und"
+            ? `-${s.tags.language.replace(/[^a-z0-9-]/gi, "")}`
+            : "";
         const name = `${baseName(video.ref.name)}${text.length > 1 || tracks.length > 1 ? `-track${n}` : ""}${lang}.${format}`;
-        files.push({ name, mimeType: SUB_MIME[format], bytes: new TextEncoder().encode(writeSubtitles(parsed, format)) });
+        files.push({
+          name,
+          mimeType: SUB_MIME[format],
+          bytes: new TextEncoder().encode(writeSubtitles(parsed, format)),
+        });
       }
       if (files.length === 0) throw unsupported("The subtitle tracks in this video are empty.");
-      const skipped = images.length ? ` Skipped ${plural(images.length, "image-based track")} (${images.map(({ s, n }) => trackLabel(s, n)).join(", ")}), which would need OCR.` : "";
+      const skipped = images.length
+        ? ` Skipped ${plural(images.length, "image-based track")} (${images.map(({ s, n }) => trackLabel(s, n)).join(", ")}), which would need OCR.`
+        : "";
       return {
         ok: true,
-        output: { tracks: text.map(({ s, n }) => ({ track: n, codec: s.codec_name, language: s.tags?.language ?? null })), cues },
+        output: {
+          tracks: text.map(({ s, n }) => ({
+            track: n,
+            codec: s.codec_name,
+            language: s.tags?.language ?? null,
+          })),
+          cues,
+        },
         summary: `Extracted ${plural(files.length, "subtitle track")} as ${format.toUpperCase()} (${plural(cues, "cue")}).${skipped}`,
         files: packageFiles(files, options, `${baseName(video.ref.name)}-subtitles`),
       };

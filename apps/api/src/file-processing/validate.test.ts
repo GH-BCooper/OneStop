@@ -171,16 +171,28 @@ describe("sniffExtensions and MIME lookup", () => {
     expect(sniffExtensions(new Uint8Array([0xff, 0xf3, 0x48, 0x00]))).toContain("mp3");
     expect(sniffExtensions(new Uint8Array([0xff, 0xf1, 0x50, 0x80]))).toContain("aac");
     expect(sniffExtensions(new Uint8Array([0x46, 0x4c, 0x56, 0x01]))).toContain("flv");
-    expect(sniffExtensions(new Uint8Array([0x30, 0x26, 0xb2, 0x75, 0x8e, 0x66, 0xcf, 0x11]))).toContain("wma");
+    expect(
+      sniffExtensions(new Uint8Array([0x30, 0x26, 0xb2, 0x75, 0x8e, 0x66, 0xcf, 0x11])),
+    ).toContain("wma");
     expect(
       validateUpload(
-        { name: "tone.mp3", size: 4, type: "audio/mpeg", head: new Uint8Array([0xff, 0xfb, 0x90, 0x00]) },
+        {
+          name: "tone.mp3",
+          size: 4,
+          type: "audio/mpeg",
+          head: new Uint8Array([0xff, 0xfb, 0x90, 0x00]),
+        },
         { maxBytes: 1_000_000 },
       ).valid,
     ).toBe(true);
     expect(
       validateUpload(
-        { name: "fake.mp3", size: 16, type: "audio/mpeg", head: new TextEncoder().encode("not audio at all") },
+        {
+          name: "fake.mp3",
+          size: 16,
+          type: "audio/mpeg",
+          head: new TextEncoder().encode("not audio at all"),
+        },
         { maxBytes: 1_000_000 },
       ).valid,
     ).toBe(false);

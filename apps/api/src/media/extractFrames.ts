@@ -36,24 +36,30 @@ export function frameTimes(m: MediaInput, options: Record<string, unknown>): num
   const last = Math.max(0, total - Math.min(0.1, total / 10));
   if (mode === "single") {
     const t = parseTime(optString(options, "time"), "Time") ?? 0;
-    if (total > 0 && t > total) throw unsupported(`${clock(t)} is past the end of the video (${clock(total)}).`);
+    if (total > 0 && t > total)
+      throw unsupported(`${clock(t)} is past the end of the video (${clock(total)}).`);
     return [Math.min(t, last)];
   }
   if (mode === "times") {
-    const raw = optString(options, "times").split(/[\s,;]+/).filter(Boolean);
+    const raw = optString(options, "times")
+      .split(/[\s,;]+/)
+      .filter(Boolean);
     if (raw.length === 0) throw unsupported("List the times to grab, e.g. 0:05, 0:30, 1:10.");
     const times = raw.map((t) => parseTime(t, "Times")!);
     const past = times.filter((t) => total > 0 && t > total);
-    if (past.length) throw unsupported(`${clock(past[0]!)} is past the end of the video (${clock(total)}).`);
+    if (past.length)
+      throw unsupported(`${clock(past[0]!)} is past the end of the video (${clock(total)}).`);
     if (times.length > MAX_FRAMES) throw unsupported(`Choose at most ${MAX_FRAMES} frames.`);
     return times.map((t) => Math.min(t, last));
   }
-  if (!(total > 0)) throw unsupported("This video's length is unknown. Use \"At a time\" instead.");
+  if (!(total > 0)) throw unsupported('This video\'s length is unknown. Use "At a time" instead.');
   if (mode === "interval") {
     const every = Math.max(0.1, Number(optString(options, "interval", "1").replace(",", ".")) || 1);
     const n = Math.floor(total / every) + 1;
     if (n > MAX_FRAMES) {
-      throw unsupported(`That would be ${n} frames. Choose a longer interval (at least ${Math.ceil((total / (MAX_FRAMES - 1)) * 10) / 10} s) or fewer frames.`);
+      throw unsupported(
+        `That would be ${n} frames. Choose a longer interval (at least ${Math.ceil((total / (MAX_FRAMES - 1)) * 10) / 10} s) or fewer frames.`,
+      );
     }
     return Array.from({ length: n }, (_, i) => Math.min(i * every, last));
   }
@@ -81,7 +87,9 @@ async function grab(
       "-frames:v",
       "1",
       ...(width > 0 ? ["-vf", `scale='min(${width},iw)':-2`] : []),
-      ...(format === "jpg" ? ["-q:v", "2", "-f", "image2", "-c:v", "mjpeg"] : ["-f", "image2", "-c:v", "png"]),
+      ...(format === "jpg"
+        ? ["-q:v", "2", "-f", "image2", "-c:v", "mjpeg"]
+        : ["-f", "image2", "-c:v", "png"]),
       "-update",
       "1",
       name,
@@ -106,7 +114,13 @@ export const extractFramesExecutor: Executor = (input_, options, ctx) =>
       for (const [i, t] of times.entries()) {
         throwIfAborted(ctx!.signal);
         const bytes = await grab(m!, dir, t, format, width, `frame-${i}.${format}`, ctx!.signal);
-        files.push(outFile(`${baseName(m!.ref.name)}-${String(i + 1).padStart(3, "0")}-${stamp(t)}.${format}`, format, bytes));
+        files.push(
+          outFile(
+            `${baseName(m!.ref.name)}-${String(i + 1).padStart(3, "0")}-${stamp(t)}.${format}`,
+            format,
+            bytes,
+          ),
+        );
       }
       return {
         ok: true,

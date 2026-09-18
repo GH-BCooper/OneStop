@@ -122,9 +122,17 @@ export function ffmpegVersion(): string | null {
 }
 
 /** For a status page / startup log: is the media stack usable, and which FFmpeg is it. */
-export function ffmpegStatus(): { available: boolean; version: string | null; path: string | null } {
+export function ffmpegStatus(): {
+  available: boolean;
+  version: string | null;
+  path: string | null;
+} {
   const found = findFfmpeg();
-  return { available: Boolean(found), version: found ? ffmpegVersion() : null, path: found?.ffmpeg ?? null };
+  return {
+    available: Boolean(found),
+    version: found ? ffmpegVersion() : null,
+    path: found?.ffmpeg ?? null,
+  };
 }
 
 export interface RunOptions {

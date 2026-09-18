@@ -55,7 +55,9 @@ export async function encodeAudio(
       ...input(m.path),
       "-map",
       `0:${m.audio.index}`,
-      ...(cover ? ["-map", `0:${coverIndex}`, "-c:v", "copy", "-disposition:v", "attached_pic"] : ["-vn"]),
+      ...(cover
+        ? ["-map", `0:${coverIndex}`, "-c:v", "copy", "-disposition:v", "attached_pic"]
+        : ["-vn"]),
       "-sn",
       "-dn",
       ...(o.keepTags === false ? ["-map_metadata", "-1"] : ["-map_metadata", "0"]),
@@ -72,11 +74,19 @@ const BITRATES = [32, 48, 64, 96, 128, 160, 192, 256, 320];
 
 function bitrateOption(options: Record<string, unknown>, fallback: number): number {
   const n = optNumber(options, "bitrate", fallback, { min: 32, max: 320 });
-  return BITRATES.reduce((best, b) => (Math.abs(b - n) < Math.abs(best - n) ? b : best), BITRATES[0]!);
+  return BITRATES.reduce(
+    (best, b) => (Math.abs(b - n) < Math.abs(best - n) ? b : best),
+    BITRATES[0]!,
+  );
 }
 
 function sampleRateOption(options: Record<string, unknown>): number | undefined {
-  const value = optEnum(options, "sampleRate", ["keep", "22050", "32000", "44100", "48000"], "keep");
+  const value = optEnum(
+    options,
+    "sampleRate",
+    ["keep", "22050", "32000", "44100", "48000"],
+    "keep",
+  );
   return value === "keep" ? undefined : Number(value);
 }
 
@@ -103,10 +113,18 @@ function fixedFormat(toolId: string, format: AudioFormat, verb: string, need: "a
   return eachMedia(
     toolId,
     async (m, options, ctx) => {
-      const bytes = await encodeAudio(m, ctx.dir, format, { ...encodeOptions(options, 192), signal: ctx.signal }, `out-${ctx.index}`);
+      const bytes = await encodeAudio(
+        m,
+        ctx.dir,
+        format,
+        { ...encodeOptions(options, 192), signal: ctx.signal },
+        `out-${ctx.index}`,
+      );
       return {
         file: outFile(outName(m, "", format), format, bytes),
-        note: LOSSLESS_AUDIO.includes(format) ? undefined : `Bitrate ${bitrateOption(options, 192)} kbps.`,
+        note: LOSSLESS_AUDIO.includes(format)
+          ? undefined
+          : `Bitrate ${bitrateOption(options, 192)} kbps.`,
         info: { duration: m.duration },
       };
     },
@@ -114,17 +132,48 @@ function fixedFormat(toolId: string, format: AudioFormat, verb: string, need: "a
   );
 }
 
-export const videoToMp3Executor: Executor = fixedFormat("video-to-mp3", "mp3", "Saved the soundtrack of", "video");
-export const audioToWavExecutor: Executor = fixedFormat("audio-to-wav", "wav", "Converted", "audio");
-export const audioToMp3Executor: Executor = fixedFormat("audio-to-mp3", "mp3", "Converted", "audio");
-export const audioToAacExecutor: Executor = fixedFormat("audio-to-aac", "aac", "Converted", "audio");
-export const audioToFlacExecutor: Executor = fixedFormat("audio-to-flac", "flac", "Converted", "audio");
+export const videoToMp3Executor: Executor = fixedFormat(
+  "video-to-mp3",
+  "mp3",
+  "Saved the soundtrack of",
+  "video",
+);
+export const audioToWavExecutor: Executor = fixedFormat(
+  "audio-to-wav",
+  "wav",
+  "Converted",
+  "audio",
+);
+export const audioToMp3Executor: Executor = fixedFormat(
+  "audio-to-mp3",
+  "mp3",
+  "Converted",
+  "audio",
+);
+export const audioToAacExecutor: Executor = fixedFormat(
+  "audio-to-aac",
+  "aac",
+  "Converted",
+  "audio",
+);
+export const audioToFlacExecutor: Executor = fixedFormat(
+  "audio-to-flac",
+  "flac",
+  "Converted",
+  "audio",
+);
 
 export const audioConverterExecutor: Executor = eachMedia(
   "audio-converter",
   async (m, options, ctx) => {
     const format = optEnum(options, "format", AUDIO_FORMATS, "mp3");
-    const bytes = await encodeAudio(m, ctx.dir, format, { ...encodeOptions(options, 192), signal: ctx.signal }, `out-${ctx.index}`);
+    const bytes = await encodeAudio(
+      m,
+      ctx.dir,
+      format,
+      { ...encodeOptions(options, 192), signal: ctx.signal },
+      `out-${ctx.index}`,
+    );
     return { file: outFile(outName(m, "", format), format, bytes), note: lengthNote(m) };
   },
   { verb: "Converted", need: "audio", zipStem: "converted-audio" },
@@ -141,7 +190,10 @@ export const audioCompressorExecutor: Executor = eachMedia(
     let format: AudioFormat = choice === "same" ? sameAudioFormat(m) : choice;
     if (LOSSLESS_AUDIO.includes(format)) format = "mp3";
     const level = optEnum(options, "level", ["light", "balanced", "strong", "custom"], "balanced");
-    const kbps = level === "custom" ? bitrateOption(options, 96) : { light: 128, balanced: 96, strong: 64 }[level];
+    const kbps =
+      level === "custom"
+        ? bitrateOption(options, 96)
+        : { light: 128, balanced: 96, strong: 64 }[level];
     const bytes = await encodeAudio(
       m,
       ctx.dir,
@@ -160,7 +212,8 @@ export const audioCompressorExecutor: Executor = eachMedia(
         note: `"${m.ref.name}" is already smaller than this setting would make it, so the original was kept.`,
       };
     }
-    const saved = m.size > bytes.length ? ` (${Math.round((1 - bytes.length / m.size) * 100)}% smaller)` : "";
+    const saved =
+      m.size > bytes.length ? ` (${Math.round((1 - bytes.length / m.size) * 100)}% smaller)` : "";
     return {
       file: outFile(outName(m, "compressed", format), format, bytes),
       note: `${formatBytes(m.size)} → ${formatBytes(bytes.length)}${saved} at ${kbps} kbps.`,

@@ -36,7 +36,9 @@ export function trimRange(m: MediaInput, options: Record<string, unknown>): Trim
   const length = parseTime(optString(options, "duration"), "Length");
   const total = m.duration;
   if (total > 0 && start >= total) {
-    throw unsupported(`The start (${clock(start)}) is at or past the end of the file (${clock(total)}).`);
+    throw unsupported(
+      `The start (${clock(start)}) is at or past the end of the file (${clock(total)}).`,
+    );
   }
   let stop = end ?? (length !== null ? start + length : total);
   if (!(stop > 0)) throw unsupported("Enter an end time or a length.");
@@ -64,7 +66,16 @@ export const audioTrimmerExecutor: Executor = eachMedia(
       m,
       ctx.dir,
       format,
-      { start, duration: length, filters, bitrate: m.audio && m.audio.bitRate > 0 ? Math.min(320, Math.max(96, Math.round(m.audio.bitRate / 1000))) : 192, signal: ctx.signal },
+      {
+        start,
+        duration: length,
+        filters,
+        bitrate:
+          m.audio && m.audio.bitRate > 0
+            ? Math.min(320, Math.max(96, Math.round(m.audio.bitRate / 1000)))
+            : 192,
+        signal: ctx.signal,
+      },
       `out-${ctx.index}`,
     );
     return {
@@ -86,7 +97,14 @@ export const videoTrimmerExecutor: Executor = eachMedia(
     let bytes: Uint8Array;
     if (mode === "fast") {
       const out = `out-${ctx.index}.${format}`;
-      const muxer = { mp4: "mp4", m4v: "mp4", mov: "mov", mkv: "matroska", webm: "webm", avi: "avi" }[format];
+      const muxer = {
+        mp4: "mp4",
+        m4v: "mp4",
+        mov: "mov",
+        mkv: "matroska",
+        webm: "webm",
+        avi: "avi",
+      }[format];
       await runFfmpeg(
         [
           "-ss",
@@ -110,7 +128,13 @@ export const videoTrimmerExecutor: Executor = eachMedia(
       );
       bytes = await readOutput(ctx.dir, out);
     } else {
-      ({ bytes } = await encodeVideo(m, ctx.dir, format, { start, duration: length, quality: "high", signal: ctx.signal }, `out-${ctx.index}`));
+      ({ bytes } = await encodeVideo(
+        m,
+        ctx.dir,
+        format,
+        { start, duration: length, quality: "high", signal: ctx.signal },
+        `out-${ctx.index}`,
+      ));
     }
     return {
       file: outFile(outName(m, "trimmed", format), format, bytes),

@@ -49,7 +49,15 @@ export interface MakeVideoOptions {
 }
 
 export async function makeVideo(format = "mp4", o: MakeVideoOptions = {}): Promise<Uint8Array> {
-  const { seconds = 2, width = 320, height = 240, fps = 15, audio = true, source = "testsrc", extraArgs = [] } = o;
+  const {
+    seconds = 2,
+    width = 320,
+    height = 240,
+    fps = 15,
+    audio = true,
+    source = "testsrc",
+    extraArgs = [],
+  } = o;
   return withWorkdir(async (dir) => {
     const out = `clip.${format}`;
     await runFfmpeg(
@@ -58,10 +66,14 @@ export async function makeVideo(format = "mp4", o: MakeVideoOptions = {}): Promi
         "lavfi",
         "-i",
         `${source}=size=${width}x${height}:rate=${fps}:duration=${seconds}`,
-        ...(audio ? ["-f", "lavfi", "-i", `sine=frequency=330:duration=${seconds}:sample_rate=44100`] : []),
+        ...(audio
+          ? ["-f", "lavfi", "-i", `sine=frequency=330:duration=${seconds}:sample_rate=44100`]
+          : []),
         "-c:v",
         format === "webm" ? "libvpx-vp9" : "libx264",
-        ...(format === "webm" ? ["-b:v", "300k", "-deadline", "realtime", "-cpu-used", "8"] : ["-preset", "ultrafast", "-crf", "30"]),
+        ...(format === "webm"
+          ? ["-b:v", "300k", "-deadline", "realtime", "-cpu-used", "8"]
+          : ["-preset", "ultrafast", "-crf", "30"]),
         "-pix_fmt",
         "yuv420p",
         ...(audio ? ["-c:a", format === "webm" ? "libopus" : "aac", "-b:a", "96k"] : ["-an"]),
@@ -75,14 +87,33 @@ export async function makeVideo(format = "mp4", o: MakeVideoOptions = {}): Promi
 }
 
 /** An MKV carrying the given SRT text as a real subtitle track. */
-export async function makeVideoWithSubtitles(srt: string, o: MakeVideoOptions = {}): Promise<Uint8Array> {
+export async function makeVideoWithSubtitles(
+  srt: string,
+  o: MakeVideoOptions = {},
+): Promise<Uint8Array> {
   const video = await makeVideo("mp4", o);
   return withWorkdir(async (dir) => {
     const { writeFile } = await import("node:fs/promises");
     await writeFile(path.join(dir, "in.mp4"), video);
     await writeFile(path.join(dir, "subs.srt"), srt, "utf8");
     await runFfmpeg(
-      ["-i", "in.mp4", "-i", "subs.srt", "-map", "0", "-map", "1", "-c", "copy", "-c:s", "srt", "-f", "matroska", "out.mkv"],
+      [
+        "-i",
+        "in.mp4",
+        "-i",
+        "subs.srt",
+        "-map",
+        "0",
+        "-map",
+        "1",
+        "-c",
+        "copy",
+        "-c:s",
+        "srt",
+        "-f",
+        "matroska",
+        "out.mkv",
+      ],
       { cwd: dir, timeoutMs: 120_000 },
     );
     return new Uint8Array(await readFile(path.join(dir, "out.mkv")));

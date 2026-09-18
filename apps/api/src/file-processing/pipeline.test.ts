@@ -183,10 +183,17 @@ describe("runPipeline — validation", () => {
     const tool = getTool(DEMO_TOOL)!;
     tool.requiresAuth = true;
     try {
-      const outcome = await runPipeline({ toolId: tool.id, files: [{ name: "a.txt", mimeType: "text/plain", bytes: bytes("a") }] }, deps());
+      const outcome = await runPipeline(
+        { toolId: tool.id, files: [{ name: "a.txt", mimeType: "text/plain", bytes: bytes("a") }] },
+        deps(),
+      );
       expect(outcome.error?.code).toBe("AUTH_REQUIRED");
       const signedIn = await runPipeline(
-        { toolId: tool.id, userId: "user-1", files: [{ name: "a.txt", mimeType: "text/plain", bytes: bytes("a") }] },
+        {
+          toolId: tool.id,
+          userId: "user-1",
+          files: [{ name: "a.txt", mimeType: "text/plain", bytes: bytes("a") }],
+        },
         deps(),
       );
       expect(signedIn.ok).toBe(true);

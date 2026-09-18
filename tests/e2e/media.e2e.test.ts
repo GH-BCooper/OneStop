@@ -67,7 +67,14 @@ beforeAll(async () => {
     }
     server = spawn(
       process.execPath,
-      [path.join(root, "node_modules/next/dist/bin/next"), "start", "-p", String(port), "-H", "127.0.0.1"],
+      [
+        path.join(root, "node_modules/next/dist/bin/next"),
+        "start",
+        "-p",
+        String(port),
+        "-H",
+        "127.0.0.1",
+      ],
       { cwd: path.join(root, "apps/web"), stdio: "ignore" },
     );
   }
@@ -82,13 +89,18 @@ afterAll(async () => {
 });
 
 async function newPage(): Promise<Page> {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, acceptDownloads: true });
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 900 },
+    acceptDownloads: true,
+  });
   return context.newPage();
 }
 
 async function runInBrowser(page: Page, name: RegExp): Promise<string> {
   await page.getByRole("button", { name }).click();
-  const panel = page.locator('[data-state="success"], [data-state="failed"], [data-state="unsupported"]');
+  const panel = page.locator(
+    '[data-state="success"], [data-state="failed"], [data-state="unsupported"]',
+  );
   await panel.waitFor({ timeout: 120_000 });
   return (await panel.textContent()) ?? "";
 }
@@ -160,21 +172,32 @@ suite("audio & video tools, end to end", () => {
   }, 120_000);
 
   it("spawns FFmpeg from the production server for video work", async () => {
-    const trimmed = await api("video-trimmer", [{ name: "clip.mp4", bytes: clip }], { start: "0.5", end: "1.5" });
+    const trimmed = await api("video-trimmer", [{ name: "clip.mp4", bytes: clip }], {
+      start: "0.5",
+      end: "1.5",
+    });
     expect(trimmed.ok, trimmed.error?.message).toBe(true);
     expect(trimmed.summary).toContain("Kept 0:00.5 – 0:01.5");
     expect((await fetchFile(trimmed.files[0]!.url)).length).toBeGreaterThan(1000);
 
-    const gif = await api("video-to-gif", [{ name: "clip.mp4", bytes: clip }], { duration: "1", fps: 6, width: 120 });
+    const gif = await api("video-to-gif", [{ name: "clip.mp4", bytes: clip }], {
+      duration: "1",
+      fps: 6,
+      width: 120,
+    });
     expect(gif.ok, gif.error?.message).toBe(true);
     const meta = await sharp(await fetchFile(gif.files[0]!.url), { animated: true }).metadata();
     expect([meta.format, meta.width]).toEqual(["gif", 120]);
   }, 180_000);
 
   it("validates uploads: a real MP3 passes, a renamed text file does not", async () => {
-    const good = await api("audio-to-mp3", [{ name: "tone.mp3", bytes: await fs.readFile(mp3Path) }]);
+    const good = await api("audio-to-mp3", [
+      { name: "tone.mp3", bytes: await fs.readFile(mp3Path) },
+    ]);
     expect(good.ok, good.error?.message).toBe(true);
-    const bad = await api("audio-to-mp3", [{ name: "fake.mp3", bytes: new TextEncoder().encode("not audio at all") }]);
+    const bad = await api("audio-to-mp3", [
+      { name: "fake.mp3", bytes: new TextEncoder().encode("not audio at all") },
+    ]);
     expect(bad.ok).toBe(false);
     expect(bad.error?.message).toBeTruthy();
   }, 120_000);

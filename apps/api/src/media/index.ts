@@ -59,7 +59,15 @@ export {
   type SubtitleFormat,
 } from "./subtitles.ts";
 export { describeAudio, readTags } from "./metadata.ts";
-export { parseTime, clock, probe, readMedia, withWorkdir, type MediaInput, type Probe } from "./common.ts";
+export {
+  parseTime,
+  clock,
+  probe,
+  readMedia,
+  withWorkdir,
+  type MediaInput,
+  type Probe,
+} from "./common.ts";
 
 import { waveformExecutor } from "./waveform.ts";
 

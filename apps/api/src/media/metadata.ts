@@ -36,7 +36,19 @@ export const TAG_FIELDS = [
 ] as const;
 
 /** Containers whose muxer stores tags. Raw ADTS/PCM-only formats cannot. */
-const TAGGABLE = new Set(["mp3", "m4a", "mp4", "m4b", "flac", "ogg", "opus", "wav", "wma", "mkv", "mka"]);
+const TAGGABLE = new Set([
+  "mp3",
+  "m4a",
+  "mp4",
+  "m4b",
+  "flac",
+  "ogg",
+  "opus",
+  "wav",
+  "wma",
+  "mkv",
+  "mka",
+]);
 
 export interface AudioTags {
   [key: string]: string;
@@ -81,7 +93,11 @@ export const audioMetadataExecutor: Executor = eachMedia(
         .filter(Boolean)
         .join(" · ");
       return {
-        file: outFile(outName(m, "metadata", "json"), "json", new TextEncoder().encode(JSON.stringify(info, null, 2))),
+        file: outFile(
+          outName(m, "metadata", "json"),
+          "json",
+          new TextEncoder().encode(JSON.stringify(info, null, 2)),
+        ),
         note: [
           `${String(info.codec ?? "audio").toUpperCase()}, ${clock(m.duration)}, ${Math.round(num(info.bitrate as number) / 1000)} kbps, ${info.sampleRate} Hz, ${info.channels === 1 ? "mono" : `${info.channels} channels`} (${formatBytes(m.size)}).`,
           named || "No tags are set on this file.",
@@ -107,10 +123,23 @@ export const audioMetadataExecutor: Executor = eachMedia(
       changed.push(key);
     }
     if (!clear && changed.length === 0) {
-      throw unsupported("Fill in at least one tag to change, or tick \"Remove all existing tags\".");
+      throw unsupported('Fill in at least one tag to change, or tick "Remove all existing tags".');
     }
     const out = `out-${ctx.index}.${m.ext}`;
-    const muxer = { mp3: "mp3", m4a: "ipod", flac: "flac", ogg: "ogg", opus: "ogg", wav: "wav", wma: "asf", mkv: "matroska", mka: "matroska", mp4: "mp4", m4b: "ipod" }[m.ext] ?? m.ext;
+    const muxer =
+      {
+        mp3: "mp3",
+        m4a: "ipod",
+        flac: "flac",
+        ogg: "ogg",
+        opus: "ogg",
+        wav: "wav",
+        wma: "asf",
+        mkv: "matroska",
+        mka: "matroska",
+        mp4: "mp4",
+        m4b: "ipod",
+      }[m.ext] ?? m.ext;
     await runFfmpeg(
       [
         ...input(m.path),
@@ -139,7 +168,10 @@ export const audioMetadataExecutor: Executor = eachMedia(
     };
   },
   {
-    verb: (options) => (optEnum(options, "mode", ["view", "edit"], "view") === "edit" ? "Updated the tags of" : "Read the details of"),
+    verb: (options) =>
+      optEnum(options, "mode", ["view", "edit"], "view") === "edit"
+        ? "Updated the tags of"
+        : "Read the details of",
     need: "audio",
     zipStem: "audio-metadata",
     max: 20,

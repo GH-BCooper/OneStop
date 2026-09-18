@@ -67,7 +67,10 @@ export const audioMergerExecutor: Executor = (input_, options, ctx) =>
       const total = totalDuration(clips, gap);
       return {
         ok: true,
-        output: { clips: clips.map((m) => ({ name: m.ref.name, duration: m.duration })), duration: total },
+        output: {
+          clips: clips.map((m) => ({ name: m.ref.name, duration: m.duration })),
+          duration: total,
+        },
         summary: `Joined ${plural(clips.length, "audio file")} into one ${format.toUpperCase()} (${clock(total)}).`,
         files: [outFile(`merged-audio.${format}`, format, bytes)],
       };
@@ -84,9 +87,15 @@ export const videoMergerExecutor: Executor = (input_, options, ctx) =>
       const choice = optEnum(options, "format", MERGE_FORMATS, "same");
       const format: VideoFormat = choice === "same" ? sameVideoFormat(first) : choice;
       const sizeChoice = optEnum(options, "size", ["first", "largest"], "first");
-      const sized = sizeChoice === "largest"
-        ? clips.reduce((a, b) => (displaySize(b).width * displaySize(b).height > displaySize(a).width * displaySize(a).height ? b : a))
-        : first;
+      const sized =
+        sizeChoice === "largest"
+          ? clips.reduce((a, b) =>
+              displaySize(b).width * displaySize(b).height >
+              displaySize(a).width * displaySize(a).height
+                ? b
+                : a,
+            )
+          : first;
       const { width, height } = displaySize(sized);
       const W = Math.max(2, Math.round(width / 2) * 2);
       const H = Math.max(2, Math.round(height / 2) * 2);
@@ -132,7 +141,12 @@ export const videoMergerExecutor: Executor = (input_, options, ctx) =>
       });
       return {
         ok: true,
-        output: { clips: clips.map((m) => ({ name: m.ref.name, duration: m.duration })), duration: total, width: W, height: H },
+        output: {
+          clips: clips.map((m) => ({ name: m.ref.name, duration: m.duration })),
+          duration: total,
+          width: W,
+          height: H,
+        },
         summary: [
           `Joined ${plural(clips.length, "video")} into one ${format.toUpperCase()} (${clock(total)}, ${W} × ${H}).`,
           resized ? "Clips of a different size were fitted with black bars." : "",
