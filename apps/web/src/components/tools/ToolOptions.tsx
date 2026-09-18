@@ -8,6 +8,7 @@
 import { isOptionVisible, type ToolOption } from "@onestop/tool-registry";
 import { Input } from "@onestop/ui";
 import { useId } from "react";
+import { SignaturePad } from "./SignaturePad";
 
 export type OptionValues = Record<string, string | number | boolean>;
 
@@ -109,11 +110,54 @@ export function ToolOptions({ options, values, disabled, onChange }: ToolOptions
           );
         }
 
+        if (option.type === "signature") {
+          return (
+            <SignaturePad
+              key={option.id}
+              id={fieldId}
+              label={option.label}
+              value={String(values[option.id] ?? "")}
+              {...(disabled !== undefined ? { disabled } : {})}
+              onChange={(value) => onChange(option.id, value)}
+            />
+          );
+        }
+
+        if (option.multiline) {
+          return (
+            <div key={option.id} className="flex w-full min-w-0 flex-col gap-1 sm:col-span-2">
+              <label htmlFor={fieldId} className="text-sm font-medium">
+                {option.label}
+              </label>
+              <textarea
+                id={fieldId}
+                rows={6}
+                className={
+                  "w-full min-w-0 rounded-md border border-border bg-surface px-3 py-2 font-mono text-sm text-fg " +
+                  "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring"
+                }
+                disabled={disabled}
+                aria-describedby={hintId}
+                spellCheck={false}
+                {...(option.placeholder ? { placeholder: option.placeholder } : {})}
+                value={String(values[option.id] ?? option.default)}
+                onChange={(e) => onChange(option.id, e.target.value)}
+              />
+              {option.help && (
+                <p id={hintId} className="text-sm text-fg-muted">
+                  {option.help}
+                </p>
+              )}
+            </div>
+          );
+        }
+
         return (
           <Input
             key={option.id}
             id={fieldId}
-            type="text"
+            type={option.secret ? "password" : "text"}
+            {...(option.secret ? { autoComplete: "new-password" } : {})}
             label={option.label}
             disabled={disabled}
             {...(option.placeholder ? { placeholder: option.placeholder } : {})}

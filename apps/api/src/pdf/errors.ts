@@ -17,11 +17,19 @@ export class PdfToolError extends Error {
   }
 }
 
-/** The file is encrypted. Opening it is 06-pdf-tools-advanced.md's job; this phase says so plainly. */
+/** The file is encrypted and this tool was not given its password. */
 export function protectedPdfError(): PdfToolError {
   return new PdfToolError(
     "UNSUPPORTED_INPUT",
     "This PDF is password protected. Remove its password first, then try again.",
+  );
+}
+
+/** A password was supplied and it does not open the file. Never hints at what the right one is. */
+export function wrongPasswordError(): PdfToolError {
+  return new PdfToolError(
+    "UNSUPPORTED_INPUT",
+    "That password is not correct for this PDF. Check it and try again.",
   );
 }
 

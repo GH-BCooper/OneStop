@@ -7,7 +7,7 @@ import type { ExecContext, ExecResult, FileRef, OutputFile } from "@onestop/type
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument } from "@cantoo/pdf-lib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { loadFileCoreConfig, type FileCoreConfig } from "../file-processing/config.ts";

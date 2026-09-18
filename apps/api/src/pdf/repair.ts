@@ -9,7 +9,7 @@
 //   4. rasterise  — pdf.js is far more forgiving than pdf-lib about broken cross-reference
 //                   tables. If it can draw the pages, rebuild a readable PDF from them. Lossy
 //                   (the text layer is gone), so the summary says so plainly.
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument } from "@cantoo/pdf-lib";
 import type { Executor } from "@onestop/tool-registry";
 import {
   findPdfHeader,

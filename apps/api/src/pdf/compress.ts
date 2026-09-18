@@ -9,7 +9,7 @@
 //                actually shrinks a scan-heavy or image-heavy PDF, at the cost of selectable text.
 //
 // Whatever happens, the result is only offered if it is genuinely smaller than the input.
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument } from "@cantoo/pdf-lib";
 import type { Executor } from "@onestop/tool-registry";
 import {
   formatBytes,

@@ -1,5 +1,5 @@
 // Extract PDF Pages (Features 1.10) — copy selected pages into a new PDF.
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument } from "@cantoo/pdf-lib";
 import type { Executor } from "@onestop/tool-registry";
 import {
   loadPdf,

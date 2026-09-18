@@ -5,7 +5,8 @@ import { describe, expect, it, vi } from "vitest";
 import { checkFiles, formatBytes, UploadZone } from "@/components/tools/UploadZone";
 
 const mergePdf = getTool("merge-pdf")!;
-const comparePdfs = getTool("compare-pdfs")!;
+// A single-file tool that accepts PDFs (phase 07; Compare PDFs became a two-file tool in 06).
+const singleFilePdfTool = getTool("ocr-to-word")!;
 
 const makeFile = (name: string, size = 10, type = "") =>
   new File([new Uint8Array(size)], name, { type });
@@ -49,7 +50,7 @@ describe("checkFiles", () => {
     expect(checkFiles(mergePdf, [])).toMatch(/choose a file/i);
     expect(checkFiles(mergePdf, [{ name: "a.pdf", size: 0 }])).toMatch(/empty/i);
     expect(
-      checkFiles(comparePdfs, [
+      checkFiles(singleFilePdfTool, [
         { name: "a.pdf", size: 1 },
         { name: "b.pdf", size: 1 },
       ]),
@@ -79,7 +80,7 @@ describe("UploadZone", () => {
   });
 
   it("refuses a second file for a single-file tool by replacing it, and rejects a dropped pair", () => {
-    const { input, onSelect } = setup(comparePdfs);
+    const { input, onSelect } = setup(singleFilePdfTool);
     pick(input, [makeFile("a.pdf"), makeFile("b.pdf")]);
     expect(onSelect).toHaveBeenCalledWith([expect.objectContaining({ name: "a.pdf" })]);
   });

@@ -11,6 +11,7 @@ import {
   inputKind,
   type ToolMeta,
   fileInputTypes,
+  redactOptionValues,
 } from "@onestop/tool-registry";
 import {
   ERROR_MESSAGES,
@@ -169,7 +170,8 @@ export async function runPipeline(
         type: f.mimeType ?? "",
       })),
       ...(input.text ? { textLength: input.text.length } : {}),
-      ...(Object.keys(options).length > 0 ? { options } : {}),
+      // Passwords and drawn signatures are passed to the tool but never stored on the job.
+      ...(Object.keys(options).length > 0 ? { options: redactOptionValues(tool.id, options) } : {}),
     },
   });
 

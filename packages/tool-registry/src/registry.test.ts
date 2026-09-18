@@ -129,10 +129,28 @@ describe("registry contents", () => {
         "resize-pdf",
         "rotate-pdf-pages",
         "split-pdf",
+        // 06-pdf-tools-advanced.md
+        "add-page-numbers-to-pdf",
+        "add-watermark-to-pdf",
+        "compare-pdfs",
+        "edit-pdf-metadata",
+        "fill-pdf-forms",
+        "ocr-pdf",
+        "password-protect-pdf",
+        "pdf-to-excel",
+        "pdf-to-html",
+        "pdf-to-pdfa",
+        "pdf-to-powerpoint",
+        "pdf-to-word",
+        "remove-pdf-metadata",
+        "remove-pdf-password",
+        "sign-pdf",
       ].sort(),
     );
     for (const tool of tools.filter((t) => t.status === "available")) {
-      expect(tool.phase, `${tool.id} is available but not from a built phase`).toBe("05");
+      expect(["05", "06"], `${tool.id} is available but not from a built phase`).toContain(
+        tool.phase,
+      );
     }
   });
 
@@ -153,7 +171,14 @@ describe("registry contents", () => {
   });
 });
 
-const valid: ToolMeta = { ...tools[0]!, id: "x-tool", slug: "x-tool", sources: ["99.1"] };
+// A fresh id is not in VERIFIED_OFFLINE, so it must not inherit a real tool's offline flag.
+const valid: ToolMeta = {
+  ...tools[0]!,
+  id: "x-tool",
+  slug: "x-tool",
+  sources: ["99.1"],
+  offline: false,
+};
 
 describe("loadRegistry", () => {
   it("accepts a valid registry", () => {

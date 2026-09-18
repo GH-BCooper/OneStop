@@ -121,19 +121,19 @@ describe("tool page", () => {
       ok: false,
       error: {
         code: "NOT_IMPLEMENTED",
-        message: "PDF → Word is coming in a later phase (06-pdf-tools-advanced.md).",
+        message: "OCR → Word is coming in a later phase (07-word-ppt-tools.md).",
       },
     });
     render(
       <ToolPage
-        tool={byId("pdf-to-word")}
+        tool={byId("ocr-to-word")}
         initialState={{
           status: "selected",
           input: { kind: "files", files: [{ name: "a.pdf", size: 10, type: "application/pdf" }] },
         }}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /run pdf . word/i }));
+    fireEvent.click(screen.getByRole("button", { name: /run ocr . word/i }));
     await waitFor(() => {
       const panel = screen.getByRole("status");
       expect(panel.textContent).toMatch(/coming in a later phase/i);
@@ -221,7 +221,7 @@ describe("tool page", () => {
     ).toBeNull();
     expect(validateToolInput(merge, { kind: "files", files: [] })).toMatch(/choose a file/i);
     expect(
-      validateToolInput(byId("compare-pdfs"), {
+      validateToolInput(byId("ocr-to-word"), {
         kind: "files",
         files: [
           { name: "a.pdf", size: 1, type: "" },
@@ -375,7 +375,7 @@ describe("tool options", () => {
   });
 
   it("says so when a tool has no options", () => {
-    render(<ToolPage tool={byId("pdf-to-word")} />);
+    render(<ToolPage tool={byId("ocr-to-word")} />);
     expect(screen.getByText(/no options for this tool yet/i)).toBeTruthy();
   });
 
@@ -387,6 +387,28 @@ describe("tool options", () => {
     expect(within(options).getByLabelText(/^pages$/i)).toBeTruthy();
     // JPG quality is conditional on the format, so it starts hidden.
     expect(within(options).queryByLabelText(/jpg quality/i)).toBeNull();
+  });
+
+  it("renders password options as password fields (06)", () => {
+    render(<ToolPage tool={byId("remove-pdf-password")} />);
+    const field = screen.getByLabelText(/current password/i) as HTMLInputElement;
+    expect(field.type).toBe("password");
+  });
+
+  it("renders a multi-line option as a text area (06)", () => {
+    render(<ToolPage tool={byId("fill-pdf-forms")} />);
+    expect(screen.getByLabelText(/field values/i).tagName).toBe("TEXTAREA");
+  });
+
+  it("shows the signature pad only while 'Draw it' is chosen (06)", () => {
+    render(<ToolPage tool={byId("sign-pdf")} />);
+    expect(screen.getByTestId("signature-pad")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /clear signature/i })).toHaveProperty(
+      "disabled",
+      true,
+    );
+    fireEvent.change(screen.getByLabelText(/^signature$/i), { target: { value: "type" } });
+    expect(screen.queryByTestId("signature-pad")).toBeNull();
   });
 
   it("reveals a conditional option when its condition is met", () => {

@@ -2,7 +2,7 @@
 //
 // The content is embedded as a form XObject and scaled, so text stays text (nothing is
 // rasterised) and the aspect ratio is preserved unless the user asks for a stretch.
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument } from "@cantoo/pdf-lib";
 import type { Executor } from "@onestop/tool-registry";
 import {
   loadPdf,

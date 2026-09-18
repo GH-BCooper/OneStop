@@ -23,6 +23,22 @@ export const VERIFIED_OFFLINE: readonly string[] = [
   "resize-pdf",
   "rotate-pdf-pages",
   "split-pdf",
+  // 06-pdf-tools-advanced.md — apps/api/src/pdf/advanced.test.ts "offline" suite.
+  "add-page-numbers-to-pdf",
+  "add-watermark-to-pdf",
+  "compare-pdfs",
+  "edit-pdf-metadata",
+  "fill-pdf-forms",
+  "ocr-pdf",
+  "password-protect-pdf",
+  "pdf-to-excel",
+  "pdf-to-html",
+  "pdf-to-pdfa",
+  "pdf-to-powerpoint",
+  "pdf-to-word",
+  "remove-pdf-metadata",
+  "remove-pdf-password",
+  "sign-pdf",
 ];
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

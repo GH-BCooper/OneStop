@@ -8,6 +8,7 @@ import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { PDFDocument } from "@cantoo/pdf-lib";
 import { chromium, type Browser, type Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -173,6 +174,47 @@ describe("file core, end to end in a browser", () => {
     // The download endpoint only accepts ids it issued.
     const traversal = await fetch(`${baseUrl()}/api/files/..%2F..%2Fetc%2Fpasswd`);
     expect(traversal.status).toBe(404);
+  });
+
+  it("signs a PDF with a signature drawn on the pad (06)", async () => {
+    const doc = await PDFDocument.create();
+    doc.addPage([400, 400]);
+    const pdfPath = path.join(workDir, "contract.pdf");
+    await fs.writeFile(pdfPath, await doc.save());
+
+    const page = await newPage();
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await page.goto(`${baseUrl()}/tools/pdf/sign-pdf`);
+    await page.setInputFiles("input[type=file]", pdfPath);
+
+    // Draw a stroke with real pointer events.
+    const pad = page.getByTestId("signature-pad");
+    const box = (await pad.boundingBox())!;
+    await page.mouse.move(box.x + 20, box.y + box.height / 2);
+    await page.mouse.down();
+    for (let i = 1; i <= 10; i += 1) {
+      await page.mouse.move(box.x + 20 + i * 25, box.y + box.height / 2 + (i % 2 ? -15 : 15));
+    }
+    await page.mouse.up();
+    await expect(page.getByRole("button", { name: /clear signature/i }).isEnabled()).resolves.toBe(
+      true,
+    );
+
+    await page.getByRole("button", { name: /run sign pdf/i }).click();
+    const panel = page.locator('[data-state="success"]');
+    await panel.waitFor({ timeout: 30_000 });
+    await expect(panel.textContent()).resolves.toContain("Signed page 1");
+
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByTestId("result-download").click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe("contract-signed.pdf");
+    const saved = path.join(workDir, "signed.pdf");
+    await download.saveAs(saved);
+    const signed = await PDFDocument.load(await fs.readFile(saved));
+    expect(signed.getPage(0).node.Resources()?.toString()).toContain("/XObject");
+    expect(errors).toEqual([]);
   });
 
   it("asks for a file when a file tool is run without one", async () => {

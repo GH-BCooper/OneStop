@@ -2,7 +2,7 @@
 //
 // Rotation is a page attribute, not a content transform: adding to the existing /Rotate value is
 // both lossless and instant, and it keeps any rotation the document already had.
-import { degrees } from "pdf-lib";
+import { degrees } from "@cantoo/pdf-lib";
 import type { Executor } from "@onestop/tool-registry";
 import {
   loadPdf,

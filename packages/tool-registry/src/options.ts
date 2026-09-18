@@ -26,6 +26,10 @@ export interface TextOption extends ToolOptionBase {
   type: "text";
   default: string;
   placeholder?: string;
+  /** Rendered as a password field: never echoed on screen (Password Protect / Remove Password). */
+  secret?: boolean;
+  /** Rendered as a multi-line text area (e.g. Fill PDF Forms' field values). */
+  multiline?: boolean;
 }
 
 export interface NumberOption extends ToolOptionBase {
@@ -43,7 +47,16 @@ export interface BooleanOption extends ToolOptionBase {
   default: boolean;
 }
 
-export type ToolOption = SelectOption | TextOption | NumberOption | BooleanOption;
+/**
+ * A drawing pad (06-pdf-tools-advanced.md, Sign PDF). The value is a `data:image/png;base64,…`
+ * URL, or "" when nothing has been drawn; the server decodes and re-validates it.
+ */
+export interface SignatureOption extends ToolOptionBase {
+  type: "signature";
+  default: "";
+}
+
+export type ToolOption = SelectOption | TextOption | NumberOption | BooleanOption | SignatureOption;
 
 /** A page-selection field, used by six of the phase-05 tools with the same wording. */
 function pageSelection(overrides: Partial<TextOption> = {}): TextOption {
@@ -69,6 +82,23 @@ const packaging: SelectOption = {
   ],
   help: "Only applies when there is more than one result.",
 };
+
+const positionChoices = [
+  { value: "bottom-center", label: "Bottom centre" },
+  { value: "bottom-right", label: "Bottom right" },
+  { value: "bottom-left", label: "Bottom left" },
+  { value: "top-center", label: "Top centre" },
+  { value: "top-right", label: "Top right" },
+  { value: "top-left", label: "Top left" },
+];
+
+const metadataField = (id: string, label: string): TextOption => ({
+  id,
+  type: "text",
+  label,
+  default: "",
+  placeholder: "Keep current",
+});
 
 /** Tool id → its options. A tool with no entry simply has none. */
 export const TOOL_OPTIONS: Record<string, ToolOption[]> = {
@@ -273,6 +303,389 @@ export const TOOL_OPTIONS: Record<string, ToolOption[]> = {
       ],
     },
   ],
+
+  // ---- 06-pdf-tools-advanced.md ---------------------------------------------------------------
+  "pdf-to-pdfa": [
+    {
+      id: "mode",
+      type: "select",
+      label: "Conversion",
+      default: "auto",
+      choices: [
+        { value: "auto", label: "Keep pages as they are where possible" },
+        { value: "image", label: "Rebuild every page as an image" },
+      ],
+      help: "Pages using fonts the file does not embed are always rebuilt as images, with searchable text kept.",
+    },
+  ],
+  "pdf-to-html": [
+    {
+      id: "mode",
+      type: "select",
+      label: "Layout",
+      default: "layout",
+      choices: [
+        { value: "layout", label: "Exact — looks like the PDF, text selectable" },
+        { value: "flow", label: "Reflowable — clean headings and paragraphs" },
+        { value: "text", label: "Positioned text only (no images)" },
+      ],
+    },
+    pageSelection(),
+  ],
+  "add-watermark-to-pdf": [
+    {
+      id: "text",
+      type: "text",
+      label: "Watermark text",
+      default: "CONFIDENTIAL",
+      help: "To use an image instead, upload a PNG or JPG together with the PDF.",
+    },
+    {
+      id: "position",
+      type: "select",
+      label: "Position",
+      default: "center",
+      choices: [
+        { value: "center", label: "Centre" },
+        { value: "tile", label: "Tiled across the page" },
+        { value: "top-center", label: "Top" },
+        { value: "bottom-center", label: "Bottom" },
+      ],
+    },
+    {
+      id: "angle",
+      type: "select",
+      label: "Angle",
+      default: "diagonal",
+      choices: [
+        { value: "diagonal", label: "Diagonal" },
+        { value: "horizontal", label: "Horizontal" },
+        { value: "vertical", label: "Vertical" },
+      ],
+    },
+    {
+      id: "opacity",
+      type: "number",
+      label: "Opacity",
+      default: 25,
+      min: 5,
+      max: 100,
+      step: 5,
+      unit: "%",
+    },
+    {
+      id: "fontSize",
+      type: "number",
+      label: "Text size",
+      default: 60,
+      min: 6,
+      max: 300,
+      unit: "pt",
+      help: "Shrunk automatically if it would not fit the page.",
+    },
+    {
+      id: "color",
+      type: "select",
+      label: "Text colour",
+      default: "gray",
+      choices: [
+        { value: "gray", label: "Grey" },
+        { value: "red", label: "Red" },
+        { value: "blue", label: "Blue" },
+        { value: "black", label: "Black" },
+      ],
+    },
+    {
+      id: "imageScale",
+      type: "number",
+      label: "Image width",
+      default: 40,
+      min: 5,
+      max: 100,
+      step: 5,
+      unit: "% of page",
+      help: "Only used with an image watermark.",
+    },
+    pageSelection(),
+    packaging,
+  ],
+  "add-page-numbers-to-pdf": [
+    {
+      id: "format",
+      type: "select",
+      label: "Format",
+      default: "number",
+      choices: [
+        { value: "number", label: "1" },
+        { value: "page", label: "Page 1" },
+        { value: "page-of", label: "Page 1 of 10" },
+        { value: "slash", label: "1 / 10" },
+      ],
+    },
+    {
+      id: "position",
+      type: "select",
+      label: "Position",
+      default: "bottom-center",
+      choices: positionChoices,
+    },
+    { id: "start", type: "number", label: "Start at", default: 1, min: 0, max: 100000 },
+    { id: "fontSize", type: "number", label: "Size", default: 11, min: 6, max: 72, unit: "pt" },
+    {
+      id: "margin",
+      type: "number",
+      label: "Distance from edge",
+      default: 28,
+      min: 0,
+      max: 200,
+      unit: "pt",
+    },
+    {
+      id: "skipFirst",
+      type: "boolean",
+      label: "Leave the first page (cover) unnumbered",
+      default: false,
+    },
+    pageSelection({ help: "Only these pages get a number, counted from the start value." }),
+  ],
+  "password-protect-pdf": [
+    {
+      id: "password",
+      type: "text",
+      label: "Open password",
+      default: "",
+      secret: true,
+      help: "At least 4 characters. It cannot be recovered if you lose it.",
+    },
+    {
+      id: "ownerPassword",
+      type: "text",
+      label: "Owner password (optional)",
+      default: "",
+      secret: true,
+      help: "Lets you change the permissions later. Leave blank for a random one.",
+    },
+    {
+      id: "algorithm",
+      type: "select",
+      label: "Encryption",
+      default: "AES-256",
+      choices: [
+        { value: "AES-256", label: "AES-256 (recommended)" },
+        { value: "AES-128", label: "AES-128 (very old readers)" },
+      ],
+    },
+    { id: "allowPrinting", type: "boolean", label: "Allow printing", default: true },
+    { id: "allowCopying", type: "boolean", label: "Allow copying text", default: false },
+    {
+      id: "allowEditing",
+      type: "boolean",
+      label: "Allow editing and form filling",
+      default: false,
+    },
+  ],
+  "remove-pdf-password": [
+    {
+      id: "password",
+      type: "text",
+      label: "Current password",
+      default: "",
+      secret: true,
+      help: "Only for PDFs you are allowed to open. It is checked once and never stored.",
+    },
+  ],
+  "sign-pdf": [
+    {
+      id: "source",
+      type: "select",
+      label: "Signature",
+      default: "draw",
+      choices: [
+        { value: "draw", label: "Draw it" },
+        { value: "type", label: "Type my name" },
+        { value: "upload", label: "Use an uploaded image" },
+      ],
+      help: "To upload, add a PNG or JPG of your signature together with the PDF.",
+    },
+    {
+      id: "signature",
+      type: "signature",
+      label: "Draw your signature",
+      default: "",
+      showWhen: { option: "source", equals: ["draw"] },
+    },
+    {
+      id: "signerName",
+      type: "text",
+      label: "Your name",
+      default: "",
+      placeholder: "Ada Lovelace",
+      help: "Used for a typed signature, the caption and the certificate.",
+    },
+    {
+      id: "page",
+      type: "text",
+      label: "Page",
+      default: "last",
+      placeholder: "last",
+      help: "A page number, first or last.",
+    },
+    {
+      id: "position",
+      type: "select",
+      label: "Position",
+      default: "bottom-right",
+      choices: [...positionChoices, { value: "center", label: "Centre" }],
+    },
+    {
+      id: "width",
+      type: "number",
+      label: "Signature width",
+      default: 160,
+      min: 40,
+      max: 500,
+      unit: "pt",
+    },
+    {
+      id: "caption",
+      type: "boolean",
+      label: "Add “Signed by … on (date)” under it",
+      default: true,
+    },
+    {
+      id: "certify",
+      type: "boolean",
+      label: "Seal with a self-signed digital certificate",
+      default: false,
+      help: "Detects any later change to the file. Readers show it as an unverified identity — it is not a paid, trusted certificate.",
+    },
+  ],
+  "fill-pdf-forms": [
+    {
+      id: "values",
+      type: "text",
+      label: "Field values",
+      default: "",
+      multiline: true,
+      placeholder: "Name = Ada Lovelace\nSubscribe = yes",
+      help: "Leave empty and run once to list the form's fields. One Field = value per line, or a JSON object.",
+    },
+    {
+      id: "flatten",
+      type: "boolean",
+      label: "Flatten (make the answers permanent)",
+      default: false,
+    },
+  ],
+  "edit-pdf-metadata": [
+    metadataField("title", "Title"),
+    metadataField("author", "Author"),
+    metadataField("subject", "Subject"),
+    metadataField("keywords", "Keywords"),
+    metadataField("creator", "Creator application"),
+    {
+      ...metadataField("producer", "Producer"),
+      help: "Leave a field blank to keep it; enter a single - to clear it.",
+    },
+  ],
+  "remove-pdf-metadata": [packaging],
+  "compare-pdfs": [
+    {
+      id: "output",
+      type: "select",
+      label: "Results",
+      default: "both",
+      choices: [
+        { value: "both", label: "Report and highlighted PDF" },
+        { value: "report", label: "Text report (HTML)" },
+        { value: "pdf", label: "Highlighted PDF" },
+      ],
+      help: "Choose the original first, then the changed version.",
+    },
+  ],
+  "ocr-pdf": [
+    {
+      id: "output",
+      type: "select",
+      label: "Output",
+      default: "both",
+      choices: [
+        { value: "both", label: "Searchable PDF and text file" },
+        { value: "pdf", label: "Searchable PDF" },
+        { value: "txt", label: "Text file" },
+      ],
+    },
+    {
+      id: "language",
+      type: "select",
+      label: "Language",
+      default: "eng",
+      choices: [{ value: "eng", label: "English" }],
+    },
+    {
+      id: "dpi",
+      type: "number",
+      label: "Scan resolution",
+      default: 300,
+      min: 100,
+      max: 400,
+      step: 50,
+      unit: "DPI",
+      help: "300 reads small print best; 200 is faster.",
+    },
+    { id: "skipText", type: "boolean", label: "Skip pages that already have text", default: true },
+    pageSelection(),
+  ],
+  "pdf-to-word": [
+    {
+      id: "layout",
+      type: "select",
+      label: "Layout",
+      default: "editable",
+      choices: [
+        { value: "editable", label: "Editable text, headings and paragraphs" },
+        { value: "exact", label: "Exact look (pages as pictures)" },
+      ],
+    },
+    {
+      id: "engine",
+      type: "select",
+      label: "Converter",
+      default: "builtin",
+      choices: [
+        { value: "builtin", label: "Built-in (works everywhere)" },
+        { value: "libreoffice", label: "LibreOffice, if installed" },
+      ],
+      showWhen: { option: "layout", equals: ["editable"] },
+    },
+    pageSelection(),
+  ],
+  "pdf-to-excel": [
+    {
+      id: "sheets",
+      type: "select",
+      label: "Worksheets",
+      default: "per-page",
+      choices: [
+        { value: "per-page", label: "One sheet per page" },
+        { value: "single", label: "Everything on one sheet" },
+      ],
+    },
+    pageSelection(),
+  ],
+  "pdf-to-powerpoint": [
+    {
+      id: "layout",
+      type: "select",
+      label: "Slides",
+      default: "exact",
+      choices: [
+        { value: "exact", label: "Exact look (page images, text in notes)" },
+        { value: "editable", label: "Editable text boxes" },
+      ],
+    },
+    pageSelection(),
+  ],
 };
 
 export function getToolOptions(toolId: string): ToolOption[] {
@@ -289,6 +702,24 @@ export function defaultOptionValues(toolId: string): Record<string, string | num
 export function isOptionVisible(option: ToolOption, values: Record<string, unknown>): boolean {
   if (!option.showWhen) return true;
   return option.showWhen.equals.includes(String(values[option.showWhen.option]));
+}
+
+/**
+ * Option values safe to keep in a job record (06-pdf-tools-advanced.md). Passwords (`secret`)
+ * never leave the executor call: they are replaced with a marker, as is a drawn signature, which
+ * is personal and large. Everything else is kept so a job still says what it was asked to do.
+ */
+export function redactOptionValues(
+  toolId: string,
+  values: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = { ...values };
+  for (const option of getToolOptions(toolId)) {
+    if (!(option.id in out)) continue;
+    if (option.type === "text" && option.secret) out[option.id] = "[redacted]";
+    else if (option.type === "signature" && out[option.id]) out[option.id] = "[signature]";
+  }
+  return out;
 }
 
 /** The values actually sent to the server: visible options only, so hidden ones never confuse a tool. */

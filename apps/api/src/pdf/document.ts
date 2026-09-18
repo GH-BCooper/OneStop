@@ -3,9 +3,16 @@
 //
 // Phase 06's PDF↔Office conversions are meant to build on these rather than re-implement page
 // handling, so everything here works on bytes and page indexes only — never on paths.
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument } from "@cantoo/pdf-lib";
 import type { ExecContext, FileRef } from "@onestop/types";
-import { damagedPdfError, isEncryptionError, PdfToolError, unsupported } from "./errors.ts";
+import {
+  damagedPdfError,
+  isEncryptionError,
+  PdfToolError,
+  protectedPdfError,
+  unsupported,
+  wrongPasswordError,
+} from "./errors.ts";
 
 export const PDF_MIME = "application/pdf";
 
@@ -66,15 +73,20 @@ export function findPdfHeader(bytes: Uint8Array, searchLimit = 4096): number {
 export interface LoadPdfOptions {
   /** Keep a document pdf-lib considers structurally odd, rather than refusing it. */
   tolerant?: boolean;
+  /**
+   * The document's existing password. With it, an encrypted file is decrypted on load and saves
+   * unencrypted (06-pdf-tools-advanced.md); without it, an encrypted file is refused.
+   */
+  password?: string;
 }
 
 /**
- * Opens a document with pdf-lib, turning its two user-facing failure modes into clear messages:
- * an encrypted file and a damaged one. Never throws a raw pdf-lib error.
+ * Opens a document with pdf-lib, turning its user-facing failure modes into clear messages:
+ * an encrypted file, a wrong password and a damaged file. Never throws a raw pdf-lib error.
  */
 export async function loadPdf(
   bytes: Uint8Array,
-  { tolerant = false }: LoadPdfOptions = {},
+  { tolerant = false, password }: LoadPdfOptions = {},
 ): Promise<PDFDocument> {
   if (!looksLikePdf(bytes)) throw damagedPdfError("missing %PDF header");
   let doc: PDFDocument;
@@ -83,22 +95,15 @@ export async function loadPdf(
       ignoreEncryption: false,
       updateMetadata: false,
       throwOnInvalidObject: !tolerant,
+      ...(password !== undefined ? { password } : {}),
     });
   } catch (err) {
     if (isEncryptionError(err)) {
-      throw new PdfToolError(
-        "UNSUPPORTED_INPUT",
-        "This PDF is password protected. Remove its password first, then try again.",
-      );
+      throw password !== undefined ? wrongPasswordError() : protectedPdfError();
     }
     throw damagedPdfError(err);
   }
-  if (doc.isEncrypted) {
-    throw new PdfToolError(
-      "UNSUPPORTED_INPUT",
-      "This PDF is password protected. Remove its password first, then try again.",
-    );
-  }
+  if (doc.isEncrypted) throw password !== undefined ? wrongPasswordError() : protectedPdfError();
   // A file can parse and still have an unusable catalogue; asking for the pages is what proves it.
   let pageCount: number;
   try {

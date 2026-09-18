@@ -154,10 +154,10 @@ describe("POST /api/tools/run", () => {
     const pdf = new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31])], "a.pdf", {
       type: "application/pdf",
     });
-    // Phase 05 built the core PDF tools, so this checks one that is still to come (phase 06).
-    const { body } = await run(formWith(pdf, "pdf-to-word"));
+    // Phases 05-06 built the PDF tools, so this checks one that is still to come (phase 07).
+    const { body } = await run(formWith(pdf, "ocr-to-word"));
     expect(body.error?.code).toBe("NOT_IMPLEMENTED");
-    expect(body.error?.message).toContain("06-pdf-tools-advanced.md");
+    expect(body.error?.message).toContain("07-word-ppt-tools.md");
   });
 });
 

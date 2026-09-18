@@ -3,11 +3,15 @@
 // pdf-lib can rearrange pages but cannot read their content; pdf.js can read and draw them.
 // Everything here is local — the standard fonts and CMaps are loaded from `node_modules`, and
 // pdf.js is configured so it never evaluates PDF-supplied code and never fetches a URL.
-import { existsSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { PdfToolError, isEncryptionError } from "./errors.ts";
-import { damagedPdfError } from "./errors.ts";
+import { findPackageDir } from "../shared/node-modules.ts";
+import {
+  damagedPdfError,
+  isEncryptionError,
+  PdfToolError,
+  protectedPdfError,
+  wrongPasswordError,
+} from "./errors.ts";
 
 export type ImageFormat = "png" | "jpg";
 
@@ -33,17 +37,30 @@ export interface RenderedPage {
 }
 
 /** Minimal structural view of the pdf.js API we use, so this file needs no `any`. */
-interface PdfJsTextItem {
+export interface PdfJsTextItem {
   str?: string;
   hasEOL?: boolean;
+  /** Text-space → user-space matrix [a, b, c, d, e, f]. */
+  transform?: number[];
+  width?: number;
+  height?: number;
+  fontName?: string;
 }
-interface PdfJsViewport {
+export interface PdfJsViewport {
   width: number;
   height: number;
+  /** User space → viewport matrix. */
+  transform: number[];
 }
-interface PdfJsPage {
+export interface PdfJsPage {
+  rotate?: number;
   getViewport(params: { scale: number }): PdfJsViewport;
-  getTextContent(): Promise<{ items: PdfJsTextItem[] }>;
+  getTextContent(): Promise<{
+    items: PdfJsTextItem[];
+    styles?: Record<string, { fontFamily?: string }>;
+  }>;
+  getOperatorList(): Promise<unknown>;
+  commonObjs: { has(id: string): boolean; get(id: string): unknown };
   render(params: Record<string, unknown>): { promise: Promise<void> };
   cleanup(): void;
 }
@@ -62,34 +79,10 @@ interface PdfJsModule {
 
 let modulePromise: Promise<PdfJsModule> | null = null;
 
-let pdfJsRoot: string | null = null;
-
-/**
- * Locates the installed `pdfjs-dist` directory by walking up from this module and from the
- * working directory. `require.resolve` is deliberately not used: once Next bundles this module
- * the bundler's `require` returns a module id, not a path.
- */
+/** The installed `pdfjs-dist` directory (fonts, CMaps, WASM and ICC data are read from it). */
 function findPdfJsRoot(): string {
-  if (pdfJsRoot) return pdfJsRoot;
-  const starts = [process.cwd()];
-  try {
-    starts.unshift(path.dirname(fileURLToPath(import.meta.url)));
-  } catch {
-    // A bundled module may have no file URL; the working directory still resolves it.
-  }
-  for (const start of starts) {
-    let dir = path.resolve(start);
-    for (;;) {
-      const candidate = path.join(dir, "node_modules", "pdfjs-dist");
-      if (existsSync(path.join(candidate, "standard_fonts"))) {
-        pdfJsRoot = candidate;
-        return candidate;
-      }
-      const parent = path.dirname(dir);
-      if (parent === dir) break;
-      dir = parent;
-    }
-  }
+  const root = findPackageDir("pdfjs-dist", "standard_fonts");
+  if (root) return root;
   throw new PdfToolError(
     "FAILED",
     "PDF rendering is not available on this server. Please try again later.",
@@ -110,6 +103,8 @@ async function loadPdfJs(): Promise<PdfJsModule> {
 export interface OpenPdfJsOptions {
   /** Repair PDF asks pdf.js to keep going on a broken cross-reference table. */
   tolerant?: boolean;
+  /** Password for an encrypted document (Remove PDF Password, 06-pdf-tools-advanced.md). */
+  password?: string;
 }
 
 /**
@@ -119,7 +114,7 @@ export interface OpenPdfJsOptions {
 export async function withPdfJs<T>(
   bytes: Uint8Array,
   body: (doc: PdfJsDocument) => Promise<T>,
-  { tolerant = false }: OpenPdfJsOptions = {},
+  { tolerant = false, password }: OpenPdfJsOptions = {},
 ): Promise<T> {
   const pdfjs = await loadPdfJs();
   // pdf.js transfers the buffer to its worker, so hand it a copy the caller still owns.
@@ -138,6 +133,7 @@ export async function withPdfJs<T>(
     cMapPacked: true,
     wasmUrl: assetDir("wasm"),
     iccUrl: assetDir("iccs"),
+    ...(password !== undefined ? { password } : {}),
   });
   let doc: PdfJsDocument;
   try {
@@ -145,10 +141,8 @@ export async function withPdfJs<T>(
   } catch (err) {
     await task.destroy().catch(() => undefined);
     if (isEncryptionError(err)) {
-      throw new PdfToolError(
-        "UNSUPPORTED_INPUT",
-        "This PDF is password protected. Remove its password first, then try again.",
-      );
+      if (password !== undefined) throw wrongPasswordError();
+      throw protectedPdfError();
     }
     throw damagedPdfError(err);
   }

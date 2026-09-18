@@ -2,7 +2,7 @@
 //
 // pdf-lib's `copyPages` carries each page's own MediaBox across, so mixing A4, Letter and
 // landscape pages in one document works without any scaling.
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument } from "@cantoo/pdf-lib";
 import type { Executor } from "@onestop/tool-registry";
 import { unsupported } from "./errors.ts";
 import {

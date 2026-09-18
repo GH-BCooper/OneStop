@@ -136,8 +136,35 @@ describe("runPipeline — validation", () => {
       { name: "a.pdf", mimeType: "application/pdf", bytes: PDF },
       { name: "b.pdf", mimeType: "application/pdf", bytes: PDF },
     ];
-    const batch = await runPipeline({ toolId: "compare-pdfs", files: pair }, deps());
+    const batch = await runPipeline({ toolId: "ocr-to-word", files: pair }, deps());
     expect(batch.error?.message).toMatch(/one file at a time/i);
+  });
+
+  it("never stores a password or drawn signature on the job record (06)", async () => {
+    const outcome = await runPipeline(
+      {
+        toolId: "remove-pdf-password",
+        files: [{ name: "a.pdf", mimeType: "application/pdf", bytes: PDF }],
+        options: { password: "hunter22" },
+      },
+      deps(),
+    );
+    const stored = JSON.stringify(await jobs.get(outcome.job.id));
+    expect(stored).not.toContain("hunter22");
+    expect(outcome.job.inputMetadata.options).toEqual({ password: "[redacted]" });
+
+    const signed = await runPipeline(
+      {
+        toolId: "sign-pdf",
+        files: [{ name: "a.pdf", mimeType: "application/pdf", bytes: PDF }],
+        options: { source: "draw", signature: "data:image/png;base64,AAAA", signerName: "Ada" },
+      },
+      deps(),
+    );
+    expect(signed.job.inputMetadata.options).toMatchObject({
+      signature: "[signature]",
+      signerName: "Ada",
+    });
   });
 
   it("requires a session for a tool marked requiresAuth", async () => {
