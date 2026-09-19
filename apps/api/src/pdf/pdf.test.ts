@@ -37,6 +37,7 @@ import { pdfToImagesExecutor } from "./toImages.ts";
 import { pdfToTextExecutor } from "./toText.ts";
 import { PDF_CORE_EXECUTORS } from "./index.ts";
 import { createZip, crc32 } from "./zip.ts";
+import { recordOfflineCoverage } from "../../../../tests/offline/coverage.ts";
 
 // ---- helpers ----------------------------------------------------------------------------------
 
@@ -751,5 +752,6 @@ describe("offline", () => {
       https.default.request = realHttpsRequest;
     }
     expect(calls).toEqual([]);
+    recordOfflineCoverage("pdf-core", PDF_CORE_EXECUTORS.map(([id]) => id));
   }, 120_000);
 });

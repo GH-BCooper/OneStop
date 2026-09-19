@@ -19,3 +19,10 @@ venv/
 .DS_Store
 Thumbs.db
 *.log
+
+# Offline-flag enforcement ledger (19-testing.md); rebuilt by every `npm run verify`.
+.offline-coverage/
+# Vitest JSON report, written by `npm run verify` for the offline-coverage check.
+.vitest-report.json
+# Locally downloaded FFmpeg build (scripts/fetch-ffmpeg.mjs).
+.tools/

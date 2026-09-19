@@ -11,6 +11,7 @@ import http from "node:http";
 import https from "node:https";
 import {
   defaultOptionValues,
+  getExecutor,
   getTool,
   getToolOptions,
   hasExecutor,
@@ -42,6 +43,7 @@ import { buildZip, readZip, safeEntryPath } from "./zip.ts";
 import { findRoute, mergedName, naturalCompare, splitBytes, targetsFor } from "./fileOps.ts";
 import { findDuplicates } from "./duplicateDetector.ts";
 import { removerRouteFor } from "./fileMeta.ts";
+import { recordOfflineCoverage } from "../../../../tests/offline/coverage.ts";
 
 // ---- helpers ----------------------------------------------------------------------------------
 
@@ -1034,6 +1036,16 @@ describe("offline", () => {
         const result = await run(id, input, options ?? {});
         expect(result.ok, `${id} failed offline: ${result.ok ? "" : result.message}`).toBe(true);
       }
+      // File Metadata Viewer belongs to this phase in the catalogue but is phase 04's executor,
+      // so it is not in DEV_UTIL_EXECUTORS - and the registry still flags it offline. Prove it
+      // here rather than leave the one claim in the list with nothing behind it (19-testing.md).
+      const metaBytes = enc("hello");
+      const metadata = await getExecutor(getTool("file-metadata-viewer")!)(
+        [{ name: "a.txt", size: metaBytes.length, type: "text/plain", tempId: "f-0" }],
+        {},
+        { jobId: "t", readFile: async () => metaBytes },
+      );
+      expect(metadata.ok, "file-metadata-viewer failed offline").toBe(true);
     } finally {
       globalThis.fetch = saved.fetch;
       http.get = saved.hg;
@@ -1041,5 +1053,9 @@ describe("offline", () => {
       https.get = saved.sg;
       https.request = saved.sr;
     }
+    recordOfflineCoverage("dev-utils", [
+      ...DEV_UTIL_EXECUTORS.map(([id]) => id),
+      "file-metadata-viewer",
+    ]);
   });
 });

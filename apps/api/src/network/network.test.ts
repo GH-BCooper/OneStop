@@ -7,6 +7,7 @@
 // database), the SSRF rules, the WHOIS parser and every tool's error handling.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExecContext, ExecResult } from "@onestop/types";
+import { recordOfflineCoverage } from "../../../../tests/offline/coverage.ts";
 
 const resolveMock = vi.fn();
 const resolvePtrMock = vi.fn();
@@ -570,6 +571,7 @@ describe("failure isolation", () => {
     // The two that are genuinely local keep answering...
     ok(await run("ip-geolocation", "8.8.8.8"));
     ok(await run("user-agent-lookup", "curl/8.4.0"));
+    recordOfflineCoverage("network", ["ip-geolocation", "user-agent-lookup"]);
     // ...and a tool from an earlier phase is untouched by any of this.
     const { DEV_UTIL_EXECUTORS } = await import("../dev-utils/index.ts");
     const hash = DEV_UTIL_EXECUTORS.find(([id]) => id === "hash-generator")![1];

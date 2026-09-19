@@ -18,7 +18,7 @@ export default defineConfig({
     // next-auth resolves "next/server" (extensionless) at import time, which plain Node cannot do.
     // Inlining it makes Vite apply the alias above (13-auth-database.md).
     server: { deps: { inline: ["next-auth", "@auth/core"] } },
-    setupFiles: ["apps/web/src/test/setup.tsx"],
+    setupFiles: ["tests/setup/env.ts", "apps/web/src/test/setup.tsx"],
     // The heaviest cases are a jsdom render that first imports the whole `@onestop/api` barrel
     // (sharp, pdfjs, tesseract…) and the Postgres suites' per-test reset. Both are seconds when a
     // file runs alone and can be several times that on a machine running every file at once, so
@@ -26,5 +26,16 @@ export default defineConfig({
     // (see PROGRESS.md, phases 08/10 and 14).
     testTimeout: 60000,
     hookTimeout: 30000,
+    // Settling the "flaky under load" question phase 18 left open (19-testing.md).
+    //
+    // Vitest defaults to one worker per core, and this suite is unusually heavy per worker: some
+    // files spawn FFmpeg or LibreOffice, several hold a Postgres connection, and the jsdom files
+    // import the whole `@onestop/api` barrel. At full width the machine is oversubscribed, and
+    // the failures that follows are timeouts - `/status` waiting on real dependency probes,
+    // `/account` on a database - not defects in the code under test.
+    //
+    // Halving the width costs about a fifth of the wall-clock time and removes the false
+    // failures. Raising the timeouts instead would only have hidden the saturation.
+    maxWorkers: "50%",
   },
 });

@@ -40,6 +40,7 @@ import { QR_EXECUTORS } from "./index.ts";
 import { resolveQrLink } from "./dynamic.ts";
 import { scansByDay, statsFor } from "./analytics.ts";
 import { getQrStore, setQrStore, shortUrlFor, validatePage, type QrStore } from "./store.ts";
+import { recordOfflineCoverage } from "../../../../tests/offline/coverage.ts";
 
 // ---- helpers ----------------------------------------------------------------------------------
 
@@ -664,6 +665,7 @@ describe("offline", () => {
         const result = await run(id, input as string, options ?? {});
         expect(result.ok, `${id} failed offline`).toBe(true);
       }
+      recordOfflineCoverage("qr", Object.keys(cases));
     } finally {
       globalThis.fetch = saved.fetch;
       http.get = saved.hg;

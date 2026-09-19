@@ -21,6 +21,7 @@ import { transformTable } from "./transform.ts";
 import { validateJson, validateTable, validateXml } from "./validate.ts";
 import { checkXml, formatXml, xmlToJson } from "./xml.ts";
 import { parseYaml } from "./yaml.ts";
+import { recordOfflineCoverage } from "../../../../tests/offline/coverage.ts";
 
 // ---- helpers ----------------------------------------------------------------------------------
 
@@ -842,5 +843,6 @@ describe("offline", () => {
       https.get = saved.sg;
       https.request = saved.sr;
     }
+    recordOfflineCoverage("data", DATA_EXECUTORS.map(([id]) => id));
   }, 60_000);
 });

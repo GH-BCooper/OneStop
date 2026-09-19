@@ -49,6 +49,7 @@ import {
   textFormatterExecutor,
 } from "./textTools.ts";
 import { mergeDocumentsExecutor, splitDocumentsExecutor } from "./wordStructure.ts";
+import { recordOfflineCoverage } from "../../../../tests/offline/coverage.ts";
 
 // ---- helpers ----------------------------------------------------------------------------------
 
@@ -985,5 +986,6 @@ describe("offline", () => {
       https.get = saved.sg;
       https.request = saved.sr;
     }
+    recordOfflineCoverage("documents", DOCUMENT_EXECUTORS.map(([id]) => id));
   }, 120_000);
 });

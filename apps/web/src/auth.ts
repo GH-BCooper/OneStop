@@ -57,10 +57,40 @@ function providers() {
   return list;
 }
 
+/**
+ * The Prisma adapter, with one field renamed.
+ *
+ * Auth.js calls a user's picture `image`; master plan §16 calls it `avatar`, and that is the
+ * column OneStop has. `PrismaAdapter` passes the OAuth profile straight to `prisma.user.create`,
+ * so without this a first-ever Google sign-in fails with "Unknown argument `image`" - the app
+ * would look fine right up until someone actually used the button (found in 19-testing.md).
+ *
+ * Nothing else is changed: the adapter still owns the rows, this only translates one name in
+ * each direction.
+ */
+export function onestopAdapter(prisma: PrismaClient): Adapter {
+  const base = PrismaAdapter(prisma);
+  type WithImage = { image?: string | null; avatar?: string | null } | null;
+  const out = <T extends WithImage>(user: T): T =>
+    user ? ({ ...user, image: user.image ?? user.avatar ?? null } as T) : user;
+  const inward = <T extends WithImage>(user: T): T => {
+    if (!user) return user;
+    const { image, ...rest } = user;
+    return { ...rest, avatar: image ?? user.avatar ?? null } as unknown as T;
+  };
+  return {
+    ...base,
+    createUser: async (user) => out(await base.createUser!(inward(user))),
+    getUser: async (id) => out(await base.getUser!(id)),
+    getUserByEmail: async (email) => out(await base.getUserByEmail!(email)),
+    getUserByAccount: async (account) => out(await base.getUserByAccount!(account)),
+    updateUser: async (user) => out(await base.updateUser!(inward(user))),
+  } as Adapter;
+}
+
 export const authConfig: NextAuthConfig = {
   // The adapter persists Google accounts; the credentials flow writes its own rows.
-  adapter: (getPrisma() ? PrismaAdapter(getPrisma() as PrismaClient) : undefined) as
-    Adapter | undefined,
+  adapter: getPrisma() ? onestopAdapter(getPrisma() as PrismaClient) : undefined,
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
   secret: authSecret(),
   trustHost: true,

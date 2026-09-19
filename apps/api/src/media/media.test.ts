@@ -48,6 +48,7 @@ import { parseLoudnorm, parseVolumeDetect, loudnormFilter } from "./normalize.ts
 import { peaksFromPcm, svgColour } from "./waveform.ts";
 import { trimRange } from "./trim.ts";
 import { crc32 } from "../pdf/zip.ts";
+import { recordOfflineCoverage } from "../../../../tests/offline/coverage.ts";
 
 const HAS_FFMPEG = Boolean(findFfmpeg());
 const suite = HAS_FFMPEG ? describe : describe.skip;
@@ -866,5 +867,6 @@ suite("offline", () => {
       https.get = saved.sg;
       https.request = saved.sr;
     }
+    recordOfflineCoverage("media", MEDIA_EXECUTORS.map(([id]) => id));
   }, 600_000);
 });

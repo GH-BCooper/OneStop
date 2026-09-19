@@ -1,0 +1,62 @@
+# The same gate a developer runs locally: `npm run verify` (19-testing.md).
+#
+# Free tier only, no secrets, no paid service. The Postgres service is GitHub's own container, so
+# the database suites run here instead of skipping themselves, and FFmpeg is fetched into the
+# project so the phase-10 offline tests - the ones the offline-flag check insists on - really run.
+name: verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: onestop
+          POSTGRES_PASSWORD: onestop
+          POSTGRES_DB: onestop
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U onestop -d onestop"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://onestop:onestop@127.0.0.1:5432/onestop?schema=public
+      TEST_DATABASE_URL: postgresql://onestop:onestop@127.0.0.1:5432/onestop?schema=public
+      NEXTAUTH_SECRET: ci-only-secret-not-used-anywhere-else
+      APP_URL: http://localhost:3000
+      NEXTAUTH_URL: http://localhost:3000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # FFmpeg is a real dependency of the phase-10 tools, and those tools are flagged
+      # `offline: true`; without it their offline suite skips and `verify` fails, by design.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
+
+      - run: npm run db:generate
+
+      - run: npx prisma migrate deploy
+
+      # lint + typecheck + unit/integration/contract tests + the offline-flag check.
+      - run: npm run verify
+
+      # The app must still build; the E2E suite needs this and so does phase 20.
+      - run: npm run build

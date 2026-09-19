@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { THEME_STORAGE_KEY, themeCss, themeInitScript } from "@onestop/ui";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { computeAccessibleName } from "dom-accessibility-api";
 import type { ReactElement } from "react";
 import { describe, expect, it } from "vitest";
@@ -27,9 +27,37 @@ async function renderRoute(route: (typeof routeCases)[number]) {
   );
 }
 
+/**
+ * Renders a route, tolerating the one thing a signed-out render may legitimately do instead:
+ * redirect. `/account` renders a "sign in to keep your history" card when no database is
+ * configured, and redirects to the login page when one is - both correct, and which of the two
+ * happens depends on the developer's `.env`, not on the code under test. Returning the redirect
+ * target instead of throwing lets the same assertion cover both (19-testing.md).
+ */
+async function renderOrRedirect(
+  route: (typeof routeCases)[number],
+): Promise<{ rendered: ReturnType<typeof render> | null; redirectedTo: string | null }> {
+  try {
+    return { rendered: await renderRoute(route), redirectedTo: null };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const match = /^NEXT_REDIRECT:(.*)$/.exec(message);
+    if (!match) throw error;
+    // The redirect happened mid-render, so nothing of this route is mounted; clean up whatever
+    // the shell put in the document so the next case starts from an empty body.
+    cleanup();
+    return { rendered: null, redirectedTo: match[1]! };
+  }
+}
+
 describe("route smoke test", () => {
   it.each(routeCases)("$path renders without throwing", async (route) => {
-    await renderRoute(route);
+    const { redirectedTo } = await renderOrRedirect(route);
+    if (redirectedTo) {
+      // An auth-gated route may send a signed-out visitor to the login page instead of rendering.
+      expect(redirectedTo).toMatch(/^\/auth\/login/);
+      return;
+    }
     expect(screen.getByRole("heading", { level: 1, name: route.heading })).toBeTruthy();
   });
 });
@@ -151,7 +179,10 @@ describe("header", () => {
 
 describe("accessibility basics", () => {
   it.each(routeCases)("$path: every interactive element has a name", async (route) => {
-    const { container } = await renderRoute(route);
+    const { rendered } = await renderOrRedirect(route);
+    // A route that redirected rendered nothing to check; the smoke test above covers that case.
+    if (!rendered) return;
+    const { container } = rendered;
     fireEvent.click(screen.getByRole("button", { name: /open menu/i }));
     const interactive = container.querySelectorAll<HTMLElement>(
       "a, button, input, select, textarea, [role=tab]",

@@ -20,6 +20,7 @@ import { inpaint } from "./objectRemoval.ts";
 import { MODEL_REQUIRED_MESSAGE, setImageModelRuntime, type ImageModelRuntime } from "./model.ts";
 import { resizeTarget } from "./resize.ts";
 import { stripJpeg, stripPng } from "./metadata.ts";
+import { recordOfflineCoverage } from "../../../../tests/offline/coverage.ts";
 
 // ---- helpers ----------------------------------------------------------------------------------
 
@@ -1306,5 +1307,6 @@ describe("offline", () => {
       https.get = saved.sg;
       https.request = saved.sr;
     }
+    recordOfflineCoverage("images", IMAGE_EXECUTORS.map(([id]) => id));
   });
 });

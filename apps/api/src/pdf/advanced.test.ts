@@ -42,6 +42,7 @@ import { pdfToExcelExecutor, pdfToPowerPointExecutor, pdfToWordExecutor } from "
 import { checkPdfA, convertToPdfA, pdfToPdfAExecutor, srgbIccProfile } from "./toPdfA.ts";
 import { isPdfEncrypted, unprotectPdfExecutor } from "./unprotect.ts";
 import { addWatermarkExecutor } from "./watermark.ts";
+import { recordOfflineCoverage } from "../../../../tests/offline/coverage.ts";
 
 // ---- helpers ----------------------------------------------------------------------------------
 
@@ -905,5 +906,6 @@ describe("offline", () => {
       https.default.request = real.httpsRequest;
     }
     expect(calls).toEqual([]);
+    recordOfflineCoverage("pdf-advanced", PDF_ADVANCED_EXECUTORS.map(([id]) => id));
   }, 180_000);
 });
