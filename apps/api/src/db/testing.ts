@@ -125,3 +125,34 @@ export async function resetTestDatabase(prisma: PrismaClient): Promise<void> {
   await prisma.account.deleteMany({});
   await prisma.user.deleteMany({});
 }
+
+/**
+ * Whether a Postgres is actually listening at the configured URL.
+ *
+ * `hasTestDatabase()` only says a connection string is configured. A developer who has one in
+ * `.env` but has not started the container would otherwise see every database suite fail rather
+ * than skip, which is the opposite of the promise above. A short TCP probe tells the two apart.
+ */
+export async function testDatabaseReachable(timeoutMs = 750): Promise<boolean> {
+  const url = testDatabaseUrl();
+  if (!url) return false;
+  let target: URL;
+  try {
+    target = new URL(url);
+  } catch {
+    return false;
+  }
+  const net = await import("node:net");
+  return new Promise<boolean>((resolve) => {
+    const socket = new net.Socket();
+    const done = (result: boolean) => {
+      socket.destroy();
+      resolve(result);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => done(true));
+    socket.once("timeout", () => done(false));
+    socket.once("error", () => done(false));
+    socket.connect(Number(target.port || 5432), target.hostname);
+  });
+}

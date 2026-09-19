@@ -8,12 +8,14 @@ import {
   createIsolatedTestPrisma,
   createTestPrisma,
   dropTestSchema,
-  hasTestDatabase,
+  testDatabaseReachable,
   resetTestDatabase,
 } from "./testing.ts";
 import type { PrismaClient } from "./client.ts";
 
-const describeDb = hasTestDatabase() ? describe : describe.skip;
+// A configured-but-not-running Postgres skips these tests rather than failing them, which is
+// the promise `db/testing.ts` makes. Top-level await: the probe has to finish before `describe`.
+const describeDb = (await testDatabaseReachable()) ? describe : describe.skip;
 
 const SCHEMA = "test_job_store";
 

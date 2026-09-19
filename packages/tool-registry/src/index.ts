@@ -91,3 +91,5 @@ export function subcategoriesOf(id: string): string[] {
 export function popularTools(limit = 8): ToolMeta[] {
   return [...tools].sort((a, b) => b.popularity - a.popularity).slice(0, limit);
 }
+export * from "./workflows";
+export * from "./workflow-templates";

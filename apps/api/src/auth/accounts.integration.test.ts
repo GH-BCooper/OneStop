@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   createIsolatedTestPrisma,
   dropTestSchema,
-  hasTestDatabase,
+  testDatabaseReachable,
   resetTestDatabase,
   type PrismaClient,
 } from "../db/testing.ts";
@@ -26,7 +26,9 @@ import {
   verifyCredentials,
 } from "./users.ts";
 
-const describeDb = hasTestDatabase() ? describe : describe.skip;
+// A configured-but-not-running Postgres skips these tests rather than failing them, which is
+// the promise `db/testing.ts` makes. Top-level await: the probe has to finish before `describe`.
+const describeDb = (await testDatabaseReachable()) ? describe : describe.skip;
 
 const SCHEMA = "test_accounts";
 

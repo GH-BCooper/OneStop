@@ -25,3 +25,5 @@ export * from "./media/index.ts";
 export * from "./qr/index.ts";
 // Importing the dev-utils module registers the phase-12 developer & file utility executors.
 export * from "./dev-utils/index.ts";
+// Workflows: reusable tool chains, the run engine and batch processing (15-workflows.md).
+export * from "./workflows/index.ts";

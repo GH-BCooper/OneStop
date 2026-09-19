@@ -5,7 +5,7 @@ import {
   createIsolatedTestPrisma,
   disconnectPrisma,
   dropTestSchema,
-  hasTestDatabase,
+  testDatabaseReachable,
   resetTestDatabase,
   signUp,
   testDatabaseUrl,
@@ -60,7 +60,9 @@ async function json(response: Response): Promise<{ status: number; body: Envelop
   return { status: response.status, body: (await response.json()) as Envelope };
 }
 
-const describeDb = hasTestDatabase() ? describe : describe.skip;
+// A configured-but-not-running Postgres skips these tests rather than failing them, which is
+// the promise `db/testing.ts` makes. Top-level await: the probe has to finish before `describe`.
+const describeDb = (await testDatabaseReachable()) ? describe : describe.skip;
 
 describeDb("auth routes (Postgres)", () => {
   let prisma: PrismaClient;

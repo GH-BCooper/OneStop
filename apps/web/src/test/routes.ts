@@ -32,7 +32,7 @@ export const routeCases: RouteCase[] = [
     path: "/workflows/demo-1",
     load: () => import("@/app/workflows/[id]/page"),
     params: { id: "demo-1" },
-    heading: /workflow demo-1/i,
+    heading: /^workflow$/i,
   },
   { path: "/history", load: () => import("@/app/history/page"), heading: /history/i },
   { path: "/account", load: () => import("@/app/account/page"), heading: /account/i },

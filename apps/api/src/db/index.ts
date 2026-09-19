@@ -19,6 +19,7 @@ export {
   hasTestDatabase,
   loadTestEnv,
   resetTestDatabase,
+  testDatabaseReachable,
   testDatabaseUrl,
   urlForSchema,
 } from "./testing.ts";

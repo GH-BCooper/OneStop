@@ -26,16 +26,8 @@ export interface UserSettings {
   updatedAt: string;
 }
 
-/** master plan §16. The run engine and the step shape arrive in phase 15. */
-export interface Workflow {
-  id: string;
-  userId: string;
-  name: string;
-  description: string | null;
-  steps: unknown[];
-  createdAt: string;
-  updatedAt: string;
-}
+// `Workflow` lived here as a placeholder until phase 15 gave it a real step shape and a run
+// engine; it now lives in `./workflows.ts` alongside the rest of that contract.
 
 /** The signed-in user carried by a session, as the web app sees it. */
 export interface SessionUser {

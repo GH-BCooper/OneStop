@@ -12,7 +12,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import {
   createIsolatedTestPrisma,
   dropTestSchema,
-  hasTestDatabase,
+  testDatabaseReachable,
   resetTestDatabase,
   type PrismaClient,
 } from "../db/testing.ts";
@@ -130,7 +130,9 @@ describe("filter normalisation", () => {
   });
 });
 
-const describeDb = hasTestDatabase() ? describe : describe.skip;
+// A configured-but-not-running Postgres skips these tests rather than failing them, which is
+// the promise `db/testing.ts` makes. Top-level await: the probe has to finish before `describe`.
+const describeDb = (await testDatabaseReachable()) ? describe : describe.skip;
 const SCHEMA = "test_phase14_modules";
 
 describeDb("history, favourites and dynamic QR (Postgres)", () => {
