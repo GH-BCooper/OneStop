@@ -3,6 +3,7 @@
 import { cleanup, configure } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, vi } from "vitest";
+import { resetConnectivityMonitor } from "@/lib/use-connectivity";
 
 /**
  * The session every component test sees (14-history-favorites.md). Favourites, history and
@@ -54,6 +55,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 afterEach(() => {
+  // The connectivity monitor is one shared store for the whole app (18-pwa-offline.md), so a test
+  // that leaves it in the offline state would block the next one's tool page.
+  resetConnectivityMonitor();
   session.data = null;
   session.status = "unauthenticated";
   signInMock.mockReset();

@@ -120,7 +120,9 @@ describe("home page", () => {
     expect(screen.getByRole("heading", { name: /categories/i })).toBeTruthy();
     expect(screen.getByRole("heading", { name: /popular tools/i })).toBeTruthy();
     expect(screen.getByRole("heading", { name: /recent jobs/i })).toBeTruthy();
-    expect(screen.getAllByLabelText(/connection status: online/i).length).toBeGreaterThan(0);
+    // The badge reports verified connectivity now, so its first state is "Checking…" until a probe
+    // answers (18-pwa-offline.md); phase 18's own suite covers each state.
+    expect(screen.getAllByLabelText(/connection status:/i).length).toBeGreaterThan(0);
     const categoryLinks = screen
       .getAllByRole("link")
       .filter((l) => /^\/tools\/[^/]+$/.test(l.getAttribute("href") ?? ""));

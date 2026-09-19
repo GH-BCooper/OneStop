@@ -26,6 +26,8 @@ import { FavoriteButton } from "./FavoriteButton";
 import { recordLocalRun } from "@/lib/localHistory";
 import { readLocalPreferences } from "@/lib/preferences";
 import { recordRecentTool } from "@/lib/recent-tools";
+import { toolAvailability } from "@/lib/connectivity";
+import { useConnectivity } from "@/lib/use-connectivity";
 import {
   initialToolState,
   toolReducer,
@@ -80,10 +82,6 @@ export function validateToolInput(tool: ToolMeta, input: ToolInput | null): stri
   return null;
 }
 
-function isOffline(): boolean {
-  return typeof navigator !== "undefined" && navigator.onLine === false;
-}
-
 export interface ToolPageProps {
   tool: ToolMeta;
   /** Start in a given state; used by tests and state previews. */
@@ -93,6 +91,10 @@ export interface ToolPageProps {
 export function ToolPage({ tool, initialState }: ToolPageProps) {
   const kind = inputKind(tool);
   const { data: session, status: sessionStatus } = useSession();
+  // Verified connectivity, not `navigator.onLine`: a locally hosted OneStop with the uplink down
+  // still runs every offline tool, and only the online-only ones must be blocked (18-pwa-offline.md).
+  const connectivity = useConnectivity();
+  const availability = toolAvailability(tool, connectivity);
   const signedIn = Boolean(session?.user);
   const [state, dispatch] = useReducer(
     toolReducer,
@@ -114,13 +116,23 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
 
   useEffect(() => {
     recordRecentTool(tool.id);
-    if (tool.network !== "required") return;
-    const goOffline = () =>
-      dispatch({ type: "UNAVAILABLE", reason: "offline", message: OFFLINE_MESSAGE });
-    if (isOffline()) goOffline();
-    window.addEventListener("offline", goOffline);
-    return () => window.removeEventListener("offline", goOffline);
-  }, [tool.id, tool.network]);
+  }, [tool.id]);
+
+  /**
+   * Blocks the tool while it cannot run, and - just as importantly - unblocks it when the
+   * connection comes back, so a visitor who reconnects does not have to reload the page.
+   */
+  useEffect(() => {
+    if (!availability.available) {
+      if (state.status !== "unavailable" || state.reason !== "offline") {
+        dispatch({ type: "UNAVAILABLE", reason: "offline", message: availability.message });
+      }
+      return;
+    }
+    if (state.status === "unavailable" && state.reason === "offline") {
+      dispatch({ type: "RESET" });
+    }
+  }, [availability, state.status, state.reason]);
 
   const selectFiles = (picked: File[]) => {
     setFiles(picked);
@@ -179,8 +191,8 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
       dispatch({ type: "REJECT", message: problem });
       return;
     }
-    if (tool.network === "required" && isOffline()) {
-      dispatch({ type: "UNAVAILABLE", reason: "offline", message: OFFLINE_MESSAGE });
+    if (!availability.available) {
+      dispatch({ type: "UNAVAILABLE", reason: "offline", message: availability.message });
       return;
     }
     if (tool.requiresAuth && !signedIn && sessionStatus !== "loading") {
@@ -229,7 +241,10 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
       }
     } catch (err) {
       console.error(`[tool:${tool.id}] run request failed`, err);
-      if (isOffline()) {
+      // The request never reached the server (or the service worker answered for it while offline):
+      // re-probe so the whole app agrees, and show the offline wording rather than a generic failure.
+      void connectivity.recheck();
+      if (connectivity.reach !== "online") {
         dispatch({ type: "UNAVAILABLE", reason: "offline", message: OFFLINE_MESSAGE });
       } else {
         dispatch({ type: "FAIL", message: "The tool stopped unexpectedly. Please try again." });
@@ -244,6 +259,8 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
     signedIn,
     sessionStatus,
     remember,
+    availability,
+    connectivity,
   ]);
 
   /** Fallback download for tools whose result is JSON shown on the page. */

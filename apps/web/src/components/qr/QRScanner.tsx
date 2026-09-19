@@ -68,6 +68,36 @@ export function cameraMessage(err: unknown): { status: Status; message: string }
   };
 }
 
+/**
+ * What must be true before the camera can even be asked (18-pwa-offline.md).
+ *
+ * Both cases are ones the installed app can hit: a PWA served over plain http from a LAN address
+ * has no secure context, so `mediaDevices` is missing entirely and the browser's own error would be
+ * a bare TypeError. Returning the reason up front keeps the message actionable (master plan §22).
+ */
+export function cameraPreflight(env: {
+  hasMediaDevices: boolean;
+  secureContext: boolean;
+}): { ok: true } | { ok: false; status: Status; message: string } {
+  if (!env.secureContext) {
+    return {
+      ok: false,
+      status: "unsupported",
+      message:
+        "Camera scanning needs a secure connection. Open OneStop over https (or on localhost) — or upload a photo of the code instead, which works anywhere.",
+    };
+  }
+  if (!env.hasMediaDevices) {
+    return {
+      ok: false,
+      status: "unsupported",
+      message:
+        "This browser cannot open a camera. Upload a photo of the code instead — that works everywhere.",
+    };
+  }
+  return { ok: true };
+}
+
 export function QRScanner({ onResult }: QRScannerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -105,11 +135,15 @@ export function QRScanner({ onResult }: QRScannerProps) {
   const start = useCallback(async () => {
     setMessage("");
     setStatus("starting");
-    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
-      setStatus("unsupported");
-      setMessage(
-        "This browser cannot open a camera. Upload a photo of the code instead — that works everywhere.",
-      );
+    const preflight = cameraPreflight({
+      hasMediaDevices:
+        typeof navigator !== "undefined" && Boolean(navigator.mediaDevices?.getUserMedia),
+      // `isSecureContext` is true on localhost and over https, which covers the installed app.
+      secureContext: typeof window === "undefined" || window.isSecureContext !== false,
+    });
+    if (!preflight.ok) {
+      setStatus(preflight.status);
+      setMessage(preflight.message);
       return;
     }
     let stream: MediaStream;

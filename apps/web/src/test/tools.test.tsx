@@ -10,7 +10,7 @@ import {
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ToolPage, validateToolInput } from "@/components/tools/ToolPage";
+import { RUN_ENDPOINT, ToolPage, validateToolInput } from "@/components/tools/ToolPage";
 import {
   initialToolState,
   toolReducer,
@@ -116,7 +116,7 @@ describe("tool page", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: /run grammar checker/i }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
-    const body = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as FormData;
+    const body = sentBody(fetchMock);
     expect(body.get("text")).toBe("i could of gone");
     expect(body.getAll("files")).toHaveLength(0);
     // A file-only tool has no text box.
@@ -378,8 +378,14 @@ describe("/tools query params", () => {
 });
 
 /** The FormData a stubbed `fetch` was called with. `mockRun`'s spy takes no typed arguments. */
+/**
+ * The body of the *run* request. Phase 18's connectivity probe also goes through `fetch`, so the
+ * call has to be picked by URL rather than by being first (18-pwa-offline.md).
+ */
 function sentBody(fetchMock: ReturnType<typeof mockRun>): FormData {
-  const call = fetchMock.mock.calls[0] as unknown as [string, { body: FormData }];
+  const calls = fetchMock.mock.calls as unknown as [string, { body: FormData }][];
+  const call = calls.find(([url]) => url === RUN_ENDPOINT);
+  if (!call) throw new Error("the run endpoint was never called");
   return call[1].body;
 }
 

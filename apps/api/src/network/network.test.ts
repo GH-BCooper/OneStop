@@ -78,7 +78,7 @@ function failure(result: ExecResult): Extract<ExecResult, { ok: false }> {
 function fakeFetch(
   routes: Record<string, { status?: number; headers?: Record<string, string>; body?: string }>,
 ) {
-  return vi.fn(async (input: RequestInfo | URL) => {
+  return vi.fn(async (input: Parameters<typeof fetch>[0]) => {
     const url = String(input);
     const route = routes[url] ?? routes[url.replace(/\/$/, "")];
     if (!route) throw Object.assign(new TypeError("fetch failed"), { code: "ENOTFOUND" });
@@ -89,7 +89,7 @@ function fakeFetch(
   }) as unknown as typeof fetch;
 }
 
-const DNS_ANSWERS: Record<string, unknown[]> = {
+const DNS_ANSWERS: Record<string, unknown> = {
   A: ["93.184.216.34"],
   AAAA: ["2606:2800:220:1:248:1893:25c8:1946"],
   MX: [{ priority: 0, exchange: "." }],
@@ -255,7 +255,7 @@ describe("outbound request safety", () => {
   });
 
   it("re-checks every redirect hop, so an allowed page cannot redirect inward", async () => {
-    const fetchImpl = vi.fn(async (input: RequestInfo | URL) => {
+    const fetchImpl = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
       if (String(input) === "https://example.com/") {
         return new Response("", { status: 302, headers: { location: "http://127.0.0.1/admin" } });
       }
@@ -494,7 +494,7 @@ describe("the network tools", () => {
   it("finds a place and turns coordinates back into one", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: Parameters<typeof fetch>[0]) => {
         const url = new URL(String(input));
         const body = url.pathname.endsWith("/search")
           ? JSON.stringify([

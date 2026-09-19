@@ -409,7 +409,7 @@ describe("Spotify", () => {
   it("returns metadata and says plainly that it will not download audio", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: Parameters<typeof fetch>[0]) => {
         const url = String(input);
         if (url.includes("/oembed")) {
           return new Response(
