@@ -27,3 +27,6 @@ export * from "./qr/index.ts";
 export * from "./dev-utils/index.ts";
 // Workflows: reusable tool chains, the run engine and batch processing (15-workflows.md).
 export * from "./workflows/index.ts";
+// The AI Assistant, the model runtime and the AI tools (16-ai-assistant.md). Importing this
+// registers the AI executors and, when one is configured, the local image-model runtime.
+export * from "./ai/index.ts";

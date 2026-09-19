@@ -11,9 +11,14 @@ import type { ThemePreference } from "@onestop/types";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import type { AiStatus } from "@onestop/types";
 import {
   AI_MODES,
+  aiHeaders,
+  aiMode,
   DEFAULT_PREFERENCES,
+  readAiKey,
+  writeAiKey,
   applyThemePreference,
   fetchSettings,
   readLocalPreferences,
@@ -40,6 +45,9 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
   const [theme, setTheme] = useState<ThemePreference>("system");
   const [preferredAI, setPreferredAI] = useState<string>("");
   const [prefs, setPrefs] = useState<LocalPreferences>(DEFAULT_PREFERENCES);
+  const [aiKey, setAiKey] = useState("");
+  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
+  const [checkingAi, setCheckingAi] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   // Set as soon as the visitor changes anything. The account's settings arrive asynchronously,
@@ -50,7 +58,9 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
   // account wins: it is the thing that is meant to follow the user between browsers.
   useEffect(() => {
     setTheme(readThemePreference());
-    setPreferredAI(readPreferredAI() ?? "");
+    const stored = readPreferredAI() ?? "";
+    setPreferredAI(stored);
+    setAiKey(readAiKey(stored || null));
     setPrefs(readLocalPreferences());
     setReady(true);
   }, []);
@@ -87,11 +97,41 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
     confirmSaved(signedIn ? await saveSettings({ theme: next }) : true);
   };
 
+  const selectedMode = aiMode(preferredAI || null);
+
   const changeAI = async (next: string) => {
     touched.current = true;
     setPreferredAI(next);
+    setAiKey(readAiKey(next || null));
+    setAiStatus(null);
     writePreferredAI(next || null);
+    // Only the *choice* syncs to the account. The key never leaves this browser.
     confirmSaved(signedIn ? await saveSettings({ preferredAI: next || null }) : true);
+  };
+
+  const changeAiKey = (next: string) => {
+    touched.current = true;
+    setAiKey(next);
+    if (preferredAI) writeAiKey(preferredAI, next);
+    setAiStatus(null);
+  };
+
+  const checkAi = async () => {
+    setCheckingAi(true);
+    setAiStatus(null);
+    try {
+      const query = preferredAI ? `?provider=${encodeURIComponent(preferredAI)}` : "";
+      const response = await fetch(`/api/assistant/status${query}`, {
+        headers: aiHeaders(preferredAI || null),
+      });
+      const body = (await response.json()) as { status?: AiStatus };
+      setAiStatus(body.status ?? null);
+    } catch {
+      setAiStatus(null);
+      setNotice("The AI runtime could not be checked — is the app still running?");
+    } finally {
+      setCheckingAi(false);
+    }
   };
 
   const changePref = async <K extends keyof LocalPreferences>(
@@ -155,9 +195,10 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
         <div>
           <CardTitle>AI runtime</CardTitle>
           <CardDescription>
-            Ollama runs entirely on this machine and works offline. The hosted free tiers need
-            internet and send your prompt to that provider — they are never the default, and each
-            one uses a key you supply. The Assistant itself is built in phase 16.
+            Ollama runs entirely on this machine and works offline, and is what OneStop uses when
+            nothing is configured. The hosted free tiers need internet and send your prompt — and
+            the contents of any file you give the assistant — to that provider. They are never the
+            default, and each one uses a free key you supply yourself.
           </CardDescription>
         </div>
         <label htmlFor="settings-ai" className="text-sm font-medium">
@@ -170,13 +211,84 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
           disabled={!ready}
           onChange={(e) => void changeAI(e.target.value)}
         >
-          <option value="">No preference (use whatever is available)</option>
+          <option value="">No preference (Ollama first, then any configured key)</option>
           {AI_MODES.map((mode) => (
             <option key={mode.id} value={mode.id}>
               {mode.label}
             </option>
           ))}
         </select>
+
+        {selectedMode && (
+          <p
+            data-testid="ai-disclosure"
+            className={`rounded-md border p-3 text-sm ${
+              selectedMode.local
+                ? "border-border bg-surface-muted text-fg-muted"
+                : "border-warning bg-surface text-fg"
+            }`}
+          >
+            <strong>{selectedMode.local ? "Private by default." : "Heads up."}</strong>{" "}
+            {selectedMode.disclosure}
+          </p>
+        )}
+
+        {selectedMode?.needsKey && (
+          <div className="flex flex-col gap-1">
+            <label htmlFor="settings-ai-key" className="text-sm font-medium">
+              Your {selectedMode.label.replace(/\s*\(.*\)$/, "")} API key
+            </label>
+            <input
+              id="settings-ai-key"
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              className={fieldClass}
+              value={aiKey}
+              disabled={!ready}
+              placeholder="Paste your own free key"
+              onChange={(e) => changeAiKey(e.target.value)}
+            />
+            <p className="text-xs text-fg-muted">
+              Stored in this browser only — never sent to your OneStop account and never shared. Get
+              a free key at{" "}
+              <a
+                href={selectedMode.setupUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="text-primary underline"
+              >
+                {selectedMode.setupUrl}
+              </a>
+              .
+            </p>
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={checkingAi}
+            onClick={() => void checkAi()}
+          >
+            {checkingAi ? "Checking…" : "Check the AI runtime"}
+          </Button>
+          {aiStatus && (
+            <p
+              data-testid="ai-status"
+              className={`text-sm ${aiStatus.available ? "text-fg-muted" : "text-danger"}`}
+            >
+              {aiStatus.message}
+            </p>
+          )}
+        </div>
+
+        <p className="text-sm text-fg-muted">
+          Every AI tool also works with no runtime at all, using OneStop&rsquo;s built-in offline
+          methods — a summary, a grammar check or a translation simply uses the local engine and
+          says so.
+        </p>
       </Card>
 
       <Card className="flex flex-col gap-3">

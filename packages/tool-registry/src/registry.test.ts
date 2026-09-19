@@ -299,11 +299,28 @@ describe("registry contents", () => {
         "metadata-remover",
         "checksum-generator",
         "duplicate-file-detector",
+        // 16-ai-assistant.md
+        "ai-assistant",
+        "ai-email-drafter",
+        "ai-text-generator",
+        "ai-text-rewriter",
+        "ai-summarizer",
+        "ai-grammar-checker",
+        "ai-translator",
+        "ai-ocr",
+        "ai-document-analyzer",
+        "ai-pdf-summarizer",
+        "ask-questions-about-a-file",
+        "extract-information",
+        "unstructured-to-structured-data",
+        "ai-image-generator",
+        "ai-image-editor",
+        "ai-background-object-removal",
       ].sort(),
     );
     for (const tool of tools.filter((t) => t.status === "available")) {
       expect(
-        ["05", "06", "07", "08", "09", "10", "11", "12"],
+        ["05", "06", "07", "08", "09", "10", "11", "12", "16"],
         `${tool.id} is available but not from a built phase`,
       ).toContain(tool.phase);
     }

@@ -1,5 +1,5 @@
 import { getCategory, getToolByRoute, inputKind, tools, typeLabel } from "@onestop/tool-registry";
-import { buttonClasses, Card } from "@onestop/ui";
+import { buttonClasses } from "@onestop/ui";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -65,12 +65,6 @@ export default async function ToolRoute({ params }: Props) {
           <Link href="/assistant" className={buttonClasses("primary", "lg")}>
             <span aria-hidden="true">✨</span> Open the AI Assistant
           </Link>
-          <Card className="border-dashed text-sm" data-testid="coming-soon">
-            <p className="font-semibold">Coming in a later phase</p>
-            <p className="text-fg-muted">
-              The assistant is built in <code className="font-mono">16-ai-assistant.md</code>.
-            </p>
-          </Card>
         </div>
       ) : (
         <>

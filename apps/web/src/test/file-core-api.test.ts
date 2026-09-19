@@ -151,13 +151,14 @@ describe("POST /api/tools/run", () => {
   });
 
   it("reports a not-yet-implemented tool instead of faking success", async () => {
-    const pdf = new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31])], "a.pdf", {
-      type: "application/pdf",
-    });
-    // Phases 05-07 built the PDF and Office tools, so this checks one that is still to come (phase 16).
-    const { body } = await run(formWith(pdf, "ai-pdf-summarizer"));
+    // Phases 05-12 and 16 are built, so this checks one that is still to come: phase 17's
+    // network lookups, which take a typed string rather than a file.
+    const form = new FormData();
+    form.set("toolId", "dns-lookup");
+    form.set("text", "example.com");
+    const { body } = await run(form);
     expect(body.error?.code).toBe("NOT_IMPLEMENTED");
-    expect(body.error?.message).toContain("16-ai-assistant.md");
+    expect(body.error?.message).toContain("17-online-media-network-tools.md");
   });
 });
 

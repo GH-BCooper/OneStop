@@ -8,6 +8,7 @@
 // Keep this declarative: no React, no `node:` imports. `showWhen` is the only bit of logic, and
 // it is a plain equality test so a form can evaluate it without running arbitrary code.
 
+import { AI_TOOL_OPTIONS } from "./options-ai";
 import { DATA_TOOL_OPTIONS } from "./options-data";
 import { IMAGE_TOOL_OPTIONS } from "./options-images";
 import { MEDIA_TOOL_OPTIONS } from "./options-media";
@@ -84,7 +85,7 @@ export interface ImageOption extends ToolOptionBase {
  */
 export interface ClientOption extends ToolOptionBase {
   type: "client";
-  source: "userAgent" | "timeZone" | "locale";
+  source: "userAgent" | "timeZone" | "locale" | "aiProvider" | "aiKey";
   default: "";
   /** Shown read-only beside the other options; false hides it from the form entirely. */
   visible?: boolean;
@@ -219,6 +220,7 @@ const translatorLanguages = [
 
 /** Tool id → its options. A tool with no entry simply has none. */
 export const TOOL_OPTIONS: Record<string, ToolOption[]> = {
+  ...AI_TOOL_OPTIONS,
   ...DATA_TOOL_OPTIONS,
   ...IMAGE_TOOL_OPTIONS,
   ...MEDIA_TOOL_OPTIONS,
@@ -1099,6 +1101,10 @@ export function redactOptionValues(
   for (const option of getToolOptions(toolId)) {
     if (!(option.id in out)) continue;
     if (option.type === "text" && option.secret) out[option.id] = "[redacted]";
+    else if (option.type === "client" && option.source === "aiKey" && out[option.id]) {
+      // The user's own API key passes through the request but is never written to a job record.
+      out[option.id] = "[redacted]";
+    }
     else if (option.type === "signature" && out[option.id]) out[option.id] = "[signature]";
     else if (option.type === "image" && out[option.id]) out[option.id] = "[image]";
   }

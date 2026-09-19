@@ -12,13 +12,105 @@ export const THEME_PREFERENCE_KEY = "onestop-theme-preference";
 export const PREFERENCES_KEY = "onestop-preferences";
 export const PREFERENCES_CHANGED = "onestop:preferences-changed";
 
-/** The AI runtimes the Settings page offers. Phase 16 owns what they actually do. */
+/**
+ * The AI runtimes the Settings page offers (16-ai-assistant.md builds what they do).
+ *
+ * `local` drives the disclosure the UI must show before a runtime is used: Ollama processes
+ * everything on this machine, the three hosted free tiers send the text and file contents to a
+ * third party. `needsKey` runtimes use a key the user supplies themselves — OneStop never ships
+ * one (CLAUDE.md §2).
+ */
 export const AI_MODES = [
-  { id: "ollama", label: "Ollama (local, fully offline)" },
-  { id: "groq", label: "Groq free tier (your own key, sends data off this device)" },
-  { id: "openrouter", label: "OpenRouter free models (your own key)" },
-  { id: "google", label: "Google AI Studio free tier (your own key)" },
+  {
+    id: "ollama",
+    label: "Ollama (local, fully offline)",
+    local: true,
+    needsKey: false,
+    disclosure: "Runs entirely on your device — nothing leaves your machine, and it works offline.",
+    setupUrl: "https://ollama.com/download",
+  },
+  {
+    id: "groq",
+    label: "Groq free tier (your own key)",
+    local: false,
+    needsKey: true,
+    disclosure:
+      "Runs on Groq's servers — the text and file contents you send are transmitted to Groq, and it needs an internet connection.",
+    setupUrl: "https://console.groq.com/keys",
+  },
+  {
+    id: "openrouter",
+    label: "OpenRouter free models (your own key)",
+    local: false,
+    needsKey: true,
+    disclosure:
+      "Runs on OpenRouter's servers — the text and file contents you send are transmitted to OpenRouter, and it needs an internet connection.",
+    setupUrl: "https://openrouter.ai/keys",
+  },
+  {
+    id: "google",
+    label: "Google AI Studio free tier (your own key)",
+    local: false,
+    needsKey: true,
+    disclosure:
+      "Runs on Google's servers — the text and file contents you send are transmitted to Google, and it needs an internet connection.",
+    setupUrl: "https://aistudio.google.com/app/apikey",
+  },
 ] as const;
+
+export type AiModeId = (typeof AI_MODES)[number]["id"];
+
+export function aiMode(id: string | null): (typeof AI_MODES)[number] | undefined {
+  return AI_MODES.find((m) => m.id === id);
+}
+
+/**
+ * Where a user-supplied AI key lives: this browser, and nowhere else.
+ *
+ * It is never sent to `/api/settings` and never written to Postgres — a key is a credential, and
+ * CLAUDE.md §2 keeps secrets out of the repo and out of shared storage. It travels only as the
+ * `x-onestop-ai-key` header on the request that needs it, and the server forgets it immediately.
+ */
+export const AI_KEYS_STORAGE_KEY = "onestop-ai-keys";
+
+function readKeyMap(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(AI_KEYS_STORAGE_KEY);
+    const parsed: unknown = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, string>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+/** The key stored for one provider, or for the preferred one when none is named. */
+export function readAiKey(provider?: string | null): string {
+  if (typeof window === "undefined") return "";
+  const id = provider ?? readPreferredAI();
+  if (!id) return "";
+  const value = readKeyMap()[id];
+  return typeof value === "string" ? value : "";
+}
+
+export function writeAiKey(provider: string, key: string | null): void {
+  try {
+    const map = readKeyMap();
+    if (key && key.trim() !== "") map[provider] = key.trim();
+    else delete map[provider];
+    localStorage.setItem(AI_KEYS_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    // Blocked storage means the key simply is not remembered; the runtime choice still works.
+  }
+  notify();
+}
+
+/** The headers an assistant request carries: the user's own key, only when they set one. */
+export function aiHeaders(provider?: string | null): Record<string, string> {
+  const key = readAiKey(provider);
+  return key === "" ? {} : { "x-onestop-ai-key": key };
+}
 
 export interface LocalPreferences {
   /** Where a finished result goes by default. */

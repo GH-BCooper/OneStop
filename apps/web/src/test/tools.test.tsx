@@ -391,7 +391,7 @@ describe("tool options", () => {
   });
 
   it("says so when a tool has no options", () => {
-    render(<ToolPage tool={byId("ai-pdf-summarizer")} />);
+    render(<ToolPage tool={byId("repair-pdf")} />);
     expect(screen.getByText(/no options for this tool yet/i)).toBeTruthy();
   });
 

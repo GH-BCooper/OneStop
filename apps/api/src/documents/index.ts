@@ -74,7 +74,8 @@ export {
   stripOoxmlMetadata,
   stripOdtMetadata,
 } from "./metadata.ts";
-export { documentText } from "./common.ts";
+export { documentText, readTextInput } from "./common.ts";
+export type { DocInput } from "./common.ts";
 
 /** Every tool this phase owns, in the order the build file lists them. */
 export const DOCUMENT_EXECUTORS = [
