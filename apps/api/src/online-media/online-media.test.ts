@@ -22,6 +22,7 @@ import { ONLINE_MEDIA_EXECUTORS } from "./index.ts";
 import { checkLink, ytdlpFailure, youtubeId, LEGAL_NOTICE } from "./common.ts";
 import {
   YtdlpRunError,
+  baseArgs as ytdlpBaseArgs,
   downloadArgs,
   formatSelector,
   mimeFor,
@@ -208,6 +209,18 @@ describe("the yt-dlp wrapper", () => {
     // The URL is one argument, last, and never interpolated into another.
     expect(args[args.length - 1]).toBe(YT);
     expect(args.filter((a) => a === YT)).toHaveLength(1);
+  });
+
+  it("keeps the download-only guards off a metadata read", () => {
+    // Found by phase 20's first real yt-dlp run: `--max-downloads` applies its cap before
+    // `--dump-single-json` prints, so a details read came back empty and every link looked dead.
+    // `--no-call-home` is deprecated and only prints a notice. Neither may return to `baseArgs`.
+    const base = ytdlpBaseArgs();
+    expect(base).not.toContain("--max-downloads");
+    expect(base).not.toContain("--no-call-home");
+    expect(
+      downloadArgs({ url: YT, kind: "video", container: "mp4" }, "/tmp/media.%(ext)s"),
+    ).toContain("--max-downloads");
   });
 
   it("asks for audio extraction, at the bitrate requested", () => {

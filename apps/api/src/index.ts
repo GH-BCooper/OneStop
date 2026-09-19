@@ -13,6 +13,7 @@ export * from "./favorites/index.ts";
 export * from "./pdf/index.ts";
 // The shared Office ⇄ PDF interface (06-pdf-tools-advanced.md), reused by phases 07 and 08.
 export * from "./shared/office-convert.ts";
+export * from "./shared/rate-limit.ts";
 // Importing the documents module registers the phase-07 Word & PowerPoint executors.
 export * from "./documents/index.ts";
 // Importing the data module registers the phase-08 Excel, CSV & data-conversion executors.

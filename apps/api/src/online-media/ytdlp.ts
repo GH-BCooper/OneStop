@@ -151,19 +151,26 @@ export function setYtdlpRunner(next: YtdlpRunner | null): void {
   runner = next;
 }
 
-/** Flags every invocation carries, whether it is listing formats or downloading. */
+/**
+ * Flags every invocation carries, whether it is reading details or downloading.
+ *
+ * Two things are deliberately *not* here, both found by the first real yt-dlp run (phase 20):
+ *
+ * - `--max-downloads 1` belongs to a download, not a metadata read. Current yt-dlp applies the
+ *   cap before it prints, so `--dump-single-json` came back empty and every link looked broken.
+ *   It is added by `downloadArgs` instead, where it is the guard it was meant to be.
+ * - `--no-call-home` is deprecated. It does nothing except print a deprecation notice today and
+ *   is slated to become a hard error, so it is gone; yt-dlp has not phoned home for years.
+ */
 export function baseArgs(): string[] {
   const args = [
     "--no-playlist",
     "--no-warnings",
     "--no-continue",
     "--no-part",
-    "--no-call-home",
     "--no-exec",
     "--no-config",
     "--ignore-config",
-    "--max-downloads",
-    "1",
     "--retries",
     "2",
     "--socket-timeout",
@@ -448,7 +455,17 @@ export function formatSelector(request: DownloadRequest): string {
 
 /** The full argument list for a download. Also pure, for the same reason. */
 export function downloadArgs(request: DownloadRequest, template: string): string[] {
-  const args = [...baseArgs(), "-f", formatSelector(request), "-o", template];
+  // `--max-downloads 1` is a download-side guard: one link must never become a playlist's worth
+  // of files. Exit code 101 ("max downloads reached") is handled as success in `runYtdlp`.
+  const args = [
+    ...baseArgs(),
+    "--max-downloads",
+    "1",
+    "-f",
+    formatSelector(request),
+    "-o",
+    template,
+  ];
   if (request.kind === "audio") {
     args.push("--extract-audio", "--audio-format", request.container);
     if (request.audioBitrate) args.push("--audio-quality", `${request.audioBitrate}K`);

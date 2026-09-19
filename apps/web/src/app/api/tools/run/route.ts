@@ -7,7 +7,13 @@
 //   options  (optional)   JSON object of tool options
 //
 // Validation happens server-side; the client's checks are only there to fail fast and politely.
-import { loadFileCoreConfig, runPipeline, UnknownToolError } from "@onestop/api";
+import {
+  consumeRate,
+  loadFileCoreConfig,
+  RUN_RATE_LIMIT,
+  runPipeline,
+  UnknownToolError,
+} from "@onestop/api";
 import { ERROR_MESSAGES } from "@onestop/types";
 import { NextResponse } from "next/server";
 import { currentUserId } from "@/auth";
@@ -34,6 +40,24 @@ function problem(status: number, code: string, message: string) {
 
 export async function POST(request: Request): Promise<Response> {
   const config = loadFileCoreConfig();
+
+  // Per-caller rate limit (phase 20). Phases 04, 12, 13 and 16 each logged that this endpoint had
+  // none; a personal instance never notices the limit, and an exposed one cannot be used as free
+  // compute. It is counted before the body is read, so a flood costs no disk.
+  const caller = clientIpOf(request) ?? "local";
+  const waitSeconds = consumeRate(`tools-run:${caller}`, RUN_RATE_LIMIT);
+  if (waitSeconds !== null) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: {
+          code: "FAILED",
+          message: `Too many runs in a row. Wait ${waitSeconds} seconds and try again.`,
+        },
+      },
+      { status: 429, headers: { "retry-after": String(waitSeconds) } },
+    );
+  }
 
   const declaredLength = Number(request.headers.get("content-length") ?? "0");
   if (Number.isFinite(declaredLength) && declaredLength > config.maxRequestBytes) {

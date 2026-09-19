@@ -843,6 +843,9 @@ describe("offline", () => {
       https.get = saved.sg;
       https.request = saved.sr;
     }
-    recordOfflineCoverage("data", DATA_EXECUTORS.map(([id]) => id));
+    recordOfflineCoverage(
+      "data",
+      DATA_EXECUTORS.map(([id]) => id),
+    );
   }, 60_000);
 });

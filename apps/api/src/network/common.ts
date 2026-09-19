@@ -8,6 +8,7 @@
 import type { ExecErrorCode, ExecResult, FileRef, OutputFile } from "@onestop/types";
 import { ERROR_MESSAGES } from "@onestop/types";
 import { PdfToolError } from "../pdf/errors.ts";
+import { consumeRate, resetRateLimits, type RateLimit } from "../shared/rate-limit.ts";
 
 export { optBool, optEnum, optNumber, optString, plural } from "../documents/common.ts";
 export { PdfToolError as NetToolError } from "../pdf/errors.ts";
@@ -150,37 +151,17 @@ export function outboundUserAgent(): string {
 /**
  * A tiny per-process, per-key rate limit. Phases 04, 12, 13 and 16 all asked for one; phase 17 is
  * where it stops being optional, because every run here reaches a third party that can (and will)
- * block an instance that hammers it. In-memory on purpose: no Redis, no extra infrastructure.
+ * block an instance that hammers it. The buckets themselves moved to `shared/rate-limit.ts` in
+ * phase 20, when `POST /api/tools/run` started using the same ones.
  */
-const buckets = new Map<string, number[]>();
-
-export interface RateLimit {
-  /** Requests allowed inside the window. */
-  limit: number;
-  windowMs: number;
-}
-
-export function rateLimit(key: string, { limit, windowMs }: RateLimit): void {
-  const now = Date.now();
-  const hits = (buckets.get(key) ?? []).filter((t) => now - t < windowMs);
-  if (hits.length >= limit) {
-    const waitMs = windowMs - (now - hits[0]!);
-    throw failed(
-      `Too many requests in a row. Wait ${Math.ceil(waitMs / 1000)} seconds and try again.`,
-    );
-  }
-  hits.push(now);
-  buckets.set(key, hits);
-  // Keep the map from growing without bound on a long-lived server.
-  if (buckets.size > 500) {
-    for (const [k, v] of buckets) if (v.every((t) => now - t >= windowMs)) buckets.delete(k);
+export function rateLimit(key: string, limit: RateLimit): void {
+  const waitSeconds = consumeRate(key, limit);
+  if (waitSeconds !== null) {
+    throw failed(`Too many requests in a row. Wait ${waitSeconds} seconds and try again.`);
   }
 }
 
-/** Tests reset the buckets so one case cannot rate-limit the next. */
-export function resetRateLimits(): void {
-  buckets.clear();
-}
+export { resetRateLimits, type RateLimit };
 
 /** One shared clock guard for services that ask for at most one request a second. */
 const lastCall = new Map<string, number>();

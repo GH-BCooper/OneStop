@@ -5,6 +5,8 @@ import {
   createInMemoryJobStore,
   createTempStore,
   setJobStore,
+  resetRateLimits,
+  RUN_RATE_LIMIT,
   setTempStore,
   type TempStore,
 } from "@onestop/api";
@@ -28,6 +30,7 @@ beforeEach(async () => {
   temp = createTempStore({ tempDir: dir, ttlMs: 60_000, autoSweep: false });
   setTempStore(temp);
   setJobStore(createInMemoryJobStore());
+  resetRateLimits();
 });
 
 afterEach(async () => {
@@ -59,6 +62,38 @@ function formWith(file: File, toolId = DEMO_TOOL): FormData {
 }
 
 describe("POST /api/tools/run", () => {
+  it("rate-limits a caller that floods it, with a retry-after the UI can use", async () => {
+    // Phase 20: phases 04/12/13/16 each logged that this endpoint had no per-IP limit.
+    const headers = { "x-forwarded-for": "203.0.113.9" };
+    const post = () =>
+      runTool(
+        new Request(RUN_URL, {
+          method: "POST",
+          headers,
+          body: formWith(new File([new Uint8Array([1, 2, 3])], "a.bin")),
+        }),
+      );
+    for (let i = 0; i < RUN_RATE_LIMIT.limit; i += 1) {
+      expect((await post()).status).not.toBe(429);
+    }
+    const limited = await post();
+    expect(limited.status).toBe(429);
+    expect(Number(limited.headers.get("retry-after"))).toBeGreaterThan(0);
+    const body = (await limited.json()) as RunBody;
+    expect(body.ok).toBe(false);
+    expect(body.error?.message).toMatch(/Wait \d+ seconds/);
+
+    // A different caller is unaffected.
+    const other = await runTool(
+      new Request(RUN_URL, {
+        method: "POST",
+        headers: { "x-forwarded-for": "198.51.100.4" },
+        body: formWith(new File([new Uint8Array([1, 2, 3])], "a.bin")),
+      }),
+    );
+    expect(other.status).not.toBe(429);
+  });
+
   it("runs the demo tool end to end and offers a downloadable result", async () => {
     const { status, body } = await run(
       formWith(new File(["hello world"], "notes.txt", { type: "text/plain" })),

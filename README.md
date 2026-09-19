@@ -1,118 +1,187 @@
 # OneStop
 
-One web app for file conversion, PDF, image, data, QR, media, AI and developer-utility tasks, built for personal / small-trusted-group use. Free-first and local-first: every core feature works without paying for anything.
+**One web app for every small file job.** Convert a PDF, resize a batch of images, clean a CSV,
+generate a QR code, trim a video, hash a file, format some JSON — or just describe what you want
+and let the assistant chain the tools together.
 
-> Status: **Phase 10 (Audio & Video Tools)** done. PDF, Word/PowerPoint, Excel/CSV/data, image and audio/video tools all work end to end; auth, history, workflows and the AI assistant are still to come. See [`docs/PROGRESS.md`](docs/PROGRESS.md). Full docs arrive in phase 20.
+**206 tools. 172 of them work with no Internet at all. Nothing costs anything.**
 
-## Requirements
+```bash
+npm install && cp .env.example .env && npm run dev     # http://localhost:3000
+```
 
-- **Node.js 22.18+** (24 recommended, see `.nvmrc`) and npm 10+
-- **Python 3.10+** (optional until Python-backed tools land; needed for the bridge check)
-- **FFmpeg** (required for the audio & video tools — see [FFmpeg](#ffmpeg) below; everything else works without it)
-- **Docker** (optional, only for the local Postgres in `docker-compose.yml`)
+---
+
+## What it is
+
+Two front doors onto the same catalogue:
+
+- **[/tools](http://localhost:3000/tools)** — search, filter and run any tool directly.
+- **[/assistant](http://localhost:3000/assistant)** — say what you want in plain English. It plans
+  a chain of real OneStop tools, shows you the plan, and runs it once you approve.
+
+Plus **[/workflows](http://localhost:3000/workflows)** to save a chain and re-run it on a batch,
+**[/history](http://localhost:3000/history)** for what you have run, and
+**[/status](http://localhost:3000/status)** for exactly what this instance can and cannot do.
+
+It is a **Progressive Web App**: install it from the browser and the offline-capable tools keep
+working on a plane.
+
+## Principles
+
+1. **Free.** No mandatory paid API, SaaS or infrastructure. Every feature works with £0 spent.
+2. **Local first.** Files are processed on the machine running OneStop. Cloud storage is opt-in and
+   off by default; temporary files are deleted automatically.
+3. **Honest.** A tool that needs the Internet, FFmpeg, LibreOffice or an AI model says so in one
+   clear sentence. Nothing is silently degraded; `/status` lists every prerequisite.
+4. **Simple.** One repository, one app, one Postgres. No microservices, no billing, no roles.
+
+## What it does
+
+| Category                       | Tools | Examples                                                                                                       |
+| ------------------------------ | ----: | -------------------------------------------------------------------------------------------------------------- |
+| **PDF**                        |    26 | merge, split, compress, rotate, watermark, OCR, sign, fill forms, password, PDF ↔ Word/Excel/PowerPoint/images |
+| **Documents**                  |    24 | Word and PowerPoint conversion, merge, split, slide surgery, metadata, grammar, summarise, translate           |
+| **Data**                       |    30 | Excel, CSV, JSON, XML, YAML — convert, validate, clean, deduplicate, split, merge                              |
+| **Images**                     |    27 | convert, resize, crop, compress, watermark, background removal, upscale, HEIC, metadata                        |
+| **Audio & video**              |    27 | convert, trim, merge, extract audio, compress, subtitles, GIF                                                  |
+| **QR**                         |    15 | generate every payload type, scan with the camera, dynamic codes with scan counts                              |
+| **Developer & file utilities** |    25 | Base64, hashing, UUIDs, passwords, timestamps, regex, ZIP, formatters                                          |
+| **AI**                         |    16 | summarise, rewrite, translate, draft, extract, OCR, image generation and editing                               |
+| **Online media & network**     |    16 | media links, IP, DNS, WHOIS, headers, user agents                                                              |
+
+The full list is in [`docs/OneStop_Features.md`](docs/OneStop_Features.md) and, live, at `/tools`.
 
 ## Quick start
 
+Requires **Node.js 22.18+** (24 recommended — see `.nvmrc`) and npm 10+.
+
 ```bash
+git clone https://github.com/GH-BCooper/onestop.git
+cd onestop
 npm install
-cp .env.example .env          # optional for now; every variable is documented inside
-npm run dev                   # http://localhost:3000
+cp .env.example .env
+npm run dev
 ```
+
+That is a working instance. Everything below is optional:
+
+| Want                                                          | Install                                                                                                       | Adds                       |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| Audio & video tools                                           | FFmpeg (`winget install Gyan.FFmpeg`, `brew install ffmpeg`, `apt install ffmpeg`, or `npm run fetch:ffmpeg`) | 27 tools                   |
+| `.doc` / `.xls` / `.ppt` / OpenDocument, better Office layout | LibreOffice                                                                                                   | higher-fidelity conversion |
+| Online media tools                                            | `pip install -U yt-dlp`                                                                                       | 7 tools                    |
+| Accounts, saved history, saved workflows                      | Postgres (`docker compose up -d` or free Neon/Supabase) + `npm run db:deploy`                                 | sign-in, sync              |
+| AI assistant and AI tools                                     | Ollama (`ollama pull llama3.2`) **or** a free API key in `/settings`                                          | 16 tools + the assistant   |
+
+Full instructions, including hardware guidance for local AI:
+**[`docs/LOCAL_SETUP.md`](docs/LOCAL_SETUP.md)**.
+
+## Hosting it
+
+A free-tier instance over HTTPS, with the trade-offs of each host spelled out:
+**[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)**.
+
+Short version: Render/Railway/Fly for everything including FFmpeg and yt-dlp, or Vercel/Netlify for
+the document, data, image and utility tools. Postgres from Neon or Supabase. All config is
+environment variables, so moving providers never touches the code.
+
+## Architecture
+
+```
++----------------------+
+|       OneStop        |
++----------+-----------+
+           |
++-------------+-------------+
+|                           |
+AI Assistant            All Tools
+|                           |
++-------------+-------------+
+              |
+        Tool Registry
+              |
++------------------+------------------+
+|                  |                  |
+Local tools    Online tools       Workflows
+|                  |                  |
+Browser/Local  Internet/APIs    Chained tools
+|                  |                  |
++------------------+------------------+
+                   |
+           History / Account
+                   |
+           PostgreSQL + Auth
+```
+
+**The Tool Registry is the single source of truth.** Every tool has exactly one entry
+(`packages/tool-registry`) declaring its id, category, inputs, outputs, where it executes, whether
+it works offline, whether it needs an account, and its options. The catalogue, the search, the
+generic tool page, the workflow builder and the AI assistant all read that one registry — and the
+assistant can only ever call something that is in it. Executors register themselves
+(`registerExecutor(id, fn)`) from `apps/api`, so the registry never imports server code and stays
+safe to bundle for the browser.
+
+```
+apps/web                 Next.js (App Router) frontend, PWA, and the API route handlers
+apps/api                 Server modules the routes call: tools, pipeline, AI, DB
+packages/tool-registry   The Tool Registry — the source of truth
+packages/types           Shared TypeScript types
+packages/ui              Shared components and design tokens
+packages/config          Shared ESLint/Prettier config
+processors/python        Python processors (JSON in, JSON out)
+prisma/                  Schema and migrations
+tests/                   Contract, offline and browser (E2E) suites
+docs/build/              The 20 phase build files this was written from
+```
+
+Stack: Next.js 16 + React 19 + TypeScript (strict) · Tailwind CSS v4 · Prisma + PostgreSQL ·
+Auth.js v5 · Vitest + Playwright · FFmpeg, LibreOffice, yt-dlp, Ollama — all optional, all free.
+
+## Security and privacy
+
+- Every upload is validated for MIME type, extension and size, server-side, on one endpoint.
+- Temporary files are named by random UUID, never by the uploaded name; inputs are deleted the
+  moment a job ends, results after a short TTL, and a sweeper cleans up abandoned tabs.
+- An uploaded file is **never executed**. FFmpeg, LibreOffice and yt-dlp run with `shell: false`,
+  fixed argument arrays, a private scratch directory and a timeout.
+- Passwords are bcrypt (cost 12); reset tokens are stored only as hashes, single-use, one hour.
+- Secrets live in environment variables and nowhere else.
+- **The AI assistant cannot run shell commands and cannot call a tool that is not in the registry.**
 
 ## Scripts
 
-| Command                | What it does                                                                             |
-| ---------------------- | ---------------------------------------------------------------------------------------- |
-| `npm run dev`          | Start the Next.js dev server (`apps/web`)                                                |
-| `npm run build`        | Production build of `apps/web`                                                           |
-| `npm run start`        | Serve the production build                                                               |
-| `npm run lint`         | ESLint across the monorepo (fails on any warning)                                        |
-| `npm run typecheck`    | `tsc --noEmit` in every workspace                                                        |
-| `npm test`             | Vitest (includes the Node↔Python bridge and lint-wiring tests)                           |
-| `npm run test:e2e`     | Browser checks of the built app (run `npm run build` first; uses your local Chrome/Edge) |
-| `npm run format`       | Prettier write (`format:check` to verify only)                                           |
-| `npm run bridge:hello` | Call `processors/python/hello.py` from Node and print the JSON                           |
-| `npm run db:generate`  | Regenerate the Prisma client from `prisma/schema.prisma` (also runs before `build`)      |
-| `npm run db:migrate`   | Create and apply a migration in development                                              |
-| `npm run db:deploy`    | Apply existing migrations (what a deployed instance runs)                                |
-| `npm run db:studio`    | Browse the database in Prisma Studio                                                     |
+| Command                                                 | What it does                                                                                   |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `npm run dev`                                           | Dev server on http://localhost:3000                                                            |
+| `npm run build` / `npm start`                           | Production build and serve                                                                     |
+| **`npm run verify`**                                    | **The gate**: lint + typecheck + every unit/integration/contract test + the offline-flag check |
+| `npm test`                                              | Vitest only                                                                                    |
+| `npm run test:e2e:shared`                               | Browser checks against one shared server (run `npm run build` first)                           |
+| `npm run lint` / `npm run typecheck` / `npm run format` | Individually                                                                                   |
+| `npm run db:deploy` / `db:migrate` / `db:studio`        | Prisma                                                                                         |
+| `npm run fetch:ffmpeg`                                  | Download a local FFmpeg build into `.tools/`                                                   |
 
-## Layout
+`npm run verify` is what CI runs on every push (`.github/workflows/verify.yml`). It proves that
+every registry entry maps to a real executor and that every tool claiming `offline: true` really
+ran with the network trapped — so the catalogue cannot drift from reality.
 
-```
-apps/web                 Next.js (App Router) frontend; API route handlers live here too
-apps/api                 Framework-agnostic backend modules (Python bridge, later services)
-packages/types           Shared TypeScript types
-packages/ui              Shared UI components
-packages/tool-registry   The Tool Registry, the single source of truth for tools
-packages/config          Shared ESLint + Prettier config
-processors/python        Python processors (JSON on stdin, JSON on stdout)
-docs/build               Phase-by-phase build plan and PROGRESS.md
-```
+## Contributing / picking this up
 
-## Database and accounts (optional)
+- **[`CLAUDE.md`](CLAUDE.md)** — the constraints this project is built under. Read it first; it
+  overrides convenience every time.
+- **[`docs/PROGRESS.md`](docs/PROGRESS.md)** — what was built in each of the 20 phases, every
+  decision, every deviation and every known limitation. Start here to find out why something is
+  the way it is.
+- **[`docs/build/`](docs/build/)** — the 20 phase specifications the project was written from.
+- **[`docs/OneStop_MasterDoc.md`](docs/OneStop_MasterDoc.md)** and
+  **[`docs/OneStop_Features.md`](docs/OneStop_Features.md)** — the original design and feature list.
 
-OneStop runs with no database at all: every tool works, and jobs are simply not remembered between
-restarts. A database adds accounts, durable job history and (from phase 14) synced favourites.
+A new tool is three steps: add its registry entry, write the executor in `apps/api`, register it
+with `registerExecutor`. The contract suite will tell you if you missed one.
 
-```bash
-docker compose up -d                       # Postgres 17 on 127.0.0.1:5432
-POSTGRES_PORT=5433 docker compose up -d    # if 5432 is taken (update DATABASE_URL to match)
-docker compose down
-```
+## Licence and fair use
 
-A free hosted Postgres (Neon, Supabase, Railway) works just as well: put its URL in `DATABASE_URL`.
-
-Then create the tables and a session secret:
-
-```bash
-npm run db:deploy                          # apply prisma/migrations
-npx auth secret                            # or: openssl rand -base64 32 -> NEXTAUTH_SECRET
-```
-
-Signing in needs both `DATABASE_URL` and `NEXTAUTH_SECRET`; without them the account pages say so
-and everything else carries on. Google sign-in appears only when `GOOGLE_CLIENT_ID` and
-`GOOGLE_CLIENT_SECRET` are set (create a free OAuth client in the Google Cloud Console and add
-`<APP_URL>/api/auth/callback/google` as the redirect URI).
-
-**Password reset email.** With nothing configured, the reset link is printed to the server console
-
-- no account anywhere, nothing to pay for. Set `RESEND_API_KEY` (Resend's free tier) or `SMTP_URL`
-  (plus `npm install nodemailer`) to send it for real. See `.env.example`.
-
-**Passwords** are stored as salted bcrypt hashes (cost 12) and nothing else; reset tokens are
-stored only as SHA-256 hashes, are single-use, and expire after an hour.
-
-## FFmpeg
-
-The audio and video tools (phase 10) run entirely locally through FFmpeg, which is free and open
-source. Install it once:
-
-| OS            | Command                                                                                                                                   |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| macOS         | `brew install ffmpeg`                                                                                                                     |
-| Ubuntu/Debian | `sudo apt install ffmpeg`                                                                                                                 |
-| Fedora        | `sudo dnf install ffmpeg`                                                                                                                 |
-| Windows       | `winget install Gyan.FFmpeg` (or download a build from [ffmpeg.org](https://ffmpeg.org/download.html) and add its `bin` folder to `PATH`) |
-
-Check it with `ffmpeg -version` and `ffprobe -version` — OneStop needs both, and they ship together.
-Open a new terminal after installing on Windows so the new `PATH` is picked up, then restart the dev
-server. If FFmpeg lives somewhere unusual, set `FFMPEG_PATH` (and `FFPROBE_PATH` if it is not in the
-same folder) in `.env`.
-
-Without FFmpeg the app still runs: every audio/video tool simply reports "FFmpeg is required for
-audio/video tools — see setup instructions", and the server logs the same thing once at startup.
-Subtitle Conversion is the exception — it is pure TypeScript and works either way.
-
-Long jobs: a media tool may run for up to 10 minutes (`MEDIA_TIMEOUT_SECONDS` to change it).
-
-## Python
-
-```bash
-python -m venv .venv
-# Windows: .venv\Scripts\activate    macOS/Linux: source .venv/bin/activate
-pip install -r processors/python/requirements.txt
-npm run bridge:hello
-```
-
-If Python isn't at `python3` (`python` on Windows), set `PYTHON_PATH` in `.env`.
+For personal and small-trusted-group use. The online media tools download from third-party
+platforms — each of those pages carries a legal notice, and respecting each platform's terms of
+service and the rights of copyright holders is your responsibility.

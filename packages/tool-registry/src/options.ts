@@ -8,7 +8,7 @@
 // Keep this declarative: no React, no `node:` imports. `showWhen` is the only bit of logic, and
 // it is a plain equality test so a form can evaluate it without running arbitrary code.
 
-import { AI_TOOL_OPTIONS } from "./options-ai";
+import { AI_LANGUAGES, AI_METHOD_OPTION, AI_RUNTIME_OPTIONS, AI_TOOL_OPTIONS } from "./options-ai";
 import { DATA_TOOL_OPTIONS } from "./options-data";
 import { IMAGE_TOOL_OPTIONS } from "./options-images";
 import { MEDIA_TOOL_OPTIONS } from "./options-media";
@@ -209,15 +209,6 @@ const compressLevel: SelectOption = {
     { value: "strong", label: "Strong (pictures up to 1280 px, smaller files)" },
   ],
 };
-
-const translatorLanguages = [
-  { value: "en", label: "English" },
-  { value: "es", label: "Spanish" },
-  { value: "fr", label: "French" },
-  { value: "de", label: "German" },
-  { value: "it", label: "Italian" },
-  { value: "pt", label: "Portuguese" },
-];
 
 /** Tool id → its options. A tool with no entry simply has none. */
 export const TOOL_OPTIONS: Record<string, ToolOption[]> = {
@@ -894,16 +885,18 @@ export const TOOL_OPTIONS: Record<string, ToolOption[]> = {
       type: "select",
       label: "From",
       default: "en",
-      choices: translatorLanguages,
+      choices: [{ value: "auto", label: "Detect automatically" }, ...AI_LANGUAGES],
     },
     {
       id: "to",
       type: "select",
       label: "To",
       default: "es",
-      choices: translatorLanguages,
-      help: "Offline word-by-word translation with a built-in dictionary: rough, literal results. Better quality arrives with the AI Assistant.",
+      choices: AI_LANGUAGES,
+      help: "With an AI runtime every language here works and the layout is kept. Without one, OneStop falls back to its built-in offline dictionary, which is word-by-word and covers English, Spanish, French, German, Italian and Portuguese only.",
     },
+    AI_METHOD_OPTION,
+    ...AI_RUNTIME_OPTIONS,
   ],
   "grammar-checker": [
     { id: "spelling", type: "boolean", label: "Check spelling", default: true },
@@ -1106,8 +1099,7 @@ export function redactOptionValues(
     else if (option.type === "client" && option.source === "aiKey" && out[option.id]) {
       // The user's own API key passes through the request but is never written to a job record.
       out[option.id] = "[redacted]";
-    }
-    else if (option.type === "signature" && out[option.id]) out[option.id] = "[signature]";
+    } else if (option.type === "signature" && out[option.id]) out[option.id] = "[signature]";
     else if (option.type === "image" && out[option.id]) out[option.id] = "[image]";
   }
   return out;

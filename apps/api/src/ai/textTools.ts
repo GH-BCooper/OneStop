@@ -9,7 +9,8 @@
 import { applyFixes, checkGrammar } from "../documents/text/grammar.ts";
 import { summarize, type SummaryLength } from "../documents/text/summarize.ts";
 import { translateText } from "../documents/text/translate.ts";
-import { GLOSSARY_LANGUAGES, LANGUAGE_NAMES } from "../documents/text/glossary.ts";
+import { GLOSSARY_LANGUAGES } from "../documents/text/glossary.ts";
+import { TEXT_LANGUAGES, textLanguageLabel } from "../documents/text/runtime.ts";
 import {
   baseName,
   optBool,
@@ -410,32 +411,10 @@ export const aiGrammarCheckerExecutor: Executor = async (input, options, ctx) =>
 
 export const AI_TRANSLATOR_TOOL_ID = "ai-translator";
 
-const LANGUAGE_LABELS: Record<string, string> = {
-  en: "English",
-  es: "Spanish",
-  fr: "French",
-  de: "German",
-  it: "Italian",
-  pt: "Portuguese",
-  nl: "Dutch",
-  pl: "Polish",
-  ro: "Romanian",
-  sv: "Swedish",
-  tr: "Turkish",
-  ru: "Russian",
-  uk: "Ukrainian",
-  ar: "Arabic",
-  hi: "Hindi",
-  te: "Telugu",
-  ta: "Tamil",
-  zh: "Chinese (Simplified)",
-  ja: "Japanese",
-  ko: "Korean",
-};
-
-function languageName(code: string): string {
-  return LANGUAGE_LABELS[code] ?? LANGUAGE_NAMES[code as keyof typeof LANGUAGE_NAMES] ?? code;
-}
+// The language table and its label lookup live with the text-model contract now, so phase 07's
+// Document Translator and this tool offer exactly the same list.
+const LANGUAGE_LABELS = TEXT_LANGUAGES;
+const languageName = textLanguageLabel;
 
 export const aiTranslatorExecutor: Executor = async (input, options, ctx) =>
   runAi(AI_TRANSLATOR_TOOL_ID, async () => {

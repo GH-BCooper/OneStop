@@ -35,7 +35,11 @@ import {
 
 const root = path.resolve(import.meta.dirname, "../..");
 const port = Number(process.env.E2E_JOURNEY_PORT ?? 3120);
-const SCHEMA = "test_journeys_e2e";
+// With `npm run test:e2e:shared` one server serves every file, so the schema it was started
+// with (E2E_SCHEMA) is the only one these assertions may look in. On its own, the file keeps
+// its private schema and drops it afterwards.
+const SCHEMA = process.env.E2E_SCHEMA ?? "test_journeys_e2e";
+const OWNS_SCHEMA = !process.env.E2E_SCHEMA;
 
 let server: ChildProcess | undefined;
 let browser: Browser;
@@ -113,7 +117,7 @@ afterAll(async () => {
   await browser?.close();
   server?.kill();
   await fs.rm(workDir, { recursive: true, force: true });
-  if (hasTestDatabase() && !process.env.E2E_BASE_URL) await dropTestSchema(SCHEMA);
+  if (hasTestDatabase() && OWNS_SCHEMA) await dropTestSchema(SCHEMA);
 });
 
 async function newPage(): Promise<Page> {
@@ -252,7 +256,9 @@ describeDb("journey 3: sign up and log in", () => {
     await page.getByRole("button", { name: "Sign out" }).click();
     // Auth.js builds the post-sign-out URL from its own host setting, which may spell the same
     // server as "localhost" rather than "127.0.0.1" - either is the home page.
-    await page.waitForURL(new RegExp(`^https?://(localhost|127[.]0[.]0[.]1):${port}/$`), {
+    // The port is whichever server this run is against: its own, or the shared one.
+    const livePort = new URL(baseUrl()).port;
+    await page.waitForURL(new RegExp(`^https?://(localhost|127[.]0[.]0[.]1):${livePort}/$`), {
       timeout: 60_000,
     });
     // Signed out, /account is no longer reachable.
@@ -313,7 +319,10 @@ describe("journey 5: ask the AI Assistant for a multi-tool job", () => {
 
     const box = page.getByRole("textbox").first();
     await box.fill("Convert these images to a PDF, compress it and email-size it");
-    await page.getByRole("button", { name: /send|ask|plan|go/i }).first().click();
+    await page
+      .getByRole("button", { name: /send|ask|plan|go/i })
+      .first()
+      .click();
 
     // With no AI runtime configured (the default, and the free-first promise), the assistant must
     // still answer - with a plan from the registry, or with an honest "no runtime" message. What

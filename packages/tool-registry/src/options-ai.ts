@@ -29,7 +29,7 @@ export const AI_RUNTIME_OPTIONS: ToolOption[] = [
 ];
 
 /** "Use AI, use the built-in offline method, or use AI when it is available." */
-const method: ToolOption = {
+export const AI_METHOD_OPTION: ToolOption = {
   id: "method",
   type: "select",
   label: "Method",
@@ -187,7 +187,7 @@ export const AI_TOOL_OPTIONS: Record<string, ToolOption[]> = {
     },
   ]),
 
-  "ai-summarizer": withRuntime([length, style, method]),
+  "ai-summarizer": withRuntime([length, style, AI_METHOD_OPTION]),
 
   "ai-grammar-checker": withRuntime([
     {
@@ -201,7 +201,7 @@ export const AI_TOOL_OPTIONS: Record<string, ToolOption[]> = {
         { value: "corrected", label: "Corrected copy only" },
       ],
     },
-    method,
+    AI_METHOD_OPTION,
   ]),
 
   "ai-translator": withRuntime([
@@ -220,7 +220,7 @@ export const AI_TOOL_OPTIONS: Record<string, ToolOption[]> = {
       choices: AI_LANGUAGES,
       help: "The built-in offline fallback only covers English, Spanish, French, German, Italian and Portuguese.",
     },
-    method,
+    AI_METHOD_OPTION,
   ]),
 
   "ai-ocr": withRuntime([
@@ -259,7 +259,7 @@ export const AI_TOOL_OPTIONS: Record<string, ToolOption[]> = {
         { value: "risks", label: "Risks and things to check" },
       ],
     },
-    method,
+    AI_METHOD_OPTION,
   ]),
 
   "ai-pdf-summarizer": withRuntime([
@@ -273,7 +273,7 @@ export const AI_TOOL_OPTIONS: Record<string, ToolOption[]> = {
       placeholder: "all",
       help: "Leave blank for the whole PDF. Accepts 1-3, 5, 9-.",
     },
-    method,
+    AI_METHOD_OPTION,
   ]),
 
   "ask-questions-about-a-file": withRuntime([
@@ -291,7 +291,7 @@ export const AI_TOOL_OPTIONS: Record<string, ToolOption[]> = {
       label: "Show the passages the answer came from",
       default: true,
     },
-    method,
+    AI_METHOD_OPTION,
   ]),
 
   "extract-information": withRuntime([
@@ -303,7 +303,7 @@ export const AI_TOOL_OPTIONS: Record<string, ToolOption[]> = {
       placeholder: "invoice number, date, total, supplier",
       help: "Comma-separated. Leave blank and OneStop extracts the obvious ones (dates, emails, amounts, phone numbers).",
     },
-    method,
+    AI_METHOD_OPTION,
   ]),
 
   "unstructured-to-structured-data": withRuntime([
@@ -325,7 +325,7 @@ export const AI_TOOL_OPTIONS: Record<string, ToolOption[]> = {
       placeholder: "name, email, city",
       help: "Leave blank to let OneStop work them out from the text.",
     },
-    method,
+    AI_METHOD_OPTION,
   ]),
 
   "ai-image-generator": [
@@ -444,6 +444,6 @@ export const AI_TOOL_OPTIONS: Record<string, ToolOption[]> = {
       help: "Built-in method: how different a pixel can be from the background colour and still be removed.",
       showWhen: { option: "target", equals: ["background"] },
     },
-    method,
+    AI_METHOD_OPTION,
   ],
 };

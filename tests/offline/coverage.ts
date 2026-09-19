@@ -36,7 +36,10 @@ export function recordOfflineCoverage(suite: string, ids: readonly string[]): vo
     recordedAt: new Date().toISOString(),
   };
   fs.mkdirSync(COVERAGE_DIR, { recursive: true });
-  fs.writeFileSync(path.join(COVERAGE_DIR, `${suite}.json`), `${JSON.stringify(record, null, 2)}\n`);
+  fs.writeFileSync(
+    path.join(COVERAGE_DIR, `${suite}.json`),
+    `${JSON.stringify(record, null, 2)}\n`,
+  );
 }
 
 /** Every record on disk. Unreadable or malformed files are ignored, and so count as missing. */

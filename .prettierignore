@@ -10,3 +10,4 @@ docs/OneStop_Features.md
 docs/OneStop_MasterDoc.md
 apps/api/src/db/generated
 prisma/migrations
+docs/OneStop_Claude_Info.md

@@ -906,6 +906,9 @@ describe("offline", () => {
       https.default.request = real.httpsRequest;
     }
     expect(calls).toEqual([]);
-    recordOfflineCoverage("pdf-advanced", PDF_ADVANCED_EXECUTORS.map(([id]) => id));
+    recordOfflineCoverage(
+      "pdf-advanced",
+      PDF_ADVANCED_EXECUTORS.map(([id]) => id),
+    );
   }, 180_000);
 });

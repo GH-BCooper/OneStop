@@ -10,7 +10,7 @@
 // cannot make FFmpeg fetch URLs), a timeout, and kill on cancellation. Uploaded files are data
 // FFmpeg decodes, never something it runs.
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { PdfToolError } from "../pdf/errors.ts";
 
@@ -56,12 +56,56 @@ function findBinary(name: string, envVar: string, preferDir?: string): string | 
   return null;
 }
 
+/**
+ * A project-local FFmpeg, from `npm run fetch:ffmpeg` (which unpacks into `.tools/`).
+ *
+ * That script is the answer the README gives anyone who cannot install FFmpeg system-wide, and
+ * until phase 20 only the *test* setup looked in `.tools/` - so `npm run fetch:ffmpeg && npm run
+ * dev` produced an app that still said "FFmpeg is required". The app looks there itself now.
+ *
+ * `.tools/` is found by walking up from the working directory, because `next start` runs with its
+ * cwd in `apps/web` while `.tools/` sits at the repository root. The archive names its own folder,
+ * so the search is a bounded walk rather than a fixed path.
+ */
+function projectLocalFfmpeg(): FfmpegBinaries | null {
+  let dir = process.cwd();
+  for (let up = 0; up < 5; up += 1) {
+    const tools = path.join(dir, ".tools");
+    if (existsSync(tools)) {
+      const found = new Map<string, string>();
+      const walk = (current: string, depth: number): void => {
+        if (depth > 4) return;
+        let entries;
+        try {
+          entries = readdirSync(current, { withFileTypes: true });
+        } catch {
+          return;
+        }
+        for (const entry of entries) {
+          const full = path.join(current, entry.name);
+          if (entry.isDirectory()) walk(full, depth + 1);
+          else if (!found.has(entry.name)) found.set(entry.name, full);
+        }
+      };
+      walk(tools, 0);
+      const ffmpeg = found.get(exe("ffmpeg"));
+      const ffprobe = found.get(exe("ffprobe"));
+      if (ffmpeg && ffprobe) return { ffmpeg, ffprobe };
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
 function defaultLocator(): FfmpegBinaries | null {
   const ffmpeg = findBinary("ffmpeg", "FFMPEG_PATH");
-  if (!ffmpeg) return null;
+  // A system install always wins; `.tools/` is the fallback, never an override.
+  if (!ffmpeg) return projectLocalFfmpeg();
   // ffprobe ships next to ffmpeg in every distribution; look there first.
   const ffprobe = findBinary("ffprobe", "FFPROBE_PATH", path.dirname(ffmpeg));
-  return ffprobe ? { ffmpeg, ffprobe } : null;
+  return ffprobe ? { ffmpeg, ffprobe } : projectLocalFfmpeg();
 }
 
 let locator: FfmpegLocator = defaultLocator;

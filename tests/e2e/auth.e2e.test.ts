@@ -7,12 +7,13 @@
 // Needs `npm run build`, a local Chrome or Edge, and a database (TEST_DATABASE_URL/DATABASE_URL);
 // with no database the whole file skips, exactly as the app degrades.
 import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { chromium, type Browser, type Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   createIsolatedTestPrisma,
+  createTestPrisma,
   dropTestSchema,
   hasTestDatabase,
   testDatabaseUrl,
@@ -22,12 +23,45 @@ import type { PrismaClient } from "../../apps/api/src/db/client.ts";
 
 const root = path.resolve(import.meta.dirname, "../..");
 const port = Number(process.env.E2E_AUTH_PORT ?? 3114);
-const SCHEMA = "test_auth_e2e";
+// With `npm run test:e2e:shared` one server serves every file, so the schema it was started
+// with (E2E_SCHEMA) is the only one these assertions may look in. On its own, the file keeps
+// its private schema and drops it afterwards.
+const SCHEMA = process.env.E2E_SCHEMA ?? "test_auth_e2e";
+const OWNS_SCHEMA = !process.env.E2E_SCHEMA;
 
 let server: ChildProcess | undefined;
 let browser: Browser;
 let prisma: PrismaClient;
 let serverLog = "";
+
+/**
+ * The server's console. When this file spawned the server it is captured in memory; under
+ * `npm run test:e2e:shared` the runner owns the server and writes its console to E2E_SERVER_LOG,
+ * so the reset link is readable either way.
+ */
+function consoleOutput(): string {
+  const file = process.env.E2E_SERVER_LOG;
+  if (!file) return serverLog;
+  try {
+    return readFileSync(file, "utf8").slice(consoleMark);
+  } catch {
+    return "";
+  }
+}
+
+/** Where the shared log had got to when the current test started reading. */
+let consoleMark = 0;
+
+function markConsole(): void {
+  serverLog = "";
+  const file = process.env.E2E_SERVER_LOG;
+  if (!file) return;
+  try {
+    consoleMark = readFileSync(file, "utf8").length;
+  } catch {
+    consoleMark = 0;
+  }
+}
 
 const baseUrl = () => process.env.E2E_BASE_URL ?? `http://127.0.0.1:${port}`;
 
@@ -67,7 +101,7 @@ describeDb("accounts in a real browser", () => {
   const newPassword = "an-even-better-password";
 
   beforeAll(async () => {
-    prisma = await createIsolatedTestPrisma(SCHEMA);
+    prisma = OWNS_SCHEMA ? await createIsolatedTestPrisma(SCHEMA) : createTestPrisma(SCHEMA);
     if (!existsSync(path.join(root, "apps/web/.next/BUILD_ID"))) {
       throw new Error("Run `npm run build` before `npm run test:e2e`.");
     }
@@ -107,7 +141,7 @@ describeDb("accounts in a real browser", () => {
     await browser?.close();
     server?.kill();
     await prisma?.$disconnect();
-    await dropTestSchema(SCHEMA);
+    if (OWNS_SCHEMA) await dropTestSchema(SCHEMA);
   });
 
   async function newPage(): Promise<Page> {
@@ -138,7 +172,9 @@ describeDb("accounts in a real browser", () => {
     await page.getByRole("button", { name: "Sign out" }).click();
     // Auth.js builds the post-sign-out URL from its own host setting, which may spell the same
     // server as "localhost" rather than "127.0.0.1" - either is the home page.
-    await page.waitForURL(new RegExp(`^https?://(localhost|127[.]0[.]0[.]1):${port}/$`), {
+    // The port is whichever server this run is against: its own, or the shared one.
+    const livePort = new URL(baseUrl()).port;
+    await page.waitForURL(new RegExp(`^https?://(localhost|127[.]0[.]0[.]1):${livePort}/$`), {
       timeout: 30_000,
     });
     await page.goto(`${baseUrl()}/account`);
@@ -162,7 +198,7 @@ describeDb("accounts in a real browser", () => {
 
   it("resets a forgotten password through the emailed link", async () => {
     const page = await newPage();
-    serverLog = "";
+    markConsole();
     await page.goto(`${baseUrl()}/auth/reset-password`);
     await page.getByLabel("Email").fill(email);
     await page.getByRole("button", { name: "Send reset link" }).click();
@@ -172,7 +208,7 @@ describeDb("accounts in a real browser", () => {
     const deadline = Date.now() + 15_000;
     let link: string | undefined;
     while (Date.now() < deadline && !link) {
-      link = /https?:\/\/\S*\/auth\/reset-password\?token=[\w-]+/.exec(serverLog)?.[0];
+      link = /https?:\/\/\S*\/auth\/reset-password\?token=[\w-]+/.exec(consoleOutput())?.[0];
       if (!link) await new Promise((r) => setTimeout(r, 250));
     }
     expect(link, "the reset link should reach the server console").toBeTruthy();

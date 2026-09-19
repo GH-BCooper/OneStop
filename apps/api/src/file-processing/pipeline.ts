@@ -131,7 +131,8 @@ function checkShape(
 export function executorTimeoutMs(tool: Pick<ToolMeta, "category">): number {
   // Online media downloads are the same shape of work: fetch a video, then hand it to FFmpeg
   // (17-online-media-network-tools.md), so they share the longer budget.
-  const long = tool.category === "audio" || tool.category === "video" || tool.category === "online-media";
+  const long =
+    tool.category === "audio" || tool.category === "video" || tool.category === "online-media";
   if (!long) return DEFAULT_EXECUTION_TIMEOUT_MS;
   const configured = Number(process.env.MEDIA_TIMEOUT_SECONDS);
   return Number.isFinite(configured) && configured > 0

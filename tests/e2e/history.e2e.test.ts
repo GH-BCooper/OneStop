@@ -17,6 +17,7 @@ import { chromium, type Browser, type Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   createIsolatedTestPrisma,
+  createTestPrisma,
   dropTestSchema,
   hasTestDatabase,
   testDatabaseUrl,
@@ -28,7 +29,11 @@ const TOOL_NAME = "Text → QR";
 
 const root = path.resolve(import.meta.dirname, "../..");
 const port = Number(process.env.E2E_HISTORY_PORT ?? 3115);
-const SCHEMA = "test_history_e2e";
+// With `npm run test:e2e:shared` one server serves every file, so the schema it was started
+// with (E2E_SCHEMA) is the only one these assertions may look in. On its own, the file keeps
+// its private schema and drops it afterwards.
+const SCHEMA = process.env.E2E_SCHEMA ?? "test_history_e2e";
+const OWNS_SCHEMA = !process.env.E2E_SCHEMA;
 
 let server: ChildProcess | undefined;
 let browser: Browser;
@@ -71,7 +76,7 @@ describeDb("history, favourites and settings sync in a real browser", () => {
   const password = "a-very-good-password";
 
   beforeAll(async () => {
-    prisma = await createIsolatedTestPrisma(SCHEMA);
+    prisma = OWNS_SCHEMA ? await createIsolatedTestPrisma(SCHEMA) : createTestPrisma(SCHEMA);
     if (!existsSync(path.join(root, "apps/web/.next/BUILD_ID"))) {
       throw new Error("Run `npm run build` before `npm run test:e2e`.");
     }
@@ -106,7 +111,7 @@ describeDb("history, favourites and settings sync in a real browser", () => {
     await browser?.close();
     server?.kill();
     await prisma?.$disconnect();
-    await dropTestSchema(SCHEMA);
+    if (OWNS_SCHEMA) await dropTestSchema(SCHEMA);
   });
 
   /** A fresh browser context - a different "session" with its own cookies and storage. */

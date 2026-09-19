@@ -51,6 +51,14 @@ jobs:
       # `offline: true`; without it their offline suite skips and `verify` fails, by design.
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
 
+      # LibreOffice and yt-dlp are optional at runtime, but installing them here is what makes the
+      # live suites (`libreoffice.live.test.ts`, the yt-dlp wrapper paths) run instead of skipping,
+      # which is how phase 20 retired two items from the manual checklist. Neither costs anything.
+      # The live *download* stays off: `live.test.ts` also needs ONESTOP_LIVE_DOWNLOAD=1, and
+      # 17-online-media-network-tools.md forbids real downloads in CI.
+      - run: sudo apt-get install -y --no-install-recommends libreoffice-writer libreoffice-calc libreoffice-impress
+      - run: pipx install yt-dlp || pip install --user -U yt-dlp
+
       - run: npm run db:generate
 
       - run: npx prisma migrate deploy

@@ -24,6 +24,7 @@
     "format:check": "prettier . --check",
     "bridge:hello": "npm run bridge:hello -w @onestop/api",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "test:e2e:shared": "node scripts/e2e-shared.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",

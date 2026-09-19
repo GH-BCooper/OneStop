@@ -38,6 +38,7 @@ import {
   splitPresentationExecutor,
 } from "./powerpoint.ts";
 import { openDeck, slideTexts } from "./slides.ts";
+import { setTextModelRuntime, type TextModelRuntime } from "./text/runtime.ts";
 import { formatText, titleCase } from "./text/formatter.ts";
 import { applyFixes, checkGrammar } from "./text/grammar.ts";
 import { splitSentences, summarize } from "./text/summarize.ts";
@@ -671,6 +672,166 @@ describe("Document Translator", () => {
       ).message,
     ).toMatch(/two different/);
   });
+
+  // ---- the model path (the phase 19 gap: this tool never used phase 16's runtime) -------------
+
+  /** A stand-in for phase 16's runtime: upper-cases each marked passage and counts the calls. */
+  function stubTextRuntime(
+    over: Partial<TextModelRuntime> = {},
+  ): TextModelRuntime & { calls: string[] } {
+    const calls: string[] = [];
+    return {
+      calls,
+      name: "stub",
+      available: () => true,
+      translate: async (payload: string) => {
+        calls.push(payload);
+        return {
+          text: payload.replace(/^(?!<<<\d+>>>$).+$/gm, (line) => line.toUpperCase()),
+          runtime: "Stub (test-model)",
+          local: true,
+        };
+      },
+      ...over,
+    } as TextModelRuntime & { calls: string[] };
+  }
+
+  afterEach(() => setTextModelRuntime(null));
+
+  it("uses the model runtime when one answers, and keeps the DOCX layout", async () => {
+    const runtime = stubTextRuntime();
+    setTextModelRuntime(runtime);
+    const doc = await makeDocx({ paragraphs: ["Thank you for the report.", "Second line here."] });
+    const result = await run(documentTranslatorExecutor, [{ name: "r.docx", bytes: doc }], {
+      from: "en",
+      to: "ja",
+    });
+    const raw = await docxRaw(file(result, "docx").bytes);
+    expect(raw).toContain("THANK YOU FOR THE REPORT.");
+    expect(raw).toContain("SECOND LINE HERE.");
+    // The marker protocol must not leak into the document.
+    expect(raw).not.toContain("<<<0>>>");
+    expect(ok(result).output).toMatchObject({ engine: "model", local: true, skipped: 0 });
+    expect(ok(result).summary).toMatch(/Stub \(test-model\)/);
+    expect(ok(result).summary).toMatch(/never left it/);
+  });
+
+  it("reaches languages the glossary has never covered", async () => {
+    setTextModelRuntime(stubTextRuntime());
+    const out = await run(
+      documentTranslatorExecutor,
+      [{ name: "t.txt", bytes: new TextEncoder().encode("Good night\n\nSleep well") }],
+      { from: "en", to: "te" },
+    );
+    expect(text(file(out, "txt"))).toBe("GOOD NIGHT\n\nSLEEP WELL");
+    expect(ok(out).output).toMatchObject({ engine: "model", to: "te" });
+  });
+
+  it("falls back to the glossary when no runtime answers, and refuses with method=ai", async () => {
+    setTextModelRuntime({
+      name: "absent",
+      available: () => true,
+      translate: async () => null,
+    });
+    const out = await run(
+      documentTranslatorExecutor,
+      [{ name: "t.txt", bytes: new TextEncoder().encode("Good night") }],
+      { from: "en", to: "it" },
+    );
+    expect(text(file(out, "txt"))).toBe("Buonanotte");
+    expect(ok(out).output).toMatchObject({ engine: "glossary" });
+
+    // A language the glossary cannot reach says what to set up rather than producing nonsense.
+    expect(
+      fail(
+        await run(
+          documentTranslatorExecutor,
+          [{ name: "t.txt", bytes: new TextEncoder().encode("Good night") }],
+          { from: "en", to: "ja" },
+        ),
+      ).message,
+    ).toMatch(/Ollama/);
+
+    // "AI only" never quietly downgrades.
+    expect(
+      fail(
+        await run(
+          documentTranslatorExecutor,
+          [{ name: "t.txt", bytes: new TextEncoder().encode("Good night") }],
+          { from: "en", to: "it", method: "ai" },
+        ),
+      ).message,
+    ).toMatch(/Ollama/);
+  });
+
+  it("method=builtin never touches the runtime", async () => {
+    const runtime = stubTextRuntime();
+    setTextModelRuntime(runtime);
+    const out = await run(
+      documentTranslatorExecutor,
+      [{ name: "t.txt", bytes: new TextEncoder().encode("Good night") }],
+      { from: "en", to: "it", method: "builtin" },
+    );
+    expect(text(file(out, "txt"))).toBe("Buonanotte");
+    expect(runtime.calls).toHaveLength(0);
+  });
+
+  it("a batch the model mangles is retried one passage at a time", async () => {
+    const seen: string[] = [];
+    setTextModelRuntime({
+      name: "flaky",
+      available: () => true,
+      translate: async (payload: string) => {
+        seen.push(payload);
+        // A batch (it carries markers) comes back without them; a single passage is answered.
+        if (payload.includes("<<<")) return { text: "nonsense", runtime: "Flaky (m)", local: true };
+        return { text: payload.toUpperCase(), runtime: "Flaky (m)", local: true };
+      },
+    });
+    const out = await run(
+      documentTranslatorExecutor,
+      [{ name: "t.txt", bytes: new TextEncoder().encode("Good night\n\nSleep well") }],
+      { from: "en", to: "it" },
+    );
+    expect(text(file(out, "txt"))).toBe("GOOD NIGHT\n\nSLEEP WELL");
+    expect(ok(out).output).toMatchObject({ engine: "model", skipped: 0 });
+    // One batch, then one call per passage.
+    expect(seen.filter((p) => p.includes("<<<"))).toHaveLength(1);
+    expect(seen.filter((p) => !p.includes("<<<"))).toHaveLength(2);
+  });
+
+  it("a model that translates nothing at all falls back rather than shipping its noise", async () => {
+    setTextModelRuntime({
+      name: "empty",
+      available: () => true,
+      translate: async () => ({ text: "   ", runtime: "Empty (m)", local: true }),
+    });
+    const out = await run(
+      documentTranslatorExecutor,
+      [{ name: "t.txt", bytes: new TextEncoder().encode("Good night") }],
+      { from: "en", to: "it" },
+    );
+    expect(text(file(out, "txt"))).toBe("Buonanotte");
+    expect(ok(out).output).toMatchObject({ engine: "glossary" });
+  });
+
+  it("stays offline-safe with a runtime registered: a trapped network falls back, not fails", async () => {
+    setTextModelRuntime({
+      name: "unreachable",
+      available: () => true,
+      // This is exactly what phase 16's runtime does when `chat` raises AI_UNAVAILABLE.
+      translate: async () => {
+        await Promise.resolve();
+        return null;
+      },
+    });
+    const out = await run(
+      documentTranslatorExecutor,
+      [{ name: "t.txt", bytes: new TextEncoder().encode("Thank you") }],
+      { from: "en", to: "es" },
+    );
+    expect(ok(out).output).toMatchObject({ engine: "glossary" });
+  });
 });
 
 // ---- metadata ---------------------------------------------------------------------------------
@@ -986,6 +1147,9 @@ describe("offline", () => {
       https.get = saved.sg;
       https.request = saved.sr;
     }
-    recordOfflineCoverage("documents", DOCUMENT_EXECUTORS.map(([id]) => id));
+    recordOfflineCoverage(
+      "documents",
+      DOCUMENT_EXECUTORS.map(([id]) => id),
+    );
   }, 120_000);
 });

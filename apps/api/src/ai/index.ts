@@ -28,6 +28,7 @@ import {
   aiImageGeneratorExecutor,
 } from "./imageTools.ts";
 import { registerImageRuntime } from "./imageRuntime.ts";
+import { registerTextRuntime } from "./textRuntime.ts";
 import {
   AI_EMAIL_DRAFTER_TOOL_ID,
   AI_GRAMMAR_CHECKER_TOOL_ID,
@@ -53,6 +54,7 @@ export * from "./recommendations.ts";
 export * from "./assistant.ts";
 export * from "./common.ts";
 export * from "./imageRuntime.ts";
+export * from "./textRuntime.ts";
 export { describeStructure, extractByPattern, parseKeyValueBlocks, ocrImage } from "./docTools.ts";
 export { summariseText } from "./textTools.ts";
 
@@ -94,3 +96,7 @@ for (const [id, executor] of AI_EXECUTORS) registerExecutor(id, executor);
 // Phase 09's model-capable image tools pick this up through `getImageModelRuntime()`. With no
 // `AI_IMAGE_URL` set it registers nothing and every one of them keeps its built-in method.
 registerImageRuntime();
+
+// Phase 07's Document Translator picks this up through `getTextModelRuntime()`. With no runtime
+// reachable it falls back to the built-in glossary, exactly as it did before phase 16.
+registerTextRuntime();

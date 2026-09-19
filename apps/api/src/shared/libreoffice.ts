@@ -11,6 +11,23 @@ import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
+/**
+ * Where a Windows install can be, beyond `PATH`. LibreOffice's installer does not add itself to
+ * `PATH`, and it happily installs onto a drive other than C: - which is how a machine with a
+ * perfectly good LibreOffice still reported "not installed" during phase 20. Every entry is one
+ * `existsSync`, the answer is cached, and `LIBREOFFICE_PATH` always wins over all of it.
+ */
+function windowsCandidates(): string[] {
+  const roots = new Set<string>();
+  for (const key of ["ProgramFiles", "ProgramW6432", "ProgramFiles(x86)", "LOCALAPPDATA"]) {
+    const value = process.env[key];
+    if (value) roots.add(value);
+  }
+  // Drive-root installs (D:\LibreOffice\...), which the installer offers and people accept.
+  for (const letter of "CDEFGH") roots.add(`${letter}:\\`);
+  return [...roots].map((root) => path.join(root, "LibreOffice", "program", "soffice.exe"));
+}
+
 const CANDIDATES_BY_PLATFORM: Record<string, string[]> = {
   win32: [
     "C:\\Program Files\\LibreOffice\\program\\soffice.exe",
@@ -39,25 +56,41 @@ function defaultLocator(): string | null {
       if (existsSync(candidate)) return candidate;
     }
   }
-  for (const candidate of CANDIDATES_BY_PLATFORM[process.platform] ?? []) {
+  const candidates = [
+    ...(CANDIDATES_BY_PLATFORM[process.platform] ?? []),
+    ...(process.platform === "win32" ? windowsCandidates() : []),
+  ];
+  for (const candidate of candidates) {
     if (existsSync(candidate)) return candidate;
   }
   return null;
 }
 
 let locator: LibreOfficeLocator = defaultLocator;
+let cached: { value: string | null } | null = null;
 
 /** Tests use this to simulate LibreOffice being missing (or present). Pass null to restore. */
 export function setLibreOfficeLocator(next: LibreOfficeLocator | null): void {
   locator = next ?? defaultLocator;
+  cached = null;
 }
 
+/**
+ * The answer is cached for the life of the process, like FFmpeg's and yt-dlp's: the search is a
+ * few dozen `existsSync` calls and it is asked once per conversion. Installing LibreOffice while
+ * the server is running therefore needs a restart, which is what its own setup message says.
+ */
 export function findLibreOffice(): string | null {
-  try {
-    return locator();
-  } catch {
-    return null;
+  if (!cached) {
+    let value: string | null;
+    try {
+      value = locator();
+    } catch {
+      value = null;
+    }
+    cached = { value };
   }
+  return cached.value;
 }
 
 export class LibreOfficeError extends Error {

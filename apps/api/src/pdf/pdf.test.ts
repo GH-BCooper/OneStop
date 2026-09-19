@@ -752,6 +752,9 @@ describe("offline", () => {
       https.default.request = realHttpsRequest;
     }
     expect(calls).toEqual([]);
-    recordOfflineCoverage("pdf-core", PDF_CORE_EXECUTORS.map(([id]) => id));
+    recordOfflineCoverage(
+      "pdf-core",
+      PDF_CORE_EXECUTORS.map(([id]) => id),
+    );
   }, 120_000);
 });

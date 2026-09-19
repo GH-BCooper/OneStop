@@ -4,6 +4,8 @@
 //
 // Fixtures are generated with FFmpeg's synthetic sources (see fixtures.ts), so the whole suite is
 // self-contained. It is skipped with a clear message if FFmpeg is not installed.
+import { existsSync } from "node:fs";
+import path from "node:path";
 import http from "node:http";
 import https from "node:https";
 import sharp from "sharp";
@@ -759,6 +761,41 @@ suite("safety and failure paths", () => {
   });
 });
 
+describe("finding FFmpeg", () => {
+  // Phase 20: `npm run fetch:ffmpeg` unpacks into `.tools/`, and until then only the *test* setup
+  // looked there - so the README's own fallback produced an app that said "FFmpeg is required".
+  it("finds a project-local build in .tools/ when there is no system one", () => {
+    const root = path.resolve(import.meta.dirname, "../../../..");
+    if (!existsSync(path.join(root, ".tools"))) return; // optional; nothing to assert without it.
+    const saved = {
+      ffmpeg: process.env.FFMPEG_PATH,
+      ffprobe: process.env.FFPROBE_PATH,
+      path: process.env.PATH,
+      cwd: process.cwd(),
+    };
+    try {
+      delete process.env.FFMPEG_PATH;
+      delete process.env.FFPROBE_PATH;
+      process.env.PATH = "";
+      // `next start` runs with its cwd inside apps/web, which is the case that was broken.
+      process.chdir(path.join(root, "apps", "web"));
+      setFfmpegLocator(null); // also clears the cache
+      const found = findFfmpeg();
+      expect(found, "the .tools/ build should still be found").not.toBeNull();
+      expect(found!.ffmpeg).toContain(".tools");
+      expect(found!.ffprobe).toContain(".tools");
+    } finally {
+      process.chdir(saved.cwd);
+      if (saved.ffmpeg === undefined) delete process.env.FFMPEG_PATH;
+      else process.env.FFMPEG_PATH = saved.ffmpeg;
+      if (saved.ffprobe === undefined) delete process.env.FFPROBE_PATH;
+      else process.env.FFPROBE_PATH = saved.ffprobe;
+      process.env.PATH = saved.path;
+      setFfmpegLocator(null);
+    }
+  });
+});
+
 describe("missing FFmpeg", () => {
   const cases: [string, Fixture[], Record<string, unknown>?][] = [
     ["audio-converter", [{ name: "a.mp3", bytes: new Uint8Array([1]) }]],
@@ -867,6 +904,9 @@ suite("offline", () => {
       https.get = saved.sg;
       https.request = saved.sr;
     }
-    recordOfflineCoverage("media", MEDIA_EXECUTORS.map(([id]) => id));
+    recordOfflineCoverage(
+      "media",
+      MEDIA_EXECUTORS.map(([id]) => id),
+    );
   }, 600_000);
 });
