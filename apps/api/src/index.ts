@@ -30,3 +30,7 @@ export * from "./workflows/index.ts";
 // The AI Assistant, the model runtime and the AI tools (16-ai-assistant.md). Importing this
 // registers the AI executors and, when one is configured, the local image-model runtime.
 export * from "./ai/index.ts";
+// Online media downloads and the network/info lookups (17-online-media-network-tools.md).
+// Importing these registers the phase-17 executors.
+export * from "./online-media/index.ts";
+export * from "./network/index.ts";

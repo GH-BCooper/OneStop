@@ -38,7 +38,7 @@ export const videoTools = defineCategory("video", { phase: "10", sub: "Video", s
 // Hard rule from 17-online-media-network-tools.md: Spotify is metadata lookup only, never audio.
 export const onlineMediaTools = defineCategory(
   "online-media",
-  { phase: "17", sub: "Online Media", net: "required" },
+  { phase: "17", sub: "Online Media", net: "required", status: "available" },
   [
     { src: ["9.1"], name: "YouTube → MP3", in: ["url"], out: ["mp3"], pop: 70, kw: ["youtube", "download", "audio", "music", "link"], desc: "Save the audio of a YouTube video you have the right to download." },
     { src: ["9.2"], name: "YouTube → MP4", in: ["url"], out: ["mp4"], pop: 70, kw: ["youtube", "download", "video", "link"], desc: "Download a YouTube video you have the right to download." },

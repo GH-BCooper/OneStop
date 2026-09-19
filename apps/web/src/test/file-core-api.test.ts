@@ -11,6 +11,7 @@ import {
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { PHASE_FILES, hasExecutor, stubExecutor, tools } from "@onestop/tool-registry";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { GET as getFile, DELETE as deleteFile } from "@/app/api/files/[id]/route";
 import { GET as getJob } from "@/app/api/jobs/[id]/route";
@@ -150,15 +151,23 @@ describe("POST /api/tools/run", () => {
     expect((await run(badOptions)).status).toBe(400);
   });
 
-  it("reports a not-yet-implemented tool instead of faking success", async () => {
-    // Phases 05-12 and 16 are built, so this checks one that is still to come: phase 17's
-    // network lookups, which take a typed string rather than a file.
-    const form = new FormData();
-    form.set("toolId", "dns-lookup");
-    form.set("text", "example.com");
-    const { body } = await run(form);
-    expect(body.error?.code).toBe("NOT_IMPLEMENTED");
-    expect(body.error?.message).toContain("17-online-media-network-tools.md");
+  it("never lets a tool without an executor fake success", async () => {
+    // Phase 17 was the last phase to add tools, so every registry entry now has a real executor
+    // and none is left on the stub. The guarantee this test exists for is the stub's own
+    // behaviour, so that is asserted directly: a tool with no executor reports NOT_IMPLEMENTED
+    // and names the phase file that will build it, rather than returning ok.
+    const unbuilt = tools.filter((t) => !hasExecutor(t.id));
+    expect(unbuilt.map((t) => t.id)).toEqual([]);
+
+    // `ToolPhase` only names phases that own tools, so the stand-in borrows one; what is being
+    // asserted is the stub's shape, not which phase it points at.
+    const pretend = { id: "not-built-yet", name: "Something Later", phase: "17" } as const;
+    const stub = await stubExecutor(pretend)(null, {}, undefined);
+    expect(stub.ok).toBe(false);
+    if (!stub.ok) {
+      expect(stub.code).toBe("NOT_IMPLEMENTED");
+      expect(stub.message).toContain(PHASE_FILES[pretend.phase]);
+    }
   });
 });
 

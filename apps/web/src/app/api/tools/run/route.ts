@@ -17,6 +17,17 @@ export const dynamic = "force-dynamic";
 
 const MAX_TEXT_LENGTH = 1_000_000;
 
+/**
+ * The caller's address, as far as the deployment can tell (17-online-media-network-tools.md).
+ * Behind a proxy that is the first entry of `x-forwarded-for`; locally there is no header at all
+ * and the answer is null. Tools treat it as untrusted input - it is reported, never trusted.
+ */
+function clientIpOf(request: Request): string | null {
+  const forwarded = request.headers.get("x-forwarded-for");
+  const first = forwarded?.split(",")[0]?.trim();
+  return first || request.headers.get("x-real-ip") || null;
+}
+
 function problem(status: number, code: string, message: string) {
   return NextResponse.json({ ok: false, error: { code, message } }, { status });
 }
@@ -92,7 +103,10 @@ export async function POST(request: Request): Promise<Response> {
     // Signed in: the job (and anything a tool stores) is attributed to the user. Guest: null,
     // and every public tool still runs - auth is never required to use one (master plan 9).
     const userId = await currentUserId();
-    const outcome = await runPipeline({ toolId, userId, files, text, options }, { config });
+    const outcome = await runPipeline(
+      { toolId, userId, files, text, options, clientIp: clientIpOf(request) },
+      { config },
+    );
     return NextResponse.json(
       {
         ok: outcome.ok,

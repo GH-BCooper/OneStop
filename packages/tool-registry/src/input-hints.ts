@@ -70,6 +70,63 @@ export const TOOL_INPUT_HINTS: Record<string, ToolInputHint> = {
     placeholder: "The text to run the expression against",
     help: "The expression itself goes in the options below.",
   },
+  // 17-online-media-network-tools.md — "Paste or type here" would not tell anyone whether a tool
+  // wants an address, a domain, a pair of coordinates or a browser string.
+  "youtube-to-mp3": { label: "YouTube link", placeholder: "https://www.youtube.com/watch?v=..." },
+  "youtube-to-mp4": { label: "YouTube link", placeholder: "https://www.youtube.com/watch?v=..." },
+  "youtube-quality-selector": {
+    label: "YouTube link",
+    placeholder: "https://www.youtube.com/watch?v=...",
+    help: "Lists every quality this video offers, without downloading anything.",
+  },
+  "instagram-reel-to-mp3": {
+    label: "Instagram Reel link",
+    placeholder: "https://www.instagram.com/reel/...",
+  },
+  "instagram-reel-to-mp4": {
+    label: "Instagram Reel link",
+    placeholder: "https://www.instagram.com/reel/...",
+  },
+  "instagram-quality-selector": {
+    label: "Instagram Reel link",
+    placeholder: "https://www.instagram.com/reel/...",
+  },
+  "spotify-link-info": {
+    label: "Spotify link",
+    placeholder: "https://open.spotify.com/track/...",
+    help: "Track, album, artist, playlist, show or episode. Information only — no audio is downloaded.",
+  },
+  "ip-address-lookup": {
+    label: "IP address",
+    placeholder: "8.8.8.8",
+    help: "IPv4 or IPv6.",
+  },
+  "ip-geolocation": { label: "IP address", placeholder: "8.8.8.8" },
+  "location-lookup": {
+    label: "Place or address",
+    placeholder: "Eiffel Tower, Paris",
+    help: "A landmark, a full address or a town name all work.",
+  },
+  "coordinates-lookup": {
+    label: "Coordinates",
+    placeholder: "48.8584, 2.2945",
+    help: "Decimal degrees, or 48°51'29\"N 2°17'40\"E.",
+  },
+  "user-agent-lookup": {
+    label: "User-agent string",
+    placeholder: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 ...",
+    help: "Any string, not just your own browser's.",
+  },
+  "dns-lookup": { label: "Domain name", placeholder: "example.com" },
+  "whois-lookup": {
+    label: "Domain name or IP address",
+    placeholder: "example.com",
+    help: "A domain gives its registration; an address gives the network it belongs to.",
+  },
+  "website-information-lookup": {
+    label: "Website address",
+    placeholder: "https://example.com",
+  },
 };
 
 export function getToolInputHint(toolId: string): ToolInputHint | undefined {

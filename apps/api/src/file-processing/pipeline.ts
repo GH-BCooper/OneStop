@@ -47,6 +47,8 @@ export interface RunPipelineInput {
   files?: PipelineFileInput[];
   text?: string | null;
   options?: Record<string, unknown>;
+  /** The caller's address, when the host knows it (see `ExecContext.clientIp`). */
+  clientIp?: string | null;
 }
 
 export interface PipelineOutcome {
@@ -127,7 +129,10 @@ function checkShape(
  * those two categories get a longer budget — overridable with MEDIA_TIMEOUT_SECONDS.
  */
 export function executorTimeoutMs(tool: Pick<ToolMeta, "category">): number {
-  if (tool.category !== "audio" && tool.category !== "video") return DEFAULT_EXECUTION_TIMEOUT_MS;
+  // Online media downloads are the same shape of work: fetch a video, then hand it to FFmpeg
+  // (17-online-media-network-tools.md), so they share the longer budget.
+  const long = tool.category === "audio" || tool.category === "video" || tool.category === "online-media";
+  if (!long) return DEFAULT_EXECUTION_TIMEOUT_MS;
   const configured = Number(process.env.MEDIA_TIMEOUT_SECONDS);
   return Number.isFinite(configured) && configured > 0
     ? Math.min(configured, 3600) * 1000
@@ -275,6 +280,7 @@ export async function runPipeline(
     const ctx: ExecContext = {
       jobId: job.id,
       userId: input.userId ?? null,
+      clientIp: input.clientIp ?? null,
       readFile: async (file) => {
         if (!file.tempId) throw new Error("This file has no temp handle.");
         if (!stored.some((s) => s.id === file.tempId)) {

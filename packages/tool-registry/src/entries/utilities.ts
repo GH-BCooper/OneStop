@@ -23,11 +23,13 @@ export const devTools = defineCategory("dev-utility", { phase: "12", sub: "Devel
 
 export const networkTools = defineCategory(
   "network",
-  { phase: "17", sub: "Network / Information", net: "required" },
+  { phase: "17", sub: "Network / Information", net: "required", status: "available" },
   [
     { src: ["13.1"], name: "IP Address Lookup", in: ["text"], out: ["json"], pop: 35, kw: ["ip", "ip info", "isp", "owner"], desc: "Look up details for an IP address." },
     { src: ["13.2"], name: "Public IP Detector", in: [], out: ["text"], pop: 40, kw: ["what is my ip", "my ip", "public ip"], desc: "Show your public IP address." },
-    { src: ["13.3"], name: "IP Geolocation", in: ["text"], out: ["json"], kw: ["ip location", "country", "city"], desc: "Find the approximate location of an IP address." },
+    // Offline: phase 17 answers this from the registry allocation tables bundled in
+    // `apps/api/src/network/data/`, so it needs no service and no key (see that phase's file).
+    { src: ["13.3"], name: "IP Geolocation", in: ["text"], out: ["json"], net: "none", kw: ["ip location", "country", "city"], desc: "Find the approximate location of an IP address, from a local database." },
     { src: ["13.4"], name: "Location Lookup", in: ["text"], out: ["json"], kw: ["address", "place", "geocode", "map"], desc: "Look up a place or address and get its coordinates." },
     { src: ["13.5"], name: "Coordinates Lookup", in: ["text"], out: ["json"], kw: ["latitude", "longitude", "gps", "reverse geocode"], desc: "Turn latitude and longitude into a place name." },
     { src: ["13.6"], name: "User-Agent Lookup", slug: "user-agent-lookup", in: ["text"], out: ["json"], net: "none", kw: ["user agent", "parse", "browser", "device"], desc: "Parse any user-agent string into browser, OS and device." },

@@ -60,6 +60,14 @@ export interface ExecContext {
   readFile(file: FileRef): Promise<Uint8Array>;
   /** Cancellation signal for long-running work. */
   signal?: AbortSignal;
+  /**
+   * The address the request came from, when the host could tell (17-online-media-network-tools.md).
+   * "What is my public IP?" cannot be answered by a server-side executor any other way, and the
+   * per-IP rate limit the network tools apply needs something to count against. It is untrusted
+   * like any other input - it comes from a proxy header - so it is only ever reported or hashed,
+   * never used to decide whether something is allowed.
+   */
+  clientIp?: string | null;
 }
 
 export type JobStatus = "pending" | "validating" | "processing" | "success" | "failed";

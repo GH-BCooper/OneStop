@@ -208,6 +208,41 @@ interface Matcher {
  * predictable without a model; the registry search below catches everything else.
  */
 const MATCHERS: Matcher[] = [
+  // 17-online-media-network-tools.md. These come first because "download this YouTube video as
+  // mp3" would otherwise be caught by the generic "to mp3" rule below and routed at a local file.
+  {
+    re: /\byoutu\.?be\b|\byoutube\b/i,
+    ids: ["youtube-to-mp4", "youtube-to-mp3", "youtube-quality-selector"],
+  },
+  {
+    re: /\binstagram\b|\breels?\b/i,
+    ids: ["instagram-reel-to-mp4", "instagram-reel-to-mp3", "instagram-quality-selector"],
+  },
+  { re: /\bspotify\b/i, ids: ["spotify-link-info"] },
+  { re: /\bwhois\b|\bwho owns\b.*\bdomain\b|\bdomain owner\b/i, ids: ["whois-lookup"] },
+  { re: /\bdns\b|\b(mx|txt|cname|nameserver)s?\b/i, ids: ["dns-lookup"] },
+  {
+    re: /\b(what|whats|what's)\s+(is\s+)?my\s+(public\s+)?ip\b|\bmy ip address\b/i,
+    ids: ["public-ip-detector"],
+  },
+  {
+    re: /\b(where|locate|location|country|geolocat\w*)\b.*\bip\b|\bip\b.*\b(location|country|geolocat\w*)\b/i,
+    ids: ["ip-geolocation", "ip-address-lookup"],
+  },
+  {
+    re: /\bip (address )?(lookup|info|details)\b|\blook up .*\bip\b/i,
+    ids: ["ip-address-lookup"],
+  },
+  {
+    re: /\b(coordinates|latitude|longitude|lat\/?lon|gps)\b/i,
+    ids: ["coordinates-lookup", "location-lookup"],
+  },
+  { re: /\b(geocode|address to coordinates|find the place|where is)\b/i, ids: ["location-lookup"] },
+  { re: /\buser[- ]agent\b/i, ids: ["user-agent-lookup", "user-agent-viewer"] },
+  {
+    re: /\b(website|site|url)\s+(info|information|details|headers|certificate|ssl)\b|\bcheck (a |this )?(website|site)\b/i,
+    ids: ["website-information-lookup"],
+  },
   {
     re: /\b(to|into|as)\s+excel\b|\bto\s+(xlsx|spreadsheet)\b|\bexcel\s+(file|sheet)\b/i,
     ids: ["pdf-to-excel", "word-to-excel", "csv-to-excel", "json-to-excel", "xml-to-excel"],

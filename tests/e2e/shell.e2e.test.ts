@@ -244,18 +244,33 @@ describe("tools catalogue", () => {
     await page.context().close();
   });
 
-  it("runs a stub tool to a clear 'coming in a later phase' state, never fake success", async () => {
+  it("never fakes success: a tool that cannot run says so, with no download", async () => {
     const page = await newPage(1440);
-    // Phase 12 built the UUID Generator this used to use; an AI tool is still a stub (phase 16).
-    await page.goto(baseUrl() + "/tools/ai/ai-text-generator");
-    await page.getByRole("textbox").first().fill("write me a haiku");
-    await page.getByRole("button", { name: /^Run AI Text Generator$/ }).click();
-    // Phase 04 moved execution to POST /api/tools/run, so the panel settles asynchronously.
-    await page.locator('[data-state="unavailable"]').waitFor({ timeout: 15_000 });
+    // Phase 17 was the last phase to add tools, so no stub is left to click. The guarantee this
+    // test exists for is the one the UI must keep either way: a run that cannot produce a result
+    // ends in a clearly marked state with an actionable message and nothing to download.
+    await page.goto(baseUrl() + "/tools/network/ip-address-lookup");
+    await page.getByRole("textbox").first().fill("not-an-ip-address");
+    await page.getByRole("button", { name: /^Run IP Address Lookup$/ }).click();
+    await page.locator('[data-state="unsupported"]').waitFor({ timeout: 15_000 });
     await expect(page.getByRole("status").textContent()).resolves.toMatch(
-      /coming in a later phase/i,
+      /not a valid IP address/i,
     );
     await expect(page.getByRole("button", { name: "Download" }).count()).resolves.toBe(0);
+    await page.context().close();
+  });
+
+  it("shows the legal notice on an online media page, above the form", async () => {
+    const page = await newPage(1440);
+    await page.goto(baseUrl() + "/tools/online-media/youtube-to-mp4");
+    const notice = page.locator('[data-testid="tool-notices"] [data-tone="legal"]');
+    await notice.waitFor({ timeout: 15_000 });
+    await expect(notice.textContent()).resolves.toMatch(/responsible for what you download/i);
+    // Spotify's page carries the "information only" note instead.
+    await page.goto(baseUrl() + "/tools/online-media/spotify-link-info");
+    const info = page.locator('[data-testid="tool-notices"] [data-tone="info"]');
+    await info.waitFor({ timeout: 15_000 });
+    await expect(info.textContent()).resolves.toMatch(/no legitimate way to take audio/i);
     await page.context().close();
   });
 

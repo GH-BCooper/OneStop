@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ToolBadges } from "@/components/tools/ToolBadges";
+import { ToolNotices } from "@/components/tools/ToolNotices";
 import { ToolPage } from "@/components/tools/ToolPage";
 import { DynamicQRManager } from "@/components/qr/DynamicQRManager";
 import { QRScanner } from "@/components/qr/QRScanner";
@@ -71,6 +72,9 @@ export default async function ToolRoute({ params }: Props) {
           {/* Camera scanning happens entirely in the browser, so it sits beside the upload form
               rather than inside the pipeline (11-qr-tools.md). */}
           {tool.id === "qr-code-scanner" && <QRScanner />}
+          {/* 17-online-media-network-tools.md: the legal notice must be visible on the Online
+              Media pages, above the form rather than under the result. */}
+          <ToolNotices toolId={tool.id} />
           <ToolPage tool={tool} />
           {DYNAMIC_QR_TOOLS.has(tool.id) && <DynamicQRManager />}
           {tool.id === "qr-code-analytics" && <DynamicQRManager mode="analytics" />}

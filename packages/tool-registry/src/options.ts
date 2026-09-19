@@ -12,6 +12,7 @@ import { AI_TOOL_OPTIONS } from "./options-ai";
 import { DATA_TOOL_OPTIONS } from "./options-data";
 import { IMAGE_TOOL_OPTIONS } from "./options-images";
 import { MEDIA_TOOL_OPTIONS } from "./options-media";
+import { NETWORK_TOOL_OPTIONS } from "./options-network";
 import { QR_TOOL_OPTIONS } from "./options-qr";
 import { UTILITY_TOOL_OPTIONS } from "./options-utilities";
 
@@ -224,6 +225,7 @@ export const TOOL_OPTIONS: Record<string, ToolOption[]> = {
   ...DATA_TOOL_OPTIONS,
   ...IMAGE_TOOL_OPTIONS,
   ...MEDIA_TOOL_OPTIONS,
+  ...NETWORK_TOOL_OPTIONS,
   ...QR_TOOL_OPTIONS,
   ...UTILITY_TOOL_OPTIONS,
   "pdf-to-images": [

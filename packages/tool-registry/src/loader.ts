@@ -192,6 +192,12 @@ export const VERIFIED_OFFLINE: readonly string[] = [
   "metadata-remover",
   "checksum-generator",
   "duplicate-file-detector",
+  // 17-online-media-network-tools.md - apps/api/src/network/network.test.ts "failure isolation".
+  // Only these two: every other phase-17 tool reaches a platform or a registry by definition.
+  // IP Geolocation answers from the tables in `apps/api/src/network/data/`, built once from the
+  // registries' public statistics, and User-Agent Lookup parses a string the user pasted.
+  "ip-geolocation",
+  "user-agent-lookup",
 ];
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
