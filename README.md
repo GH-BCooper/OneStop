@@ -29,7 +29,7 @@ working on a plane.
 
 ## Principles
 
-1. **Free.** No mandatory paid API, SaaS or infrastructure. Every feature works with £0 spent.
+1. **Free.** No mandatory paid API, SaaS or infrastructure. Every feature works with $0 spent.
 2. **Local first.** Files are processed on the machine running OneStop. Cloud storage is opt-in and
    off by default; temporary files are deleted automatically.
 3. **Honest.** A tool that needs the Internet, FFmpeg, LibreOffice or an AI model says so in one
