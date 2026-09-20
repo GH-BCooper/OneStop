@@ -2,7 +2,7 @@
 
 import type { PublicUser, UserSettings } from "@onestop/types";
 import { Button, Card, Input, PasswordInput, Tabs } from "@onestop/ui";
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
@@ -198,6 +198,7 @@ function AvatarEditor({
 
 function PersonalSettings({ user, settings, jobCount }: AccountViewProps) {
   const router = useRouter();
+  const { update: updateSession } = useSession();
   const [name, setName] = useState(user.name ?? "");
   const [avatar, setAvatar] = useState(user.avatar);
   const [profile, setProfile] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
@@ -281,7 +282,16 @@ function PersonalSettings({ user, settings, jobCount }: AccountViewProps) {
   return (
     <div className="flex flex-col gap-6">
       <Section title="Profile" description="Your email address is the key to the account.">
-        <AvatarEditor avatar={avatar} name={user.name ?? user.email} onChanged={setAvatar} />
+        <AvatarEditor
+          avatar={avatar}
+          name={user.name ?? user.email}
+          onChanged={(next) => {
+            setAvatar(next);
+            // Refreshes the header's avatar immediately; the JWT callback shrinks it to a proxy
+            // path before it ever becomes part of the session cookie (see `avatarRef` in auth.ts).
+            void updateSession({ image: next });
+          }}
+        />
         <form className="flex flex-col gap-4" onSubmit={saveProfile} noValidate>
           <Input
             label="Name"

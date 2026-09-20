@@ -20,6 +20,24 @@ import { authIsConfigured, authSecret, googleIsConfigured } from "@/lib/auth-con
 
 export { authIsConfigured, authSecret, googleIsConfigured };
 
+/**
+ * Where a signed-in user's picture is served from a session's point of view.
+ *
+ * A credentials-account avatar is a `data:image/webp;base64,...` string (see `avatar.ts`) - often
+ * tens of KB. Auth.js copies `image` straight into the JWT's `picture` claim, and that claim rides
+ * along as a cookie on *every* request; a data URL in there is exactly how a session cookie grows
+ * past a server's header-size limit and every page starts answering HTTP 431 (a real incident this
+ * fixes). A real http(s) URL (Google's profile photo) is a few dozen bytes and stays as-is; a data
+ * URL is swapped for the small proxy path below, which `GET /api/account/avatar` resolves to the
+ * actual bytes without ever putting them in a cookie.
+ */
+const AVATAR_PROXY_PATH = "/api/account/avatar";
+
+export function avatarRef(avatar: string | null | undefined): string | null {
+  if (!avatar) return null;
+  return avatar.startsWith("data:") ? AVATAR_PROXY_PATH : avatar;
+}
+
 function providers() {
   const list: NextAuthConfig["providers"] = [
     Credentials({
@@ -36,7 +54,7 @@ function providers() {
         if (!prisma) return null;
         try {
           const user = await verifyCredentials(email, password, prisma);
-          return { id: user.id, email: user.email, name: user.name, image: user.avatar };
+          return { id: user.id, email: user.email, name: user.name, image: avatarRef(user.avatar) };
         } catch {
           // Auth.js turns a null into the generic "sign in failed" path; the form supplies the
           // wording, so nothing here leaks whether the account exists.
@@ -72,7 +90,7 @@ export function onestopAdapter(prisma: PrismaClient): Adapter {
   const base = PrismaAdapter(prisma);
   type WithImage = { image?: string | null; avatar?: string | null } | null;
   const out = <T extends WithImage>(user: T): T =>
-    user ? ({ ...user, image: user.image ?? user.avatar ?? null } as T) : user;
+    user ? ({ ...user, image: avatarRef(user.image ?? user.avatar ?? null) } as T) : user;
   const inward = <T extends WithImage>(user: T): T => {
     if (!user) return user;
     const { image, ...rest } = user;
@@ -97,8 +115,15 @@ export const authConfig: NextAuthConfig = {
   pages: { signIn: "/auth/login", newUser: "/account", error: "/auth/login" },
   providers: providers(),
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger, session }) {
       if (user?.id) token.sub = user.id;
+      // `AccountMenu`/`AvatarEditor` call `useSession().update({ image })` right after an avatar
+      // change, so the header reflects it without waiting for a fresh sign-in.
+      if (trigger === "update" && session && typeof session === "object" && "image" in session) {
+        token.picture = avatarRef((session as { image?: string | null }).image ?? null);
+      }
+      // Belt and braces: whatever produced this claim, a data URL never belongs in a cookie.
+      if (typeof token.picture === "string") token.picture = avatarRef(token.picture);
       return token;
     },
     async session({ session, token }) {

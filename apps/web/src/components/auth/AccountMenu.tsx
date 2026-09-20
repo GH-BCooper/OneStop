@@ -45,6 +45,7 @@ export function AccountMenu() {
 
   const label = session.user.name?.trim() || session.user.email || "Account";
   const initial = label.trim().charAt(0).toUpperCase() || "A";
+  const avatar = session.user.image;
 
   return (
     <div ref={rootRef} className="relative">
@@ -61,12 +62,21 @@ export function AccountMenu() {
           open && "bg-surface-muted",
         )}
       >
-        <span
-          aria-hidden="true"
-          className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-fg"
-        >
-          {initial}
-        </span>
+        {avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={avatar}
+            alt=""
+            className="h-6 w-6 shrink-0 rounded-full object-cover"
+          />
+        ) : (
+          <span
+            aria-hidden="true"
+            className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-fg"
+          >
+            {initial}
+          </span>
+        )}
         <span className="hidden max-w-[8rem] truncate sm:inline">{label}</span>
         <span aria-hidden="true" className="text-xs">
           ▾

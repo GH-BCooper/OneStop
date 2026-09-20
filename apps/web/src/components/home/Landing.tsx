@@ -42,7 +42,7 @@ export function Landing() {
           priority
         />
         <h1 className="os-enter os-enter-1 max-w-3xl text-4xl font-bold tracking-tight sm:text-6xl">
-          Every file. Every format. <span className="brand-gradient">One stop.</span>
+          <span className="brand-gradient">OneStop</span>—Everything, Everywhere, All at once!
         </h1>
         <p className="os-enter os-enter-2 max-w-2xl text-lg text-fg-muted">
           OneStop converts, edits and inspects PDFs, images, documents, spreadsheets, audio, video,

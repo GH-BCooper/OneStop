@@ -151,7 +151,7 @@ describe("home page", () => {
     "guest sees the marketing Landing page, with Get Started and the category cards",
     async () => {
       await renderRoute(home);
-      expect(screen.getByRole("heading", { level: 1, name: /one stop/i })).toBeTruthy();
+      expect(screen.getByRole("heading", { level: 1, name: /onestop/i })).toBeTruthy();
       expect(screen.getAllByRole("link", { name: /get started/i }).length).toBeGreaterThan(0);
       const categoryLinks = screen
         .getAllByRole("link")

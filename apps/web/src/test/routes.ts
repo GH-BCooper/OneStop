@@ -14,7 +14,7 @@ export const routeCases: RouteCase[] = [
   {
     path: "/",
     load: () => import("@/app/page"),
-    heading: /one stop|good (morning|afternoon|evening)/i,
+    heading: /onestop|good (morning|afternoon|evening)/i,
   },
   { path: "/assistant", load: () => import("@/app/assistant/page"), heading: /ai assistant/i },
   { path: "/tools", load: () => import("@/app/tools/page"), heading: /all tools/i },
