@@ -21,11 +21,11 @@ import { Recommendations } from "./Recommendations";
 const ANY_FILE = { name: "the assistant", inputTypes: ["any"], supportsBatch: true };
 
 const EXAMPLES = [
-  "Convert this PDF to Excel, remove the first 2 pages, then compress the result",
-  "Merge these PDFs and add page numbers",
-  "What is the notice period in this contract?",
-  "Remove the background from these photos and save them as WebP",
-  "Hi! What can you help me with?",
+  { icon: "📄", text: "Convert this PDF to Excel, remove the first 2 pages, then compress the result" },
+  { icon: "🔗", text: "Merge these PDFs and add page numbers" },
+  { icon: "💬", text: "What is the notice period in this contract?" },
+  { icon: "🖼️", text: "Remove the background from these photos and save them as WebP" },
+  { icon: "👋", text: "Hi! What can you help me with?" },
 ];
 
 interface PlanResponse {
@@ -429,12 +429,12 @@ export function AssistantView() {
         setDragging(false);
         if (!busy) addFiles(Array.from(e.dataTransfer.files));
       }}
-      className={`flex flex-col gap-2 rounded-2xl border p-2 transition-colors ${
+      className={`flex flex-col gap-2 rounded-3xl border p-2 shadow-sm transition-colors ${
         dragging ? "border-primary bg-surface-muted" : "border-border bg-surface"
       }`}
     >
       {files.length > 0 && (
-        <ul className="flex flex-wrap gap-1.5 px-1 pt-1" aria-label="Attached files">
+        <ul className="flex flex-wrap gap-1.5 px-2 pt-1" aria-label="Attached files">
           {files.map((file, i) => (
             <li
               key={`${file.name}-${file.size}-${i}`}
@@ -458,15 +458,15 @@ export function AssistantView() {
       <label htmlFor="assistant-request" className="sr-only">
         Message the assistant
       </label>
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-1.5">
         <button
           type="button"
           aria-label="Attach files"
           disabled={busy}
           onClick={() => fileInputRef.current?.click()}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border text-lg hover:bg-surface-muted disabled:opacity-60"
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl text-fg-muted hover:bg-surface-muted hover:text-fg disabled:opacity-60"
         >
-          <span aria-hidden="true">📎</span>
+          <span aria-hidden="true">+</span>
         </button>
         <input
           ref={fileInputRef}
@@ -483,9 +483,9 @@ export function AssistantView() {
         <textarea
           id="assistant-request"
           data-testid="assistant-request"
-          rows={2}
-          className="w-full flex-1 resize-none rounded-md border-0 bg-transparent p-2 text-sm text-fg focus-visible:outline-2 focus-visible:outline-ring"
-          placeholder="Ask anything, or describe a task — e.g. convert this PDF to Excel — or attach any file"
+          rows={1}
+          className="max-h-40 w-full flex-1 resize-none rounded-md border-0 bg-transparent px-1 py-2.5 text-sm text-fg focus-visible:outline-2 focus-visible:outline-ring"
+          placeholder="Ask anything, or describe a task — or attach any file"
           value={request}
           disabled={busy}
           onKeyDown={(e) => {
@@ -496,12 +496,18 @@ export function AssistantView() {
           }}
           onChange={(e) => setRequest(e.target.value)}
         />
-        <Button size="lg" disabled={busy} onClick={() => void send()}>
-          {busy ? "…" : "Send"}
-        </Button>
+        <button
+          type="button"
+          aria-label="Send"
+          disabled={busy || request.trim() === ""}
+          onClick={() => void send()}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold text-primary-fg transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          <span aria-hidden="true">{busy ? "…" : "↑"}</span>
+        </button>
       </div>
       {composerError && (
-        <p role="alert" className="px-1 text-sm text-danger">
+        <p role="alert" className="px-2 text-sm text-danger">
           {composerError}
         </p>
       )}
@@ -510,35 +516,34 @@ export function AssistantView() {
 
   if (turns.length === 0) {
     return (
-      <div className="flex flex-col gap-6" data-testid="assistant">
-        <RuntimeStatus status={status} />
-        {greeting && (
-          <div className="mx-auto w-full max-w-2xl">
-            <Bubble from="assistant">
-              <p data-testid="assistant-greeting">{greeting}</p>
-            </Bubble>
-          </div>
-        )}
-        <div className="mx-auto w-full max-w-2xl">{composer}</div>
-        <div className="flex flex-col items-center gap-4 py-6 text-center">
-          <p className="text-2xl font-bold">What would you like done?</p>
-          <p className="max-w-xl text-sm text-fg-muted">
-            Chat naturally, attach any file — documents, images, audio, video — or describe a task.
-            The assistant only ever runs OneStop&rsquo;s own tools, and always shows the plan before
-            running it.
-          </p>
-          <div className="flex flex-wrap justify-center gap-2">
-            {EXAMPLES.map((example) => (
-              <button
-                key={example}
-                type="button"
-                className="rounded-full border border-border bg-surface px-3 py-1 text-xs text-fg-muted hover:border-primary hover:text-fg"
-                onClick={() => setRequest(example)}
-              >
-                {example}
-              </button>
-            ))}
-          </div>
+      <div
+        className="flex min-h-[65vh] flex-col items-center justify-center gap-6 py-10"
+        data-testid="assistant"
+      >
+        <h2
+          data-testid="assistant-greeting"
+          className="max-w-2xl px-4 text-center text-2xl font-bold sm:text-3xl"
+        >
+          {greeting ?? "Where should we begin?"}
+        </h2>
+        <div className="w-full max-w-2xl px-4">{composer}</div>
+        <div className="flex w-full max-w-md flex-col gap-0.5 px-4">
+          {EXAMPLES.map((example) => (
+            <button
+              key={example.text}
+              type="button"
+              className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-fg-muted transition-colors hover:bg-surface-muted hover:text-fg"
+              onClick={() => setRequest(example.text)}
+            >
+              <span aria-hidden="true" className="text-lg">
+                {example.icon}
+              </span>
+              <span>{example.text}</span>
+            </button>
+          ))}
+        </div>
+        <div className="w-full max-w-md px-4">
+          <RuntimeStatus status={status} />
         </div>
       </div>
     );
