@@ -12,10 +12,17 @@
 // before a single file is touched. Nothing here executes anything.
 import type { AssistantPlan } from "@onestop/types";
 import { detectIntent } from "./intent.ts";
-import { AiError } from "./modelRuntime.ts";
+import { AiError, chat, NO_RUNTIME_MESSAGE, type ChatMessage } from "./modelRuntime.ts";
 import { buildPlan, type PlanContext } from "./planner.ts";
 import type { AiCredentials } from "./providers.ts";
 import { recommendationsFor } from "./recommendations.ts";
+
+const CHAT_SYSTEM = [
+  "You are the OneStop Assistant, built into OneStop: a free, local-first file/PDF/image/data/media/QR/developer toolbox.",
+  "Chat naturally and helpfully, in a few short sentences unless asked for more.",
+  "You specialise in OneStop's own tools. If what the person actually wants is a file task (convert, merge, compress, OCR, resize, translate a document, and so on), say you can do that and ask them to describe the task or attach the file, rather than trying to do it in this reply.",
+  "You cannot run code, browse the web, access the internet, or do anything outside OneStop's own registered tools - be upfront about that rather than pretending otherwise.",
+].join("\n");
 
 export interface AssistantRequest {
   request: string;
@@ -113,6 +120,50 @@ export async function planAssistantRequest(input: AssistantRequest): Promise<Ass
       recommendations: null,
       runtime: null,
     };
+  }
+
+  // Plain conversation never touches the planner or the tool registry - it is a reply in words,
+  // never a run (CLAUDE.md §2.6: the assistant may only ever call a registered tool, and a chat
+  // answer calls none). With no runtime configured this still never fails the request: it says so
+  // and points back at the tools, which all have their own non-AI path regardless.
+  if (intent.kind === "chat") {
+    const messages: ChatMessage[] = [
+      { role: "system", content: CHAT_SYSTEM },
+      { role: "user", content: request },
+    ];
+    try {
+      const { text, config } = await chat(
+        messages,
+        {
+          temperature: 0.6,
+          maxTokens: 400,
+          ...(input.signal ? { signal: input.signal } : {}),
+        },
+        input.credentials ?? {},
+      );
+      return {
+        ok: true,
+        intent,
+        plan: null,
+        message: text.trim(),
+        rejected: [],
+        recommendations: null,
+        runtime: { provider: config.provider, model: config.model, local: config.info.local },
+      };
+    } catch (err) {
+      if (err instanceof AiError) {
+        return {
+          ok: true,
+          intent,
+          plan: null,
+          message: `${NO_RUNTIME_MESSAGE} I can still run any OneStop tool directly — just describe the task.`,
+          rejected: [],
+          recommendations: null,
+          runtime: null,
+        };
+      }
+      throw err;
+    }
   }
 
   let result;

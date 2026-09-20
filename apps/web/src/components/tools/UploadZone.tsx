@@ -15,6 +15,7 @@ import {
 import { DEFAULT_MAX_UPLOAD_BYTES, ERROR_MESSAGES } from "@onestop/types";
 import { Button } from "@onestop/ui";
 import { useId, useRef, useState, type DragEvent } from "react";
+import { FilePreviewModal } from "./FilePreviewModal";
 
 export function formatBytes(bytes: number): string {
   const units = ["B", "KB", "MB", "GB"];
@@ -66,6 +67,7 @@ export function UploadZone({
   const generatedId = useId();
   const id = inputId ?? generatedId;
   const [dragging, setDragging] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const accepted = typeLabel(fileInputTypes(tool));
 
@@ -135,6 +137,14 @@ export function UploadZone({
                 <Button
                   variant="ghost"
                   size="sm"
+                  aria-label={`View ${file.name}`}
+                  onClick={() => setPreviewIndex(i)}
+                >
+                  View
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
                   disabled={disabled}
                   aria-label={`Remove ${file.name}`}
                   onClick={() => removeAt(i)}
@@ -146,6 +156,10 @@ export function UploadZone({
           ))}
         </ul>
       )}
+      <FilePreviewModal
+        file={previewIndex !== null ? (files[previewIndex] ?? null) : null}
+        onClose={() => setPreviewIndex(null)}
+      />
     </div>
   );
 }

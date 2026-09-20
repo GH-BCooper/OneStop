@@ -74,23 +74,33 @@ export function detectIntentRules(
     return { ...base, kind: "generate", confidence: 0.75, needsFiles: false };
   }
   if (questionish) {
+    // A question with no file in play and no explicit "write/summarise/translate" verb (already
+    // ruled out above) is small talk or general knowledge, not a OneStop task - "chat", not
+    // "generate". `question` is reserved for RAG over an attached file.
     return {
       ...base,
-      kind: hasFiles ? "question" : "generate",
+      kind: hasFiles ? "question" : "chat",
       confidence: 0.5,
       needsFiles: hasFiles,
     };
   }
-  // Nothing matched. With files in hand a tool chain is the better guess, but say it is a guess.
+  // Nothing matched. With files in hand a tool chain is the better guess, but say it is a guess;
+  // with none, there is nothing to run at all, so it is treated as conversation.
   return {
     ...base,
-    kind: hasFiles ? "tool-chain" : "generate",
+    kind: hasFiles ? "tool-chain" : "chat",
     confidence: 0.3,
     needsFiles: hasFiles,
   };
 }
 
-const KINDS: AssistantIntentKind[] = ["tool-chain", "question", "generate", "unsupported"];
+const KINDS: AssistantIntentKind[] = [
+  "tool-chain",
+  "question",
+  "generate",
+  "chat",
+  "unsupported",
+];
 
 const INTENT_SYSTEM = [
   "You classify a request for OneStop, a local file-and-document toolbox.",
@@ -99,6 +109,7 @@ const INTENT_SYSTEM = [
   '  "tool-chain"  — run OneStop tools on the user\'s files (convert, merge, compress, OCR, resize…)',
   '  "question"    — answer a question about the content of an uploaded file',
   '  "generate"    — produce or rework text with the model alone (write, rewrite, translate, summarise)',
+  '  "chat"        — plain conversation: greetings, small talk, general questions with nothing to run',
   '  "unsupported" — OneStop cannot do this at all (3D modelling, sending email, browsing the web…)',
   "confidence is 0 to 1. Never add prose, never add other keys.",
 ].join("\n");

@@ -146,7 +146,7 @@ describe("the assistant workspace", () => {
     fireEvent.change(screen.getByTestId("assistant-request"), {
       target: { value: "Convert this PDF to Excel, remove the first 2 pages, then compress it" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /plan it/i }));
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
 
     const panel = await screen.findByTestId("assistant-plan");
     expect(panel.textContent).toContain("Delete PDF Pages");
@@ -169,7 +169,7 @@ describe("the assistant workspace", () => {
     fireEvent.change(screen.getByTestId("assistant-request"), {
       target: { value: "generate a 3D model of a house" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /plan it/i }));
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
 
     const panel = await screen.findByTestId("external-recommendations");
     expect(panel.textContent).toContain("3D modelling");
@@ -183,6 +183,37 @@ describe("the assistant workspace", () => {
     expect(screen.getByRole("link", { name: "Blender" }).getAttribute("href")).toBe(
       "https://www.blender.org/",
     );
+  });
+
+  it("chats normally for small talk instead of saying it cannot do that", async () => {
+    const CHAT_REPLY: AssistantPlan = {
+      ok: true,
+      intent: { kind: "chat", request: "…", confidence: 0.5, needsFiles: false, source: "rules" },
+      plan: null,
+      message: "Hi! I'm the OneStop Assistant. Ask me to convert, merge or edit a file any time.",
+      rejected: [],
+      recommendations: null,
+      runtime: null,
+    };
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(
+        String(url).includes("/status")
+          ? respond({ ok: true, status: LOCAL_STATUS })
+          : respond({ ok: true, plan: CHAT_REPLY }),
+      ),
+    );
+    render(<AssistantView />);
+    fireEvent.change(screen.getByTestId("assistant-request"), {
+      target: { value: "Hi! What can you help me with?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText(/ask me to convert, merge or edit a file/i)).toBeTruthy(),
+    );
+    // A chat reply is not a refusal: no "cannot do that" framing and no recommendations panel.
+    expect(screen.queryByTestId("external-recommendations")).toBeNull();
+    expect(screen.queryByText(/cannot do that/i)).toBeNull();
   });
 });
 

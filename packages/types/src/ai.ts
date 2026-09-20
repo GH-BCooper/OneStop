@@ -57,6 +57,8 @@ export type AssistantIntentKind =
   | "question"
   /** Produce text with the model alone (write/rewrite/translate/summarise a pasted text). */
   | "generate"
+  /** Plain conversation - greetings, small talk, general questions with nothing to run. */
+  | "chat"
   /** OneStop genuinely cannot do this — answer with external recommendations. */
   | "unsupported";
 

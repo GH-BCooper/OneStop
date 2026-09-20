@@ -33,6 +33,51 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 
 ---
 
+## Post-V1: production fix and redesign pass (2026-09-20)
+
+The owner deployed V1 (commit `b7a0538`) to Render + Neon themselves and reported it back broken:
+sign-up failed and every tool run failed, both with a generic "Something went wrong". Root cause,
+found by reading the two routes' error handling and `docs/DEPLOYMENT.md` §2: Render had
+`DATABASE_URL` set, but `npm run db:deploy` (`prisma migrate deploy`) was a documented *manual*
+step that was never run against the new Neon database — so the connection worked but every table
+was missing, and both signup (writes `User`) and every tool run (writes a `Job` row unconditionally
+once a database is configured) hit the same raw, uncaught Prisma error. Fixed at the root:
+`npm run build` now runs `scripts/maybe-migrate.mjs` (skips cleanly with no `DATABASE_URL`), so a
+deploy can no longer ship half-configured. This is a code fix; it only takes effect once Render
+redeploys off `main`.
+
+Alongside the fix, the owner asked for a large UX pass in the same session: real logo + a
+"royal purple/silver" theme applied via the existing token system, password show/hide + live
+mismatch warnings everywhere, a back button (root layout, hidden on `/`), a file/image preview
+modal wired into `UploadZone`, an `/account` split into Personal/App tabs with drag-and-drop
+avatar upload (stored as a resized `data:` URL, not a binary column — same pattern already used
+for signature pads), a dropdown account menu, and a Home page split into a signed-out marketing
+Landing page and a signed-in/no-accounts-configured Dashboard. The AI Assistant became a real chat
+transcript (multi-turn, still plan-then-confirm, never bypassing the tool registry) and gained a
+genuine "chat" intent (`ai/intent.ts`, `ai/assistant.ts`) so small talk gets a conversational reply
+from the existing model runtime instead of "OneStop cannot do that" — no new AI provider, still
+Ollama/Groq/OpenRouter/Google AI Studio only (CLAUDE.md §2.8).
+
+**Deviation, logged per CLAUDE.md §9 rather than guessed silently:** the request for a signed-out
+visitor's navbar/page ("don't give them any functionality... just the logo and title along with
+sign in") is in real tension with master plan §9 ("Guest/local users can still use public tools")
+and the guest-mode engineering built across phases 04–17 (IndexedDB history/favourites, no-auth
+tool runs, the rate limiter's anonymous-caller path). Implemented conservatively: a signed-out
+visitor gets the minimal header and the marketing Landing page **only when this instance has
+accounts configured at all** (so an instance with no database, where nobody can ever sign in,
+keeps the full nav it always had); a direct link to any tool still works for a guest exactly as
+before, since removing that would be a regression against an explicit, repeatedly-tested product
+guarantee, not a redesign of it. See **Open Questions** below.
+
+Also scoped down deliberately: item 14's "notifications" in a dashboard topbar was not built. There
+is no notification-generating system anywhere in the app (no queue, no async job completion event a
+user isn't already looking at), and a bell icon with nothing real behind it would be decorative
+rather than functional. The dashboard's "Recent activity" panel (`RecentJobs`, already real) covers
+the same need honestly; a real notification source is a fair candidate for a future "Next Up" item
+if one is ever needed.
+
+---
+
 ## Decisions Log
 
 (Append one line per real architectural decision — e.g. which Postgres host, which AI runtime default, whether LibreOffice is required or optional locally, etc. Newest at the bottom.)
@@ -635,6 +680,7 @@ Master plan §27 "The product should be" - every clause:
 (Anything ambiguous that needs a decision from the user rather than a guess.)
 
 - _(none open)_. **Resolved (03):** the phase-02 category question, as described in the Decisions Log. Two judgement calls were made the conservative way and are worth a glance: JSON/XML Formatter & Validator are filed under **Excel, CSV & Data** (phase 08 owns them; **resolved (12)** - phase 12 does not repeat them, it adds only the HTML/CSS/JS formatters), and "User-Agent Viewer" (12.20, shows your own browser) is kept as a separate tool from "User-Agent Lookup" (13.6, parses any UA string). **Resolved (02):** the master plan and the feature list are now in the repo as `docs/OneStop_MasterDoc.md` and `docs/OneStop_Features.md`. Phase 02 was checked against them: routes match master §3.1, Home matches §5, nav order matches Features §18 ("§18" in `02-ui-shell.md` means the Features doc, not master §18, which covers hosting). Home category cards now use master §4's 8 categories, with counts taken from the Features list.
+- **Open (post-V1 redesign):** should a signed-out visitor ever be blocked from *directly* opening a tool page (not just from seeing it in the nav)? The current implementation keeps direct guest tool access working everywhere, per master plan §9, and only simplifies the nav/home page for a signed-out visitor. If the owner actually wants tool pages themselves gated behind sign-in, that is a real product decision (and a bigger, riskier change - it touches the rate limiter, history, and every tool page's tests) that needs an explicit yes rather than a redesign-session guess.
 
 ---
 

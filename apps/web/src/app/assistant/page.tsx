@@ -11,13 +11,7 @@ export const metadata: Metadata = {
 export default function AssistantPage() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold sm:text-3xl">AI Assistant</h1>
-        <p className="mt-2 text-fg-muted">
-          Describe a task in plain language. The assistant plans it as a chain of OneStop tools,
-          shows you the plan, and only runs it once you say so.
-        </p>
-      </div>
+      <h1 className="sr-only">AI Assistant</h1>
       <AssistantView />
     </div>
   );

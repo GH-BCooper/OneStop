@@ -1,72 +1,21 @@
-import { GROUPS, toolsForCatalogPage } from "@onestop/tool-registry";
-import { buttonClasses, Card, CardDescription, CardTitle } from "@onestop/ui";
-import Link from "next/link";
-import { HomeSearch } from "@/components/home/HomeSearch";
-import { PopularTools } from "@/components/home/PopularTools";
-import { RecentJobs } from "@/components/home/RecentJobs";
-import { RecentTools } from "@/components/home/RecentTools";
+// Home: a marketing page for a signed-out visitor (item 13), or a personalized dashboard for
+// everyone else (item 14) — a signed-in visitor, or any visitor at all when this instance has no
+// accounts configured, since there is nobody such a visitor could ever sign in as.
+import { auth, authIsConfigured } from "@/auth";
+import { Dashboard } from "@/components/home/Dashboard";
+import { Landing } from "@/components/home/Landing";
 
-export default function HomePage() {
-  return (
-    <div className="flex flex-col gap-12">
-      <section
-        aria-labelledby="home-heading"
-        className="flex flex-col items-center gap-6 pt-4 text-center"
-      >
-        <h1 id="home-heading" className="text-3xl font-bold tracking-tight sm:text-5xl">
-          What do you want to do?
-        </h1>
-        <p className="max-w-2xl text-fg-muted">
-          Convert, edit and inspect files with free, local-first tools, or describe the task and let
-          the assistant chain the right tools for you.
-        </p>
-        <div className="w-full max-w-3xl">
-          <HomeSearch />
-        </div>
-        <Link href="/assistant" className={buttonClasses("primary", "lg")}>
-          <span aria-hidden="true">✨</span>
-          Ask OneStop AI
-        </Link>
-      </section>
-
-      <section aria-labelledby="categories-heading" className="flex flex-col gap-4">
-        <div className="flex items-baseline justify-between gap-4">
-          <h2 id="categories-heading" className="text-xl font-semibold">
-            Categories
-          </h2>
-          <Link href="/tools" className="text-sm text-primary hover:underline">
-            All tools →
-          </Link>
-        </div>
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {GROUPS.map((c) => (
-            <li key={c.id}>
-              <Link
-                href={`/tools/${c.id}`}
-                className="block h-full rounded-lg focus-visible:outline-2 focus-visible:outline-ring"
-              >
-                <Card interactive className="flex h-full items-center gap-3">
-                  <span aria-hidden="true" className="text-2xl">
-                    {c.icon}
-                  </span>
-                  <div className="min-w-0">
-                    <CardTitle>{c.name}</CardTitle>
-                    <CardDescription>{toolsForCatalogPage(c.id).length} tools</CardDescription>
-                  </div>
-                </Card>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      <RecentTools />
-
-      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        {/* Both panels now read real usage and real history (14-history-favorites.md). */}
-        <PopularTools />
-        <RecentJobs />
-      </div>
-    </div>
-  );
+export default async function HomePage() {
+  if (!authIsConfigured()) return <Dashboard name={null} />;
+  let session = null;
+  try {
+    session = await auth();
+  } catch (err) {
+    // A broken session must never take the home page down - the visitor is simply a guest
+    // (mirrors `currentUserId()` in `@/auth`, which this page cannot reuse directly since it also
+    // needs the display name for the greeting, not just the id).
+    console.error("[home] could not read the session", err);
+  }
+  if (!session?.user) return <Landing />;
+  return <Dashboard name={session.user.name ?? null} />;
 }

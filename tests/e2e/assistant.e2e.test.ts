@@ -170,7 +170,7 @@ describe("the AI Assistant in a real browser, with no AI runtime configured", ()
       .getByTestId("assistant-request")
       .fill("Convert this PDF to Excel, remove the first 2 pages, then compress the result");
     await attachPdf(page);
-    await page.getByRole("button", { name: "Plan it" }).click();
+    await page.getByRole("button", { name: "Send" }).click();
 
     const plan = page.getByTestId("assistant-plan");
     await plan.waitFor({ state: "visible", timeout: 30_000 });
@@ -201,7 +201,7 @@ describe("the AI Assistant in a real browser, with no AI runtime configured", ()
     const page = await newPage();
     await page.goto(`${baseUrl()}/assistant`);
     await page.getByTestId("assistant-request").fill("generate a 3D model of a house");
-    await page.getByRole("button", { name: "Plan it" }).click();
+    await page.getByRole("button", { name: "Send" }).click();
 
     const panel = page.getByTestId("external-recommendations");
     await panel.waitFor({ state: "visible", timeout: 30_000 });

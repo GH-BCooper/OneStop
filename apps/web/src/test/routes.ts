@@ -7,7 +7,15 @@ export interface RouteCase {
 }
 
 export const routeCases: RouteCase[] = [
-  { path: "/", load: () => import("@/app/page"), heading: /what do you want to do/i },
+  // "/" renders the signed-out marketing Landing page or the personalized Dashboard - which one
+  // depends on whether accounts are configured and (for this generic smoke test) the default
+  // unauthenticated session mock, so the heading matches either. shell.test.tsx's own "home page"
+  // tests cover both variants explicitly by toggling the mocked session.
+  {
+    path: "/",
+    load: () => import("@/app/page"),
+    heading: /one stop|good (morning|afternoon|evening)/i,
+  },
   { path: "/assistant", load: () => import("@/app/assistant/page"), heading: /ai assistant/i },
   { path: "/tools", load: () => import("@/app/tools/page"), heading: /all tools/i },
   {

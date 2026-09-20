@@ -187,8 +187,9 @@ describe("behaviour", () => {
     await expect(
       nav.getByRole("link", { name: /All Tools/ }).getAttribute("aria-current"),
     ).resolves.toBe("page");
+    // "Home" is not a nav link (the logo/wordmark link to "/" instead - item 12 of the redesign).
     await expect(
-      nav.getByRole("link", { name: /Home/ }).getAttribute("aria-current"),
+      nav.getByRole("link", { name: /Workflows/ }).getAttribute("aria-current"),
     ).resolves.toBe(null);
     await nav.getByRole("link", { name: /History/ }).click();
     await page.waitForURL("**/history");

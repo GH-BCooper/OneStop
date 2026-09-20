@@ -99,7 +99,6 @@ export function AuthForm<K extends string>({
                 ? "Passwords don't match."
                 : undefined;
             const shared = {
-              key: f.name,
               name: f.name,
               label: f.label,
               autoComplete: f.autoComplete,
@@ -114,9 +113,9 @@ export function AuthForm<K extends string>({
               },
             };
             return f.type === "password" ? (
-              <PasswordInput {...shared} />
+              <PasswordInput key={f.name} {...shared} />
             ) : (
-              <Input {...shared} type={f.type} />
+              <Input key={f.name} {...shared} type={f.type} />
             );
           })}
           {formError && (
