@@ -95,13 +95,13 @@ describe("login form", () => {
     expect(signIn).not.toHaveBeenCalled();
   });
 
-  it("signs in and goes to the account page", async () => {
+  it("signs in and goes home", async () => {
     signIn.mockResolvedValue({ ok: true, error: null });
     render(<LoginForm />);
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "me@example.com" } });
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "a-good-password" } });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-    await waitFor(() => expect(navigation.push).toHaveBeenCalledWith("/account"));
+    await waitFor(() => expect(navigation.push).toHaveBeenCalledWith("/"));
     expect(signIn).toHaveBeenCalledWith("credentials", {
       email: "me@example.com",
       password: "a-good-password",
@@ -175,7 +175,7 @@ describe("signup form", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
 
-    await waitFor(() => expect(navigation.push).toHaveBeenCalledWith("/account"));
+    await waitFor(() => expect(navigation.push).toHaveBeenCalledWith("/"));
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/auth/signup");

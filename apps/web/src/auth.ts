@@ -112,7 +112,7 @@ export const authConfig: NextAuthConfig = {
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
   secret: authSecret(),
   trustHost: true,
-  pages: { signIn: "/auth/login", newUser: "/account", error: "/auth/login" },
+  pages: { signIn: "/auth/login", newUser: "/", error: "/auth/login" },
   providers: providers(),
   callbacks: {
     async jwt({ token, user, trigger, session }) {

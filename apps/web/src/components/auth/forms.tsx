@@ -66,7 +66,7 @@ export function LoginForm({ googleEnabled = false, available = true }: AuthFormO
   const router = useRouter();
   const params = useSearchParams();
   const next = params?.get("next");
-  const callbackUrl = next && next.startsWith("/") ? next : "/account";
+  const callbackUrl = next && next.startsWith("/") ? next : "/";
 
   return (
     <AuthForm
@@ -100,6 +100,9 @@ export function LoginForm({ googleEnabled = false, available = true }: AuthFormO
 
 export function SignupForm({ googleEnabled = false, available = true }: AuthFormOptions) {
   const router = useRouter();
+  const params = useSearchParams();
+  const next = params?.get("next");
+  const callbackUrl = next && next.startsWith("/") ? next : "/";
 
   return (
     <AuthForm
@@ -136,11 +139,11 @@ export function SignupForm({ googleEnabled = false, available = true }: AuthForm
         if (!signedIn || signedIn.error) {
           return { message: "Account created. Sign in to continue." };
         }
-        router.push("/account");
+        router.push(callbackUrl);
         router.refresh();
-        return { message: "Account created. Taking you to your account…" };
+        return { message: "Account created. Taking you in…" };
       }}
-      extra={<GoogleButton enabled={googleEnabled && available} callbackUrl="/account" />}
+      extra={<GoogleButton enabled={googleEnabled && available} callbackUrl={callbackUrl} />}
       footer={[{ text: "Already have an account?", linkLabel: "Sign in", href: "/auth/login" }]}
     />
   );

@@ -17,6 +17,60 @@ import { buildPlan, type PlanContext } from "./planner.ts";
 import type { AiCredentials } from "./providers.ts";
 import { recommendationsFor } from "./recommendations.ts";
 
+const GREETING_SYSTEM = [
+  "You are the OneStop Assistant, a friendly helper built into OneStop: a free, local-first file/PDF/image/data/media/QR/developer toolbox.",
+  "Write exactly one short, warm, upbeat welcome message (under 20 words) inviting the person to describe a task or attach a file.",
+  "Be genuinely playful and inventive - vary your wording, tone and any wordplay every time so it never reads like a fixed script.",
+  "No quotation marks, no markdown, no emoji spam (at most one), just the one sentence.",
+].join("\n");
+
+const FALLBACK_GREETINGS: ((label: string, timeOfDay: string) => string)[] = [
+  (label) => `Welcome back, ${label}! What would you like to convert, merge or clean up today?`,
+  (label) => `Hey ${label} — ready when you are. Drop a file or tell me what you need done.`,
+  (label, t) => `Good ${t}, ${label}! Pick a task and let's get it done.`,
+  (label) => `Hi ${label}! Files, PDFs, images, data — what are we tackling today?`,
+  (label) => `${label}, what shall we transform today? I'm all ears.`,
+  (label) => `Back for more, ${label}? Tell me what to do and I'll line up the right tool.`,
+];
+
+/**
+ * A short, personalised hello for the assistant's empty chat screen. When a runtime is
+ * available the model itself writes the line (so it genuinely varies visit to visit, per the
+ * build file's "let the assistant decide" ask); with no runtime configured - which must always
+ * keep working, CLAUDE.md §2 - a small pool of hand-written lines stands in, picked at random
+ * rather than a single fixed string.
+ */
+export async function greetUser(
+  name: string | null,
+  credentials: AiCredentials = {},
+  signal?: AbortSignal,
+): Promise<{ message: string; runtime: AssistantPlan["runtime"] }> {
+  const label = name?.trim() || "there";
+  const hour = new Date().getHours();
+  const timeOfDay = hour < 5 ? "night" : hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
+  try {
+    const { text, config } = await chat(
+      [
+        { role: "system", content: GREETING_SYSTEM },
+        {
+          role: "user",
+          content: `Greet ${label}. It is currently the ${timeOfDay} where they are.`,
+        },
+      ],
+      { temperature: 1, maxTokens: 60, ...(signal ? { signal } : {}) },
+      credentials,
+    );
+    const message = text.trim().replace(/^["']|["']$/g, "");
+    return {
+      message: message === "" ? FALLBACK_GREETINGS[0]!(label, timeOfDay) : message,
+      runtime: { provider: config.provider, model: config.model, local: config.info.local },
+    };
+  } catch {
+    const pick = FALLBACK_GREETINGS[Math.floor(Math.random() * FALLBACK_GREETINGS.length)]!;
+    return { message: pick(label, timeOfDay), runtime: null };
+  }
+}
+
 const CHAT_SYSTEM = [
   "You are the OneStop Assistant, built into OneStop: a free, local-first file/PDF/image/data/media/QR/developer toolbox.",
   "Chat naturally and helpfully, in a few short sentences unless asked for more.",

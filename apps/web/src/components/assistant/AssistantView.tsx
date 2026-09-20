@@ -270,6 +270,7 @@ export function AssistantView() {
   const [request, setRequest] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [status, setStatus] = useState<AiStatus | null>(null);
+  const [greeting, setGreeting] = useState<string | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [composerError, setComposerError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -298,6 +299,25 @@ export function AssistantView() {
     void loadStatus(controller.signal);
     return () => controller.abort();
   }, [loadStatus]);
+
+  // One hello per visit to the empty screen - fetched once, not re-fetched as turns come and go.
+  useEffect(() => {
+    const controller = new AbortController();
+    const picked = readPreferredAI();
+    const query = picked ? `?provider=${encodeURIComponent(picked)}` : "";
+    fetch(`/api/assistant/greeting${query}`, {
+      headers: aiHeaders(picked),
+      signal: controller.signal,
+    })
+      .then((response) => response.json())
+      .then((body: { greeting?: { message?: string } }) => {
+        if (body.greeting?.message) setGreeting(body.greeting.message);
+      })
+      .catch(() => {
+        // No greeting is a cosmetic loss, never a blocker - the composer works either way.
+      });
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     transcriptEnd.current?.scrollIntoView?.({ behavior: "smooth", block: "end" });
@@ -492,6 +512,13 @@ export function AssistantView() {
     return (
       <div className="flex flex-col gap-6" data-testid="assistant">
         <RuntimeStatus status={status} />
+        {greeting && (
+          <div className="mx-auto w-full max-w-2xl">
+            <Bubble from="assistant">
+              <p data-testid="assistant-greeting">{greeting}</p>
+            </Bubble>
+          </div>
+        )}
         <div className="mx-auto w-full max-w-2xl">{composer}</div>
         <div className="flex flex-col items-center gap-4 py-6 text-center">
           <p className="text-2xl font-bold">What would you like done?</p>
