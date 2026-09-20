@@ -22,28 +22,62 @@ const STEPS = [
   },
 ];
 
+const HIGHLIGHTS = [
+  { label: "Every category, one app", detail: "PDFs, images, documents, spreadsheets, audio, video, QR and more." },
+  { label: "$0 required", detail: "No mandatory paid API, subscription or account — every core feature is free." },
+  { label: "Local-first", detail: "Files are processed on the server that runs OneStop and deleted right after." },
+];
+
 export function Landing() {
+  const toolCount = GROUPS.reduce((sum, c) => sum + toolsForCatalogPage(c.id).length, 0);
   return (
     <div className="flex flex-col gap-20 pb-8">
       <section className="flex flex-col items-center gap-6 pt-8 text-center">
-        <Image src="/images/Logo.png" alt="OneStop" width={72} height={72} className="rounded-2xl" priority />
-        <h1 className="max-w-3xl text-3xl font-bold tracking-tight sm:text-5xl">
+        <Image
+          src="/images/Logo.png"
+          alt="OneStop"
+          width={112}
+          height={112}
+          className="os-enter rounded-2xl"
+          priority
+        />
+        <h1 className="os-enter os-enter-1 max-w-3xl text-4xl font-bold tracking-tight sm:text-6xl">
           Every file. Every format. <span className="brand-gradient">One stop.</span>
         </h1>
-        <p className="max-w-2xl text-fg-muted">
+        <p className="os-enter os-enter-2 max-w-2xl text-lg text-fg-muted">
           OneStop converts, edits and inspects PDFs, images, documents, spreadsheets, audio, video,
-          QR codes and more — free and local-first. Sign in only if you want your history,
-          favourites and workflows to follow you; every tool works either way.
+          QR codes and more — free and local-first. Sign in to run tools, keep history, favourites
+          and workflows, and pick up right where you left off on any device.
         </p>
-        <Link href="/auth/signup" className={buttonClasses("primary", "lg")}>
-          Get Started
-        </Link>
+        <div className="os-enter os-enter-3 flex flex-wrap items-center justify-center gap-3 text-lg">
+          <Link href="/auth/signup" className={buttonClasses("primary", "lg")}>
+            Get Started
+          </Link>
+          <span className="text-fg-muted">
+            Already have an account?{" "}
+            <Link href="/auth/login" className="font-medium text-primary hover:underline">
+              Sign in
+            </Link>
+          </span>
+        </div>
+        <dl className="os-enter os-enter-4 grid grid-cols-1 gap-4 pt-4 sm:grid-cols-3">
+          {HIGHLIGHTS.map((h) => (
+            <div key={h.label} className="max-w-xs text-center">
+              <dt className="text-base font-semibold">{h.label}</dt>
+              <dd className="text-sm text-fg-muted">{h.detail}</dd>
+            </div>
+          ))}
+        </dl>
       </section>
 
       <section aria-labelledby="features-heading" className="flex flex-col gap-6">
-        <h2 id="features-heading" className="text-center text-2xl font-semibold">
+        <h2 id="features-heading" className="text-center text-2xl font-semibold sm:text-3xl">
           Everything in one place
         </h2>
+        <p className="mx-auto max-w-2xl text-center text-base text-fg-muted">
+          {toolCount}+ tools across {GROUPS.length} categories — browse the whole catalogue any
+          time, no account needed.
+        </p>
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {GROUPS.map((c) => (
             <li key={c.id}>
@@ -63,11 +97,27 @@ export function Landing() {
               </Link>
             </li>
           ))}
+          <li>
+            <Link
+              href="/tools"
+              className="block h-full rounded-lg focus-visible:outline-2 focus-visible:outline-ring"
+            >
+              <Card interactive className="flex h-full items-center gap-3 border-primary/40">
+                <span aria-hidden="true" className="text-2xl">
+                  🧰
+                </span>
+                <div className="min-w-0">
+                  <CardTitle>Browse All Tools</CardTitle>
+                  <CardDescription>Every tool, searchable in one catalogue</CardDescription>
+                </div>
+              </Card>
+            </Link>
+          </li>
         </ul>
       </section>
 
       <section aria-labelledby="how-heading" className="flex flex-col gap-6">
-        <h2 id="how-heading" className="text-center text-2xl font-semibold">
+        <h2 id="how-heading" className="text-center text-2xl font-semibold sm:text-3xl">
           How it works
         </h2>
         <ol className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -89,18 +139,20 @@ export function Landing() {
       </section>
 
       <section className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-surface-muted p-10 text-center">
-        <h2 className="text-2xl font-semibold">Ready to get started?</h2>
-        <p className="max-w-xl text-fg-muted">
-          Create a free account for saved history and favourites, or jump straight into any tool as
-          a guest.
+        <h2 className="text-2xl font-semibold sm:text-3xl">Ready to get started?</h2>
+        <p className="max-w-xl text-lg text-fg-muted">
+          Create a free account to run tools, save history and favourites, and build workflows.
         </p>
-        <div className="flex flex-wrap items-center justify-center gap-3">
+        <div className="flex flex-wrap items-center justify-center gap-3 text-lg">
           <Link href="/auth/signup" className={buttonClasses("primary", "lg")}>
             Get Started
           </Link>
-          <Link href="/tools" className={buttonClasses("secondary", "lg")}>
-            Browse tools as a guest
-          </Link>
+          <span className="text-fg-muted">
+            Already have an account?{" "}
+            <Link href="/auth/login" className="font-medium text-primary hover:underline">
+              Sign in
+            </Link>
+          </span>
         </div>
       </section>
     </div>

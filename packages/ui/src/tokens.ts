@@ -11,10 +11,10 @@ export const THEME_STORAGE_KEY = "onestop-theme";
 // functional color (buttons, borders, status) still comes from the semantic tokens above it.
 export const colors = {
   light: {
-    bg: "#f5f4fb",
+    bg: "#eef0f5",
     surface: "#ffffff",
-    "surface-muted": "#eeecf9",
-    border: "#dcd8ee",
+    "surface-muted": "#e8eaf1",
+    border: "#d6dae4",
     fg: "#1c1533",
     "fg-muted": "#5b5573",
     primary: "#6d28d9",
@@ -26,6 +26,8 @@ export const colors = {
     ring: "#7c3aed",
     "shine-start": "#4c1d95",
     "shine-end": "#8b8fb8",
+    "bg-image":
+      "radial-gradient(circle at 15% 0%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 45%), linear-gradient(135deg, #f4f5f9 0%, #e3e6ee 25%, #f8f9fc 50%, #dfe2ec 75%, #f4f5f9 100%)",
   },
   dark: {
     bg: "#0a0716",
@@ -43,6 +45,8 @@ export const colors = {
     ring: "#c4b5fd",
     "shine-start": "#c4b5fd",
     "shine-end": "#f5f3ff",
+    "bg-image":
+      "radial-gradient(circle at 85% 0%, rgba(196,181,253,0.16) 0%, rgba(196,181,253,0) 45%), linear-gradient(135deg, #0a0716 0%, #180f30 30%, #241a44 55%, #120a24 80%, #0a0716 100%)",
   },
 } as const satisfies Record<ThemeMode, Record<string, string>>;
 

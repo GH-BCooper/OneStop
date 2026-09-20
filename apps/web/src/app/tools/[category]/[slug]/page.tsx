@@ -1,8 +1,9 @@
 import { getCategory, getToolByRoute, inputKind, tools, typeLabel } from "@onestop/tool-registry";
-import { buttonClasses } from "@onestop/ui";
+import { buttonClasses, Card } from "@onestop/ui";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { auth, authIsConfigured } from "@/auth";
 import { ToolBadges } from "@/components/tools/ToolBadges";
 import { ToolNotices } from "@/components/tools/ToolNotices";
 import { ToolPage } from "@/components/tools/ToolPage";
@@ -34,6 +35,20 @@ export default async function ToolRoute({ params }: Props) {
   if (!tool) notFound();
   const categoryName = getCategory(tool.category)?.name ?? tool.category;
   const kind = inputKind(tool);
+
+  // Anyone can browse the catalogue, but actually using a tool needs an account (owner's product
+  // decision). When this instance has no accounts configured at all, nobody could ever sign in,
+  // so the gate would just lock the app — skip it, mirroring the home page's same fallback.
+  let signedIn = true;
+  if (tool.id !== "ai-assistant" && authIsConfigured()) {
+    signedIn = false;
+    try {
+      const session = await auth();
+      signedIn = Boolean(session?.user);
+    } catch (err) {
+      console.error("[tool-route] could not read the session", err);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -67,6 +82,28 @@ export default async function ToolRoute({ params }: Props) {
             <span aria-hidden="true">✨</span> Open the AI Assistant
           </Link>
         </div>
+      ) : !signedIn ? (
+        <Card className="flex flex-col items-start gap-3 border-warning">
+          <h2 className="text-lg font-semibold">Sign in required</h2>
+          <p className="text-sm text-fg-muted">
+            You can browse every tool for free, but running {tool.name} needs an account. It only
+            takes a moment, and it&rsquo;s free.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/auth/signup?next=/tools/${tool.category}/${tool.slug}`}
+              className={buttonClasses("primary")}
+            >
+              Sign up
+            </Link>
+            <Link
+              href={`/auth/login?next=/tools/${tool.category}/${tool.slug}`}
+              className={buttonClasses("secondary")}
+            >
+              Sign in
+            </Link>
+          </div>
+        </Card>
       ) : (
         <>
           {/* Camera scanning happens entirely in the browser, so it sits beside the upload form

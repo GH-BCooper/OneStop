@@ -104,6 +104,18 @@ export function ytdlpFailure(err: YtdlpRunError): { code: ExecErrorCode; message
         "That quality is not offered for this video. Run the Quality Selector and pick one of the listed options.",
     };
   }
+  // YouTube's bot-check ("Sign in to confirm you're not a bot") is not the same thing as a
+  // genuinely private video: it is triggered by the *server's* IP address looking automated
+  // (common for cloud hosts like Render), and no video is actually restricted. Reporting it as
+  // "this video is private" was flatly wrong and confused users whose link worked fine elsewhere -
+  // it has to be told apart from a real login/age wall before either message is chosen.
+  if (/Sign in to confirm you're not a bot|not a bot/i.test(text)) {
+    return {
+      code: "FAILED",
+      message:
+        "YouTube is asking this server to verify it isn't a bot — this happens on cloud-hosted servers and is not about the video itself. Wait a few minutes and try again, or try a different network.",
+    };
+  }
   if (
     /Private video|This video is private|login required|Sign in to confirm|requires authentication|rate-limit reached|Restricted Video/i.test(
       text,

@@ -399,6 +399,7 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
         state={state}
         toolName={tool.name}
         acceptedTypes={kind === "file" ? accepted : undefined}
+        historySaved={signedIn || readLocalPreferences().saveHistory}
         onReset={() => dispatch({ type: "RESET" })}
         onDownload={download}
       />

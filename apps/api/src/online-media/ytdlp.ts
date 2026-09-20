@@ -183,6 +183,13 @@ export function baseArgs(): string[] {
   if (ffmpeg) args.push("--ffmpeg-location", path.dirname(ffmpeg.ffmpeg));
   if (process.env.YTDLP_COOKIES_FILE) args.push("--cookies", process.env.YTDLP_COOKIES_FILE);
   if (process.env.YTDLP_PROXY) args.push("--proxy", process.env.YTDLP_PROXY);
+  // A cloud host's IP address often trips YouTube's "confirm you're not a bot" wall, which has
+  // nothing to do with the video itself (see `ytdlpFailure` in common.ts). Asking for the Android
+  // client first is a free, well-known workaround — it uses a different auth flow that YouTube
+  // does not gate the same way. Set YTDLP_YT_CLIENT=default to turn this back off.
+  if (process.env.YTDLP_YT_CLIENT !== "default") {
+    args.push("--extractor-args", "youtube:player_client=android,web");
+  }
   return args;
 }
 

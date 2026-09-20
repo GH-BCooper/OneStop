@@ -12,8 +12,8 @@ import { getTool, toolHref } from "@onestop/tool-registry";
 import type { AiStatus, AssistantPlan, WorkflowRunResult } from "@onestop/types";
 import { Badge, Button, buttonClasses } from "@onestop/ui";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { formatBytes, UploadZone } from "@/components/tools/UploadZone";
+import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
+import { checkFiles, formatBytes } from "@/components/tools/UploadZone";
 import { aiHeaders, readPreferredAI } from "@/lib/preferences";
 import { Recommendations } from "./Recommendations";
 
@@ -272,7 +272,9 @@ export function AssistantView() {
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [composerError, setComposerError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const transcriptEnd = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const provider = typeof window === "undefined" ? null : readPreferredAI();
 
@@ -302,6 +304,22 @@ export function AssistantView() {
   }, [turns]);
 
   const busy = turns.some((t) => t.status === "planning" || t.status === "running");
+
+  const addFiles = (picked: File[]) => {
+    if (picked.length === 0) return;
+    const next = [...files, ...picked];
+    const problem = checkFiles(ANY_FILE, next);
+    if (problem) {
+      setComposerError(problem);
+      return;
+    }
+    setComposerError(null);
+    setFiles(next);
+  };
+
+  const removeFileAt = (index: number) => {
+    setFiles((all) => all.filter((_, i) => i !== index));
+  };
 
   const updateTurn = (id: string, patch: Partial<Turn>) => {
     setTurns((all) => all.map((t) => (t.id === id ? { ...t, ...patch } : t)));
@@ -378,27 +396,76 @@ export function AssistantView() {
   };
 
   const composer = (
-    <div className="flex flex-col gap-3">
-      <UploadZone
-        tool={ANY_FILE}
-        files={files}
-        disabled={busy}
-        onSelect={(picked) => {
-          setFiles(picked);
-          setComposerError(null);
-        }}
-        onReject={setComposerError}
-      />
+    <div
+      data-testid="assistant-composer"
+      data-dragging={dragging ? "true" : "false"}
+      onDragOver={(e: DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        if (!busy) setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e: DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setDragging(false);
+        if (!busy) addFiles(Array.from(e.dataTransfer.files));
+      }}
+      className={`flex flex-col gap-2 rounded-2xl border p-2 transition-colors ${
+        dragging ? "border-primary bg-surface-muted" : "border-border bg-surface"
+      }`}
+    >
+      {files.length > 0 && (
+        <ul className="flex flex-wrap gap-1.5 px-1 pt-1" aria-label="Attached files">
+          {files.map((file, i) => (
+            <li
+              key={`${file.name}-${file.size}-${i}`}
+              className="flex items-center gap-1.5 rounded-full bg-surface-muted px-2.5 py-1 text-xs"
+            >
+              <span className="max-w-40 truncate">📎 {file.name}</span>
+              <span className="text-fg-muted">{formatBytes(file.size)}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${file.name}`}
+                disabled={busy}
+                className="text-fg-muted hover:text-danger disabled:opacity-60"
+                onClick={() => removeFileAt(i)}
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       <label htmlFor="assistant-request" className="sr-only">
         Message the assistant
       </label>
       <div className="flex items-end gap-2">
+        <button
+          type="button"
+          aria-label="Attach files"
+          disabled={busy}
+          onClick={() => fileInputRef.current?.click()}
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-border text-lg hover:bg-surface-muted disabled:opacity-60"
+        >
+          <span aria-hidden="true">📎</span>
+        </button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          aria-label="Attach files"
+          className="sr-only"
+          disabled={busy}
+          onChange={(e) => {
+            addFiles(Array.from(e.target.files ?? []));
+            e.target.value = "";
+          }}
+        />
         <textarea
           id="assistant-request"
           data-testid="assistant-request"
           rows={2}
-          className="w-full flex-1 rounded-md border border-border bg-surface p-3 text-sm text-fg focus-visible:outline-2 focus-visible:outline-ring"
-          placeholder="Ask anything, or describe a task — e.g. convert this PDF to Excel"
+          className="w-full flex-1 resize-none rounded-md border-0 bg-transparent p-2 text-sm text-fg focus-visible:outline-2 focus-visible:outline-ring"
+          placeholder="Ask anything, or describe a task — e.g. convert this PDF to Excel — or attach any file"
           value={request}
           disabled={busy}
           onKeyDown={(e) => {
@@ -414,7 +481,7 @@ export function AssistantView() {
         </Button>
       </div>
       {composerError && (
-        <p role="alert" className="text-sm text-danger">
+        <p role="alert" className="px-1 text-sm text-danger">
           {composerError}
         </p>
       )}
@@ -425,6 +492,7 @@ export function AssistantView() {
     return (
       <div className="flex flex-col gap-6" data-testid="assistant">
         <RuntimeStatus status={status} />
+        <div className="mx-auto w-full max-w-2xl">{composer}</div>
         <div className="flex flex-col items-center gap-4 py-6 text-center">
           <p className="text-2xl font-bold">What would you like done?</p>
           <p className="max-w-xl text-sm text-fg-muted">
@@ -445,7 +513,6 @@ export function AssistantView() {
             ))}
           </div>
         </div>
-        <div className="mx-auto w-full max-w-2xl">{composer}</div>
       </div>
     );
   }

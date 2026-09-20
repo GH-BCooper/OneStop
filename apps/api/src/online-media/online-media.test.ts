@@ -343,7 +343,18 @@ describe("error handling", () => {
       "ERROR: [youtube] abc: Private video. Sign in if you've been granted access",
       /private, age-restricted/,
     ],
-    ["a login wall", "ERROR: Sign in to confirm you're not a bot", /private, age-restricted/],
+    [
+      "a real login wall",
+      "ERROR: [youtube] abc: This video requires sign in to confirm your age",
+      /private, age-restricted/,
+    ],
+    [
+      // YouTube's bot-check is about the *server's* IP address, not the video - it must never be
+      // reported as "this video is private" (that was misleading users whose link worked fine).
+      "a bot-check from the platform (not actually a private video)",
+      "ERROR: Sign in to confirm you're not a bot",
+      /not about the video itself/,
+    ],
     [
       "an unsupported link",
       "ERROR: Unsupported URL: https://example.com/x",

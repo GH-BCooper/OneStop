@@ -39,6 +39,39 @@ const THEMES: { id: ThemePreference; label: string }[] = [
 const fieldClass =
   "h-10 w-full min-w-0 rounded-md border border-border bg-surface px-3 text-sm text-fg focus-visible:outline-2 focus-visible:outline-ring";
 
+/** An on/off switch, styled like a native toggle rather than a checkbox. */
+function Switch({
+  checked,
+  disabled,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onChange: (next: boolean) => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative h-6 w-11 shrink-0 rounded-full border transition-colors focus-visible:outline-2 focus-visible:outline-ring ${
+        checked ? "border-primary bg-primary" : "border-border bg-surface-muted"
+      } ${disabled ? "opacity-60" : ""}`}
+    >
+      <span
+        className={`absolute top-0.5 h-4.5 w-4.5 rounded-full bg-white shadow transition-transform ${
+          checked ? "translate-x-5.5" : "translate-x-0.5"
+        }`}
+      />
+    </button>
+  );
+}
+
 export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) {
   const { data: session, status } = useSession();
   const signedIn = Boolean(session?.user);
@@ -299,21 +332,20 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
             retention window. Nothing is ever stored in the cloud unless you ask for it.
           </CardDescription>
         </div>
-        <label className="flex items-start gap-3 text-sm">
-          <input
-            type="checkbox"
-            className="mt-1"
-            checked={prefs.saveHistory}
-            disabled={!ready}
-            onChange={(e) => void changePref("saveHistory", e.target.checked)}
-          />
+        <label className="flex items-center justify-between gap-3 text-sm">
           <span>
-            Keep a history of what I run
+            Save work to history
             <span className="block text-xs text-fg-muted">
               Off means nothing is written to this device&rsquo;s history.
               {signedIn && " Runs are still recorded on your account."}
             </span>
           </span>
+          <Switch
+            label="Save work to history"
+            checked={prefs.saveHistory}
+            disabled={!ready}
+            onChange={(next) => void changePref("saveHistory", next)}
+          />
         </label>
         <label className="flex items-start gap-3 text-sm">
           <input

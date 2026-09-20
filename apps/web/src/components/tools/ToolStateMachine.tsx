@@ -3,6 +3,7 @@
 import type { FileRef, OutputFileRef } from "@onestop/types";
 import { Button, buttonClasses, Card } from "@onestop/ui";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 export const TOOL_STATES = [
   "empty",
@@ -109,6 +110,8 @@ export interface ToolStateViewProps {
   state: ToolState;
   toolName: string;
   acceptedTypes?: string;
+  /** Whether this run was actually written to history — drives the confirmation line below. */
+  historySaved?: boolean;
   onReset?: () => void;
   onDownload?: () => void;
 }
@@ -130,9 +133,49 @@ const unavailableTitles: Record<UnavailableReason, string> = {
   "auth-required": "Sign in required",
 };
 
-/** Result files a browser can show inline. At most four, so a big batch stays readable. */
+/** Result files a browser can show inline, without downloading first. At most four. */
 function previewable(files: OutputFileRef[] | undefined): OutputFileRef[] {
-  return (files ?? []).filter((f) => f.mimeType.startsWith("image/")).slice(0, 4);
+  return (files ?? [])
+    .filter(
+      (f) =>
+        f.mimeType.startsWith("image/") ||
+        f.mimeType.startsWith("video/") ||
+        f.mimeType.startsWith("audio/") ||
+        f.mimeType === "application/pdf",
+    )
+    .slice(0, 4);
+}
+
+function FilePreview({ file }: { file: OutputFileRef }) {
+  if (file.mimeType.startsWith("image/")) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={file.url}
+        alt={file.name}
+        className="max-h-80 w-auto rounded-lg border border-border bg-white p-2"
+      />
+    );
+  }
+  if (file.mimeType.startsWith("video/")) {
+    return (
+      <video
+        src={file.url}
+        controls
+        className="max-h-80 w-full max-w-md rounded-lg border border-border bg-black"
+      />
+    );
+  }
+  if (file.mimeType.startsWith("audio/")) {
+    return <audio src={file.url} controls className="w-full max-w-md" />;
+  }
+  return (
+    <iframe
+      src={file.url}
+      title={file.name}
+      className="h-96 w-full rounded-lg border border-border bg-white"
+    />
+  );
 }
 
 /** Renders the result/progress panel for the current state. */
@@ -140,9 +183,15 @@ export function ToolStateView({
   state,
   toolName,
   acceptedTypes,
+  historySaved,
   onReset,
   onDownload,
 }: ToolStateViewProps) {
+  const [showPreview, setShowPreview] = useState(false);
+  useEffect(() => {
+    setShowPreview(false);
+  }, [state.files]);
+  const previewFiles = previewable(state.files);
   const title =
     state.status === "unavailable" && state.reason
       ? unavailableTitles[state.reason]
@@ -193,27 +242,24 @@ export function ToolStateView({
               Result files are deleted from the server automatically — download them now.
             </p>
           )}
-          {/* An image result is worth seeing before downloading it — a QR code especially, since
-              the whole point is to point a phone at it (11-qr-tools.md). */}
-          {previewable(state.files).length > 0 && (
+          {showPreview && previewFiles.length > 0 && (
             <div className="flex flex-wrap gap-3" data-testid="result-preview">
-              {previewable(state.files).map((file) => (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={file.id}
-                  src={file.url}
-                  alt={file.name}
-                  className="max-h-64 w-auto rounded-lg border border-border bg-white p-2"
-                />
+              {previewFiles.map((file) => (
+                <FilePreview key={file.id} file={file} />
               ))}
             </div>
           )}
           {state.output !== undefined && (
-            <pre className="max-h-64 overflow-auto rounded-md bg-surface-muted p-3 text-xs">
-              {JSON.stringify(state.output, null, 2)}
-            </pre>
+            <details className="rounded-md bg-surface-muted p-3 text-xs">
+              <summary className="cursor-pointer select-none font-medium text-fg-muted">
+                Technical details
+              </summary>
+              <pre className="mt-2 max-h-64 overflow-auto">
+                {JSON.stringify(state.output, null, 2)}
+              </pre>
+            </details>
           )}
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {state.files && state.files.length > 0 ? (
               state.files.map((file) => (
                 <a
@@ -229,15 +275,24 @@ export function ToolStateView({
             ) : (
               <Button onClick={onDownload}>Download</Button>
             )}
-            {/* Every run is recorded now (14-history-favorites.md): to the account when signed
-                in, to this device's IndexedDB otherwise. So "Save" became "go and see it". */}
-            <Link href="/history" className={buttonClasses("secondary")}>
-              Saved to history
-            </Link>
+            {previewFiles.length > 0 && (
+              <Button
+                variant="secondary"
+                onClick={() => setShowPreview((v) => !v)}
+                data-testid="preview-toggle"
+              >
+                {showPreview ? "Hide preview" : "Preview"}
+              </Button>
+            )}
             <Button variant="ghost" onClick={onReset}>
               Run again
             </Button>
           </div>
+          {historySaved && (
+            <p className="flex items-center gap-1.5 text-sm text-success">
+              <span aria-hidden="true">✓</span> Saved to history
+            </p>
+          )}
         </>
       )}
 
