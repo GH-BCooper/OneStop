@@ -407,7 +407,11 @@ export function AccountView(props: AccountViewProps) {
         <div>
           <h1 className="text-2xl font-bold">Account</h1>
           <p className="text-sm text-fg-muted">
-            {user.email} · joined {new Date(user.createdAt).toLocaleDateString()}
+            {/* A fixed locale, not the browser's: the server renders this same text first, and an
+                unpinned toLocaleDateString() can disagree with the client's OS locale (seen live
+                as "9/20/2026" vs "20/9/2026"), which is a real hydration-mismatch bug, not a
+                cosmetic one. */}
+            {user.email} · joined {new Date(user.createdAt).toLocaleDateString("en-US")}
           </p>
         </div>
         <Button variant="secondary" onClick={() => void signOut({ redirectTo: "/" })}>
