@@ -63,14 +63,14 @@ describe("route smoke test", () => {
 });
 
 describe("primary nav", () => {
-  it("lists the six sections in §18 order", () => {
+  it("lists the four sections in §18 order (Home and Account are not nav links)", () => {
+    // The logo/wordmark link to "/" already, and "Account" became the header's dropdown
+    // (`AccountMenu`) rather than a plain nav link - see CLAUDE.md item 12 of the redesign.
     expect(primaryNav.map((i) => i.label)).toEqual([
-      "Home",
       "AI Assistant",
       "All Tools",
       "Workflows",
       "History",
-      "Account",
     ]);
   });
 

@@ -1,4 +1,5 @@
 // The auth module's public surface (13-auth-database.md).
+export * from "./avatar.ts";
 export * from "./emails.ts";
 export * from "./passwords.ts";
 export * from "./users.ts";

@@ -5,36 +5,44 @@ export type ThemeMode = "light" | "dark";
 
 export const THEME_STORAGE_KEY = "onestop-theme";
 
+// "Royal" palette: a shiny, silvery royal-purple in light mode and a deep royal-purple/near-black
+// in dark mode, matched to the OneStop logo (a violet/silver monogram on near-black). `shine-*`
+// is a second pair of stops used only for the gradient wordmark and a few hero accents — every
+// functional color (buttons, borders, status) still comes from the semantic tokens above it.
 export const colors = {
   light: {
-    bg: "#f8fafc",
+    bg: "#f5f4fb",
     surface: "#ffffff",
-    "surface-muted": "#f1f5f9",
-    border: "#e2e8f0",
-    fg: "#0f172a",
-    "fg-muted": "#475569",
-    primary: "#4f46e5",
-    "primary-hover": "#4338ca",
+    "surface-muted": "#eeecf9",
+    border: "#dcd8ee",
+    fg: "#1c1533",
+    "fg-muted": "#5b5573",
+    primary: "#6d28d9",
+    "primary-hover": "#5b21b6",
     "primary-fg": "#ffffff",
     success: "#15803d",
     warning: "#b45309",
     danger: "#b91c1c",
-    ring: "#6366f1",
+    ring: "#7c3aed",
+    "shine-start": "#4c1d95",
+    "shine-end": "#8b8fb8",
   },
   dark: {
-    bg: "#0b1120",
-    surface: "#111827",
-    "surface-muted": "#1f2937",
-    border: "#334155",
-    fg: "#f1f5f9",
-    "fg-muted": "#94a3b8",
-    primary: "#818cf8",
-    "primary-hover": "#a5b4fc",
-    "primary-fg": "#0b1120",
+    bg: "#0a0716",
+    surface: "#140f28",
+    "surface-muted": "#1f1938",
+    border: "#332a57",
+    fg: "#f2effc",
+    "fg-muted": "#a89fcb",
+    primary: "#a78bfa",
+    "primary-hover": "#c4b5fd",
+    "primary-fg": "#140825",
     success: "#4ade80",
     warning: "#fbbf24",
     danger: "#f87171",
-    ring: "#a5b4fc",
+    ring: "#c4b5fd",
+    "shine-start": "#c4b5fd",
+    "shine-end": "#f5f3ff",
   },
 } as const satisfies Record<ThemeMode, Record<string, string>>;
 

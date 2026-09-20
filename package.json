@@ -13,7 +13,7 @@
   },
   "scripts": {
     "dev": "npm run dev -w @onestop/web",
-    "build": "npm run db:generate && npm run build -w @onestop/web",
+    "build": "npm run db:generate && node scripts/maybe-migrate.mjs && npm run build -w @onestop/web",
     "start": "npm run start -w @onestop/web",
     "lint": "eslint . --max-warnings=0",
     "lint:fix": "eslint . --fix",

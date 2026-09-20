@@ -1,8 +1,8 @@
 "use client";
 
-import { Button, Card, Input } from "@onestop/ui";
+import { Button, Card, Input, PasswordInput } from "@onestop/ui";
 import Link from "next/link";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import type { FieldErrors } from "@/lib/validation";
 
 export interface AuthField<K extends string> {
@@ -86,24 +86,39 @@ export function AuthForm<K extends string>({
           {description && <p className="text-sm text-fg-muted">{description}</p>}
         </div>
         <form noValidate onSubmit={submit} className="flex flex-col gap-4">
-          {fields.map((f) => (
-            <Input
-              key={f.name}
-              name={f.name}
-              label={f.label}
-              type={f.type}
-              autoComplete={f.autoComplete}
-              hint={f.hint}
-              value={values[f.name]}
-              error={errors[f.name]}
-              disabled={pending}
-              onChange={(e) => {
+          {fields.map((f) => {
+            // "Confirm password" fields pair with the field literally named "password" - true of
+            // every AuthForm call site - and get a live mismatch warning as the visitor types,
+            // rather than waiting for a submit attempt to point out something they can see for
+            // themselves right now.
+            const isConfirm = f.name === "confirm";
+            const liveMismatch =
+              isConfirm &&
+              values[f.name] !== "" &&
+              values[f.name] !== (values as Record<string, string>)["password"]
+                ? "Passwords don't match."
+                : undefined;
+            const shared = {
+              key: f.name,
+              name: f.name,
+              label: f.label,
+              autoComplete: f.autoComplete,
+              hint: f.hint,
+              value: values[f.name],
+              error: errors[f.name] ?? liveMismatch,
+              disabled: pending,
+              onChange: (e: ChangeEvent<HTMLInputElement>) => {
                 setValues((v) => ({ ...v, [f.name]: e.target.value }));
                 setMessage(null);
                 setFormError(null);
-              }}
-            />
-          ))}
+              },
+            };
+            return f.type === "password" ? (
+              <PasswordInput {...shared} />
+            ) : (
+              <Input {...shared} type={f.type} />
+            );
+          })}
           {formError && (
             <p role="alert" className="rounded-md border border-danger/40 bg-danger/10 p-3 text-sm">
               {formError}

@@ -43,14 +43,22 @@ Both have a free tier with no card.
 
 That string is `DATABASE_URL`.
 
-Then apply the schema once, from your own machine:
+Once `DATABASE_URL` is set on the host, `npm run build` applies pending migrations itself
+(`scripts/maybe-migrate.mjs` runs `prisma migrate deploy` before the Next.js build, and skips it
+silently when `DATABASE_URL` is unset) — there is no separate manual step, and no deploy can ship
+with the tables missing. If you ever need to apply the schema by hand (e.g. from your own machine
+before the first deploy), the same command is available directly:
 
 ```bash
 DATABASE_URL="postgres://…" npm run db:deploy
 ```
 
 Without a database the deployed app still works — every tool runs, but history and favourites live
-only in the browser and sign-in reports that it is unavailable.
+only in the browser and sign-in reports that it is unavailable. **A database that is configured but
+never migrated is different from no database at all**: every route that touches Postgres (sign-up,
+every tool run, since each writes a job row) fails with a generic "Something went wrong" instead,
+because the tables it expects simply do not exist. That is exactly the failure the automatic
+migration step above exists to prevent.
 
 ## 3. Route A — Render (recommended)
 

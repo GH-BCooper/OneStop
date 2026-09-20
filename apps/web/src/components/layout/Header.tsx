@@ -1,34 +1,61 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
+import { buttonClasses } from "@onestop/ui";
 import { AccountMenu } from "@/components/auth/AccountMenu";
 import { ConnectionBadge } from "./ConnectionBadge";
 import { Nav } from "./Nav";
 import { ThemeToggle } from "./ThemeToggle";
 
+function Wordmark() {
+  return (
+    <Link
+      href="/"
+      className="flex shrink-0 items-center gap-2 text-lg font-bold focus-visible:outline-2 focus-visible:outline-ring"
+    >
+      <Image src="/images/Logo.png" alt="" width={32} height={32} className="rounded-md" priority />
+      <span className="brand-gradient">OneStop</span>
+    </Link>
+  );
+}
+
 export function Header({ accountsEnabled = false }: { accountsEnabled?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
+  const { data: session, status } = useSession();
+  // A guest on an instance that genuinely has no accounts is not "signed out" - there is nothing to
+  // sign in to, so that instance always gets the full nav (it always has, and hiding it would trap
+  // every visitor with nothing but a dead "Sign in" button).
+  const guestOnlyChrome = accountsEnabled && status !== "loading" && !session?.user;
 
-  // Close the mobile menu whenever the route changes.
   useEffect(() => {
     setMenuOpen(false);
   }, [pathname]);
 
+  if (guestOnlyChrome) {
+    return (
+      <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
+          <Wordmark />
+          <div className="ml-auto flex shrink-0 items-center gap-2">
+            <ThemeToggle />
+            <Link href="/auth/login" className={buttonClasses("primary", "sm")}>
+              Sign in
+            </Link>
+          </div>
+        </div>
+      </header>
+    );
+  }
+
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
-        <Link
-          href="/"
-          className="flex shrink-0 items-center gap-2 text-lg font-bold text-fg focus-visible:outline-2 focus-visible:outline-ring"
-        >
-          <span aria-hidden="true" className="text-primary">
-            ◆
-          </span>
-          OneStop
-        </Link>
+        <Wordmark />
         <div className="hidden min-w-0 flex-1 justify-center lg:flex">
           <Nav />
         </div>

@@ -38,3 +38,13 @@ body {
   color: var(--os-fg);
   font-family: var(--os-font-sans);
 }
+
+/* The "OneStop" wordmark and a few hero accents: a shiny royal-purple-to-silver sheen, the same
+   idea in both themes but reversed in direction so it always reads as bright metal, never mud. */
+.brand-gradient {
+  background-image: linear-gradient(120deg, var(--os-shine-start), var(--os-shine-end) 60%, var(--os-shine-start));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}

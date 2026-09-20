@@ -4,14 +4,17 @@ export interface NavItem {
   icon?: string;
 }
 
-/** Primary navigation, in master plan §18 order. */
+/**
+ * Primary navigation, in master plan §18 order. "Home" is deliberately not listed here: the logo
+ * and wordmark in the header already link to "/", and repeating it as its own nav item was pure
+ * duplication. "Account" is not a nav link either — it is the profile control in the header's
+ * action area (`AccountMenu`), which becomes a dropdown once signed in.
+ */
 export const primaryNav: NavItem[] = [
-  { label: "Home", href: "/", icon: "🏠" },
   { label: "AI Assistant", href: "/assistant", icon: "✨" },
   { label: "All Tools", href: "/tools", icon: "🧰" },
   { label: "Workflows", href: "/workflows", icon: "🔁" },
   { label: "History", href: "/history", icon: "🕘" },
-  { label: "Account", href: "/account", icon: "👤" },
 ];
 
 /** Home matches only itself; every other item also matches its sub-routes. */

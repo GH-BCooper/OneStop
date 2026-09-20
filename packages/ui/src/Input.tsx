@@ -1,4 +1,4 @@
-import { useId, type InputHTMLAttributes } from "react";
+import { useId, type InputHTMLAttributes, type ReactNode } from "react";
 import { cn } from "./cn";
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -7,9 +7,20 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   hideLabel?: boolean;
   error?: string;
   hint?: string;
+  /** Rendered inside the field, right-aligned — e.g. the show/hide button on a password field. */
+  endAdornment?: ReactNode;
 }
 
-export function Input({ label, hideLabel, error, hint, id, className, ...props }: InputProps) {
+export function Input({
+  label,
+  hideLabel,
+  error,
+  hint,
+  id,
+  className,
+  endAdornment,
+  ...props
+}: InputProps) {
   const autoId = useId();
   const inputId = id ?? autoId;
   const describedBy = error ? `${inputId}-error` : hint ? `${inputId}-hint` : undefined;
@@ -20,18 +31,24 @@ export function Input({ label, hideLabel, error, hint, id, className, ...props }
           {label}
         </label>
       )}
-      <input
-        id={inputId}
-        aria-invalid={error ? true : undefined}
-        aria-describedby={describedBy}
-        className={cn(
-          "h-10 w-full min-w-0 rounded-md border bg-surface px-3 text-fg placeholder:text-fg-muted",
-          "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring",
-          error ? "border-danger" : "border-border",
-          className,
+      <div className="relative flex w-full min-w-0 items-center">
+        <input
+          id={inputId}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
+          className={cn(
+            "h-10 w-full min-w-0 rounded-md border bg-surface px-3 text-fg placeholder:text-fg-muted",
+            "focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-ring",
+            error ? "border-danger" : "border-border",
+            endAdornment ? "pr-10" : undefined,
+            className,
+          )}
+          {...props}
+        />
+        {endAdornment && (
+          <div className="absolute right-1 flex items-center">{endAdornment}</div>
         )}
-        {...props}
-      />
+      </div>
       {error ? (
         <p id={`${inputId}-error`} className="text-sm text-danger">
           {error}

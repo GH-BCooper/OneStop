@@ -124,10 +124,14 @@ export async function findUserByEmail(
   return row ? toPublicUser(row) : null;
 }
 
-/** Updates the display name. The email is the account key, so it is not editable here. */
+/**
+ * Updates the display name and/or the avatar. The email is the account key, so it is not editable
+ * here. `avatar` is either a data URL the caller has already validated and resized (see
+ * `avatar.ts`) or `null` to remove it - never a raw upload.
+ */
 export async function updateProfile(
   userId: string,
-  patch: { name?: string },
+  patch: { name?: string; avatar?: string | null },
   prisma: PrismaClient = requirePrisma(),
 ): Promise<PublicUser> {
   if (patch.name !== undefined) {
@@ -137,7 +141,10 @@ export async function updateProfile(
   const row = (await prisma.user
     .update({
       where: { id: userId },
-      data: { ...(patch.name !== undefined ? { name: patch.name.trim() } : {}) },
+      data: {
+        ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+        ...(patch.avatar !== undefined ? { avatar: patch.avatar } : {}),
+      },
     })
     .catch(() => null)) as UserRow | null;
   if (!row) throw new AuthError("NOT_FOUND", "That account no longer exists.");
