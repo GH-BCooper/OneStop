@@ -34,8 +34,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   // Matches manifest.json, so the installed app's chrome is the app's own colour.
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f5f4fb" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0716" },
+    { media: "(prefers-color-scheme: light)", color: "#d3dde6" },
+    { media: "(prefers-color-scheme: dark)", color: "#08090b" },
   ],
 };
 

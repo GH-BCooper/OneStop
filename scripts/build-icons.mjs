@@ -10,7 +10,7 @@ import sharp from "sharp";
 const outDir = path.resolve(import.meta.dirname, "../apps/web/public/icons");
 const logoPath = path.resolve(import.meta.dirname, "../apps/web/public/images/Logo.png");
 
-const BG = "#0a0716"; // dark "royal" theme bg token - the icon canvas colour in every context
+const BG = "#08090b"; // dark "liquid metal" theme bg token - the icon canvas colour in every context
 
 function canvasSvg(size, round) {
   const r = round ? Math.round(size * 0.22) : 0;

@@ -28,9 +28,14 @@
   --font-mono: var(--os-font-mono);
 }
 
+/* `clip`, not `hidden`: `hidden` turns <html>/<body> into scroll containers, and a `position:
+   sticky` header inside one sticks to that container instead of the window - it scrolled away.
+   `clip` stops sideways overflow without creating a scroll container. (`hidden` first is the
+   fallback for the few browsers that predate `clip`.) */
 html,
 body {
   overflow-x: hidden;
+  overflow-x: clip;
 }
 
 body {
@@ -41,10 +46,15 @@ body {
   font-family: var(--os-font-sans);
 }
 
-/* The "OneStop" wordmark and a few hero accents: a shiny royal-purple-to-silver sheen, the same
-   idea in both themes but reversed in direction so it always reads as bright metal, never mud. */
+/* The "OneStop" wordmark and a few hero accents: a moving sheen across polished metal - graphite
+   to steel on chrome, steel to bright platinum on black - so it always reads as light on metal. */
 .brand-gradient {
-  background-image: linear-gradient(120deg, var(--os-shine-start), var(--os-shine-end) 60%, var(--os-shine-start));
+  background-image: linear-gradient(
+    120deg,
+    var(--os-shine-start),
+    var(--os-shine-end) 60%,
+    var(--os-shine-start)
+  );
   background-size: 200% auto;
   -webkit-background-clip: text;
   background-clip: text;
@@ -53,26 +63,76 @@ body {
 }
 
 @keyframes os-shine {
-  0% { background-position: 0% center; }
-  50% { background-position: 100% center; }
-  100% { background-position: 0% center; }
+  0% {
+    background-position: 0% center;
+  }
+  50% {
+    background-position: 100% center;
+  }
+  100% {
+    background-position: 0% center;
+  }
 }
 
 @keyframes os-fade-up {
-  from { opacity: 0; transform: translateY(14px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .os-enter {
   animation: os-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-.os-enter-1 { animation-delay: 0.05s; }
-.os-enter-2 { animation-delay: 0.15s; }
-.os-enter-3 { animation-delay: 0.25s; }
-.os-enter-4 { animation-delay: 0.35s; }
+/* A gently pulsing dot beside the assistant's "working on it" notices. */
+.os-pulse-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: os-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes os-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+.os-enter-1 {
+  animation-delay: 0.05s;
+}
+.os-enter-2 {
+  animation-delay: 0.15s;
+}
+.os-enter-3 {
+  animation-delay: 0.25s;
+}
+.os-enter-4 {
+  animation-delay: 0.35s;
+}
 
 @media (prefers-reduced-motion: reduce) {
-  .brand-gradient { animation: none; }
-  .os-enter { animation: none; opacity: 1; transform: none; }
+  .brand-gradient {
+    animation: none;
+  }
+  .os-pulse-dot {
+    animation: none;
+  }
+  .os-enter {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
 }

@@ -2,7 +2,7 @@
 // visitor at all on an instance with no accounts configured (item 14 of the redesign — there is
 // nobody to show the marketing `Landing` page to on an instance where nobody can ever sign in).
 import { GROUPS, toolsForCatalogPage } from "@onestop/tool-registry";
-import { buttonClasses, Card, CardDescription, CardTitle } from "@onestop/ui";
+import { Card, CardDescription, CardTitle } from "@onestop/ui";
 import Link from "next/link";
 import { HomeSearch } from "@/components/home/HomeSearch";
 import { PopularTools } from "@/components/home/PopularTools";
@@ -30,10 +30,6 @@ export function Dashboard({ name }: { name: string | null }) {
         <div className="w-full max-w-3xl">
           <HomeSearch />
         </div>
-        <Link href="/assistant" className={buttonClasses("primary", "lg")}>
-          <span aria-hidden="true">✨</span>
-          Ask OneStop AI
-        </Link>
       </section>
 
       {/* Quick actions: whatever this visitor already starred or has been running. */}
