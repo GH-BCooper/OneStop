@@ -31,11 +31,11 @@ export default async function AccountPage() {
   }
 
   const userId = await currentUserId();
-  if (!userId) redirect("/auth/login?next=/account");
+  if (!userId) redirect("/auth/login");
 
   const prisma = getPrisma();
   const user = prisma ? await findUserById(userId, prisma) : null;
-  if (!user || !prisma) redirect("/auth/login?next=/account");
+  if (!user || !prisma) redirect("/auth/login");
 
   const [settings, jobs] = await Promise.all([
     getUserSettings(userId, prisma),

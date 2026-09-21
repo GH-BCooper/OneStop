@@ -11,6 +11,9 @@ export interface AuthField<K extends string> {
   type: "text" | "email" | "password";
   autoComplete: string;
   hint?: string;
+  /** A one-time code: numeric keypad, digits only, capped length. */
+  digitsOnly?: boolean;
+  maxLength?: number;
 }
 
 /** What a submit handler reports back to the form. */
@@ -107,7 +110,8 @@ export function AuthForm<K extends string>({
               error: errors[f.name] ?? liveMismatch,
               disabled: pending,
               onChange: (e: ChangeEvent<HTMLInputElement>) => {
-                setValues((v) => ({ ...v, [f.name]: e.target.value }));
+                const next = f.digitsOnly ? e.target.value.replace(/\D/g, "") : e.target.value;
+                setValues((v) => ({ ...v, [f.name]: next }));
                 setMessage(null);
                 setFormError(null);
               },
@@ -115,7 +119,13 @@ export function AuthForm<K extends string>({
             return f.type === "password" ? (
               <PasswordInput key={f.name} {...shared} />
             ) : (
-              <Input key={f.name} {...shared} type={f.type} />
+              <Input
+                key={f.name}
+                {...shared}
+                type={f.type}
+                {...(f.digitsOnly ? { inputMode: "numeric" as const } : {})}
+                {...(f.maxLength ? { maxLength: f.maxLength } : {})}
+              />
             );
           })}
           {formError && (

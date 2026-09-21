@@ -115,6 +115,7 @@ export async function dropTestSchema(schema: string): Promise<void> {
 /** Empties every table this phase owns, so each test starts from a known state. */
 export async function resetTestDatabase(prisma: PrismaClient): Promise<void> {
   await prisma.passwordResetToken.deleteMany({});
+  await prisma.signupOtp.deleteMany({});
   await prisma.qrScan.deleteMany({});
   await prisma.qrLink.deleteMany({});
   await prisma.favorite.deleteMany({});

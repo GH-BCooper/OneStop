@@ -1,5 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { mailFromAddress, resetEmail, selectedTransport, sendMail } from "./mailer.ts";
+import {
+  canDeliverMail,
+  mailFromAddress,
+  mailTransports,
+  parseMailbox,
+  resetEmail,
+  selectedTransport,
+  sendMail,
+  signupCodeEmail,
+} from "./mailer.ts";
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -62,5 +71,84 @@ describe("sendMail", () => {
     expect(result.delivered).toBe(false);
     expect(result.error).toMatch(/401/);
     vi.unstubAllGlobals();
+  });
+});
+
+describe("more mail providers", () => {
+  it("tries every configured provider in order, and knows when only the console is left", () => {
+    expect(
+      mailTransports({ RESEND_API_KEY: "r", BREVO_API_KEY: "b", SMTP_URL: "smtp://x" }),
+    ).toEqual(["resend", "brevo", "smtp"]);
+    expect(mailTransports({ BREVO_API_KEY: "b" })).toEqual(["brevo"]);
+    expect(mailTransports({})).toEqual(["console"]);
+  });
+
+  it("cannot deliver from a production server that only has the console", () => {
+    expect(canDeliverMail({ NODE_ENV: "production" })).toBe(false);
+    expect(canDeliverMail({ NODE_ENV: "production", BREVO_API_KEY: "b" })).toBe(true);
+    // A developer at a terminal can read the console, so it counts outside production.
+    expect(canDeliverMail({ NODE_ENV: "development" })).toBe(true);
+  });
+
+  it("uses the SMTP account as the sender when no from address is set", () => {
+    const env = { SMTP_URL: "smtp://me%40gmail.com:app-password@smtp.gmail.com:587" };
+    expect(mailFromAddress(env)).toBe("OneStop <me@gmail.com>");
+    expect(mailFromAddress({ ...env, MAIL_FROM: "Me <me@example.com>" })).toBe(
+      "Me <me@example.com>",
+    );
+  });
+
+  it("splits a mailbox into name and address", () => {
+    expect(parseMailbox("OneStop <hi@example.com>")).toEqual({
+      name: "OneStop",
+      email: "hi@example.com",
+    });
+    expect(parseMailbox("hi@example.com")).toEqual({ email: "hi@example.com" });
+  });
+
+  it("sends through Brevo over HTTPS with the api-key header", async () => {
+    const fetchMock = vi.fn(async () => new Response("{}", { status: 201 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await sendMail(
+      { to: "a@example.com", subject: "s", text: "t", html: "<p>t</p>" },
+      { BREVO_API_KEY: "xkeysib-1", MAIL_FROM: "OneStop <me@example.com>" },
+    );
+    expect(result).toEqual({ transport: "brevo", delivered: true });
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
+    const [url, init] = calls[0]!;
+    expect(url).toBe("https://api.brevo.com/v3/smtp/email");
+    expect((init.headers as Record<string, string>)["api-key"]).toBe("xkeysib-1");
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      sender: { email: "me@example.com", name: "OneStop" },
+      to: [{ email: "a@example.com" }],
+    });
+    vi.unstubAllGlobals();
+  });
+
+  it("falls through to the next provider when the first one fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const fetchMock = vi.fn(async (url: string) =>
+      String(url).includes("resend")
+        ? new Response("no", { status: 500 })
+        : new Response("{}", { status: 201 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await sendMail(
+      { to: "a@example.com", subject: "s", text: "t", html: "<p>t</p>" },
+      { RESEND_API_KEY: "re_x", BREVO_API_KEY: "b", MAIL_FROM: "OneStop <me@example.com>" },
+    );
+    expect(result).toMatchObject({ transport: "brevo", delivered: true });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    vi.unstubAllGlobals();
+  });
+});
+
+describe("sign-up code email", () => {
+  it("shows the code big, in the subject, and says how long it lasts", () => {
+    const mail = signupCodeEmail("048213", new Date(Date.now() + 10 * 60_000));
+    expect(mail.subject).toContain("048213");
+    expect(mail.text).toContain("Your verification code is: 048213");
+    expect(mail.text).toMatch(/10 minutes/);
+    expect(mail.html).toContain("048213");
   });
 });

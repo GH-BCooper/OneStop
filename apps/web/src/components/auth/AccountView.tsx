@@ -2,11 +2,13 @@
 
 import type { PublicUser, UserSettings } from "@onestop/types";
 import { Button, Card, Input, PasswordInput, Tabs } from "@onestop/ui";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import { SettingsView } from "@/components/settings/SettingsView";
+import { announceProfileChange } from "@/lib/profile-events";
+import { signOutToLanding } from "@/lib/sign-out";
 import { validatePasswordChange, type FieldErrors } from "@/lib/validation";
 
 export interface AccountViewProps {
@@ -169,7 +171,13 @@ function AvatarEditor({
               {pending ? "Working…" : avatar ? "Update" : "Add a picture"}
             </Button>
             {avatar && (
-              <Button type="button" variant="ghost" size="sm" disabled={pending} onClick={() => void remove()}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={pending}
+                onClick={() => void remove()}
+              >
                 Remove
               </Button>
             )}
@@ -198,7 +206,17 @@ function AvatarEditor({
 
 function PersonalSettings({ user, settings, jobCount }: AccountViewProps) {
   const router = useRouter();
-  const { update: updateSession } = useSession();
+  const { update: updateSession, status: sessionStatus } = useSession();
+  // Auth.js ignores an `update()` made while it is still loading the session, so the latest
+  // values are read through refs and the call waits for the load to finish.
+  const sessionRef = useRef({ updateSession, sessionStatus });
+  sessionRef.current = { updateSession, sessionStatus };
+  const syncSession = async (data: { name?: string; image?: string | null }) => {
+    for (let i = 0; i < 20 && sessionRef.current.sessionStatus === "loading"; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    await sessionRef.current.updateSession(data);
+  };
   const [name, setName] = useState(user.name ?? "");
   const [avatar, setAvatar] = useState(user.avatar);
   const [profile, setProfile] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
@@ -237,6 +255,10 @@ function PersonalSettings({ user, settings, jobCount }: AccountViewProps) {
       return;
     }
     setProfile({ tone: "ok", text: "Saved." });
+    // The header shows the new name straight away; the session cookie (which the server looks the
+    // new name up for itself) is brought up to date behind it, then the page's own data refreshes.
+    announceProfileChange({ name: name.trim() });
+    await syncSession({ name: name.trim() });
     router.refresh();
   };
 
@@ -276,7 +298,7 @@ function PersonalSettings({ user, settings, jobCount }: AccountViewProps) {
       setProfile({ tone: "error", text: result.message });
       return;
     }
-    await signOut({ redirectTo: "/" });
+    await signOutToLanding();
   };
 
   return (
@@ -289,7 +311,8 @@ function PersonalSettings({ user, settings, jobCount }: AccountViewProps) {
             setAvatar(next);
             // Refreshes the header's avatar immediately; the JWT callback shrinks it to a proxy
             // path before it ever becomes part of the session cookie (see `avatarRef` in auth.ts).
-            void updateSession({ image: next });
+            announceProfileChange({ image: next });
+            void syncSession({ image: next });
           }}
         />
         <form className="flex flex-col gap-4" onSubmit={saveProfile} noValidate>
@@ -424,7 +447,7 @@ export function AccountView(props: AccountViewProps) {
             {user.email} · joined {new Date(user.createdAt).toLocaleDateString("en-US")}
           </p>
         </div>
-        <Button variant="secondary" onClick={() => void signOut({ redirectTo: "/" })}>
+        <Button variant="secondary" onClick={() => void signOutToLanding()}>
           Sign out
         </Button>
       </div>

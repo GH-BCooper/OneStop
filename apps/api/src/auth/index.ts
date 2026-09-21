@@ -6,3 +6,4 @@ export * from "./users.ts";
 export * from "./reset-tokens.ts";
 export * from "./mailer.ts";
 export * from "./settings.ts";
+export * from "./signup-otp.ts";

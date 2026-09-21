@@ -158,13 +158,17 @@ describe("signup form", () => {
     fireEvent.change(screen.getByLabelText("Email"), { target: { value: "sam@example.com" } });
     fireEvent.change(screen.getByLabelText("Password"), { target: { value: "password1" } });
     fireEvent.change(screen.getByLabelText("Confirm password"), { target: { value: "password2" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send verification code" }));
     expect(screen.getByText("Passwords don't match.")).toBeTruthy();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("creates the account, signs in, and never sends the password anywhere else", async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ ok: true, user: { id: "u1" } }, 201));
+  it("emails a code first, and only creates the account once the code is entered", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({ ok: true, email: "sam@example.com", message: "We sent a 6-digit code." }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ ok: true, user: { id: "u1" } }, 201));
     signIn.mockResolvedValue({ ok: true, error: null });
     render(<SignupForm />);
     fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Sam" } });
@@ -173,9 +177,10 @@ describe("signup form", () => {
     fireEvent.change(screen.getByLabelText("Confirm password"), {
       target: { value: "a-good-password" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send verification code" }));
 
-    await waitFor(() => expect(navigation.push).toHaveBeenCalledWith("/"));
+    // Step one asked for a code; nothing was created and nobody is signed in yet.
+    await waitFor(() => expect(screen.getByLabelText("Verification code")).toBeTruthy());
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/auth/signup");
@@ -184,6 +189,41 @@ describe("signup form", () => {
       email: "sam@example.com",
       password: "a-good-password",
     });
+    expect(signIn).not.toHaveBeenCalled();
+    expect(navigation.push).not.toHaveBeenCalled();
+
+    // Step two: the code from the email creates the account and signs the person in.
+    fireEvent.change(screen.getByLabelText("Verification code"), { target: { value: "123456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verify and create account" }));
+    await waitFor(() => expect(navigation.push).toHaveBeenCalledWith("/"));
+    const [verifyUrl, verifyInit] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(verifyUrl).toBe("/api/auth/signup/verify");
+    expect(JSON.parse(String(verifyInit.body))).toEqual({
+      email: "sam@example.com",
+      code: "123456",
+    });
+    expect(signIn).toHaveBeenCalledWith("credentials", {
+      email: "sam@example.com",
+      password: "a-good-password",
+      redirect: false,
+    });
+  });
+
+  it("rejects a code that is not six digits before calling the server", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true, email: "sam@example.com" }));
+    render(<SignupForm />);
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Sam" } });
+    fireEvent.change(screen.getByLabelText("Email"), { target: { value: "sam@example.com" } });
+    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "a-good-password" } });
+    fireEvent.change(screen.getByLabelText("Confirm password"), {
+      target: { value: "a-good-password" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send verification code" }));
+    await waitFor(() => expect(screen.getByLabelText("Verification code")).toBeTruthy());
+    fireEvent.change(screen.getByLabelText("Verification code"), { target: { value: "12ab3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verify and create account" }));
+    expect(screen.getByText("Enter the 6-digit code from the email.")).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledOnce();
   });
 
   it("puts a server-side field error on the right field", async () => {
@@ -207,7 +247,7 @@ describe("signup form", () => {
     fireEvent.change(screen.getByLabelText("Confirm password"), {
       target: { value: "a-good-password" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create account" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send verification code" }));
     await waitFor(() =>
       expect(screen.getByText("That email already has an account.")).toBeTruthy(),
     );
@@ -239,13 +279,16 @@ describe("reset password form", () => {
     expect(screen.getByRole("status").textContent).toMatch(/server console/i);
   });
 
-  it("checks the token from the link and saves a new password", async () => {
+  it("checks the token from the link, saves the new password and lands on the home page", async () => {
     search.params = new URLSearchParams("token=abc123");
-    fetchMock
-      .mockResolvedValueOnce(jsonResponse({ ok: true, valid: true }))
-      .mockResolvedValueOnce(
-        jsonResponse({ ok: true, message: "Your password has been changed." }),
-      );
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true, valid: true })).mockResolvedValueOnce(
+      jsonResponse({
+        ok: true,
+        message: "Your password has been changed.",
+        email: "sam@example.com",
+      }),
+    );
+    signIn.mockResolvedValue({ ok: true, error: null });
     render(<ResetPasswordForm />);
     await waitFor(() => expect(screen.getByLabelText("New password")).toBeTruthy());
 
@@ -255,15 +298,18 @@ describe("reset password form", () => {
     fireEvent.change(screen.getByLabelText("Confirm new password"), {
       target: { value: "a-brand-new-password" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save new password" }));
-    await waitFor(() =>
-      expect(screen.getByRole("status").textContent).toMatch(/has been changed/i),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Save password" }));
+    await waitFor(() => expect(navigation.push).toHaveBeenCalledWith("/"));
     const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(url).toBe("/api/auth/reset/confirm");
     expect(JSON.parse(String(init.body))).toEqual({
       token: "abc123",
       password: "a-brand-new-password",
+    });
+    expect(signIn).toHaveBeenCalledWith("credentials", {
+      email: "sam@example.com",
+      password: "a-brand-new-password",
+      redirect: false,
     });
   });
 

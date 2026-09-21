@@ -7,7 +7,7 @@
 //
 // Sessions are JWTs rather than database rows: a signed cookie keeps guest-friendly tools working
 // with no database round trip per request, and the `sessions` table stays empty by design.
-import { getPrisma, verifyCredentials, type PrismaClient } from "@onestop/api";
+import { findUserById, getPrisma, verifyCredentials, type PrismaClient } from "@onestop/api";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import type { Adapter } from "@auth/core/adapters";
 import NextAuth, { type NextAuthConfig } from "next-auth";
@@ -17,6 +17,11 @@ import Google from "next-auth/providers/google";
 // does not pull this module - and `@onestop/api` behind it - into its bundle
 // (14-history-favorites.md). They are re-exported here, so existing imports keep working.
 import { authIsConfigured, authSecret, googleIsConfigured } from "@/lib/auth-config";
+import { applyPublicAuthUrl } from "@/lib/public-url";
+
+// Behind a hosting proxy Auth.js would otherwise build its redirects from the internal
+// `localhost:<port>` address; point it at the real public one when there is one.
+applyPublicAuthUrl();
 
 export { authIsConfigured, authSecret, googleIsConfigured };
 
@@ -117,10 +122,18 @@ export const authConfig: NextAuthConfig = {
   callbacks: {
     async jwt({ token, user, trigger, session }) {
       if (user?.id) token.sub = user.id;
-      // `AccountMenu`/`AvatarEditor` call `useSession().update({ image })` right after an avatar
-      // change, so the header reflects it without waiting for a fresh sign-in.
-      if (trigger === "update" && session && typeof session === "object" && "image" in session) {
-        token.picture = avatarRef((session as { image?: string | null }).image ?? null);
+      // The profile page calls `useSession().update()` right after a name or avatar change, so
+      // the header reflects it without waiting for a fresh sign-in. What the client sends is only
+      // a nudge: the new values are read back from the database, the one source of truth.
+      if (trigger === "update" && token.sub) {
+        const prisma = getPrisma();
+        const fresh = prisma ? await findUserById(token.sub, prisma).catch(() => null) : null;
+        if (fresh) {
+          token.name = fresh.name;
+          token.picture = avatarRef(fresh.avatar);
+        } else if (session && typeof session === "object" && "image" in session) {
+          token.picture = avatarRef((session as { image?: string | null }).image ?? null);
+        }
       }
       // Belt and braces: whatever produced this claim, a data URL never belongs in a cookie.
       if (typeof token.picture === "string") token.picture = avatarRef(token.picture);

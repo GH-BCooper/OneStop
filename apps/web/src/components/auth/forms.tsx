@@ -9,6 +9,7 @@ import {
   validateNewPassword,
   validateResetRequest,
   validateSignup,
+  validateVerifyCode,
   type FieldErrors,
 } from "@/lib/validation";
 import { AuthForm, type AuthSubmitResult } from "./AuthForm";
@@ -38,6 +39,17 @@ async function postJson<K extends string>(
   };
 }
 
+/**
+ * Where to go after signing in: always the home page, unless the visitor was sent here from a
+ * specific tool page. Never the account page (a signed-out visitor bounced off it would otherwise
+ * be returned to it), never another auth page, and never off-site.
+ */
+export function landingAfterSignIn(next: string | null | undefined): string {
+  if (!next || !next.startsWith("/") || next.startsWith("//")) return "/";
+  if (next.startsWith("/account") || next.startsWith("/auth")) return "/";
+  return next;
+}
+
 function GoogleButton({ enabled, callbackUrl }: { enabled: boolean; callbackUrl: string }) {
   if (!enabled) return null;
   return (
@@ -65,8 +77,7 @@ const UNAVAILABLE =
 export function LoginForm({ googleEnabled = false, available = true }: AuthFormOptions) {
   const router = useRouter();
   const params = useSearchParams();
-  const next = params?.get("next");
-  const callbackUrl = next && next.startsWith("/") ? next : "/";
+  const callbackUrl = landingAfterSignIn(params?.get("next"));
 
   return (
     <AuthForm
@@ -98,18 +109,136 @@ export function LoginForm({ googleEnabled = false, available = true }: AuthFormO
   );
 }
 
-export function SignupForm({ googleEnabled = false, available = true }: AuthFormOptions) {
+/** The second half of sign-up: the person types the code that was emailed to them. */
+function VerifyCodeForm({
+  details,
+  callbackUrl,
+  onBack,
+  hint,
+}: {
+  details: { name: string; email: string; password: string };
+  callbackUrl: string;
+  onBack: () => void;
+  hint: string | null;
+}) {
   const router = useRouter();
+  const [resend, setResend] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+  const [resending, setResending] = useState(false);
+
+  const resendCode = async () => {
+    setResending(true);
+    setResend(null);
+    const again = await postJson<"name" | "email" | "password">("/api/auth/signup", details);
+    setResending(false);
+    if (again.ok) {
+      setResend({ tone: "ok", text: String(again.data.message ?? "A new code is on its way.") });
+    } else {
+      const text =
+        again.result.formError ??
+        Object.values(again.result.errors ?? {})[0] ??
+        "Try again shortly.";
+      setResend({ tone: "error", text: String(text) });
+    }
+  };
+
+  return (
+    <AuthForm
+      title="Check your email"
+      description={
+        <>
+          We sent a 6-digit code to <strong className="text-fg">{details.email}</strong>. Type it
+          below to create your account.
+          {hint && <span className="mt-2 block">{hint}</span>}
+        </>
+      }
+      submitLabel="Verify and create account"
+      pendingLabel="Verifying…"
+      fields={[
+        {
+          name: "code",
+          label: "Verification code",
+          type: "text",
+          autoComplete: "one-time-code",
+          digitsOnly: true,
+          maxLength: 6,
+        },
+      ]}
+      validate={validateVerifyCode}
+      onSubmit={async ({ code }) => {
+        const verified = await postJson<"code">("/api/auth/signup/verify", {
+          email: details.email,
+          code,
+        });
+        if (!verified.ok) return verified.result;
+        const signedIn = await signIn("credentials", {
+          email: details.email,
+          password: details.password,
+          redirect: false,
+        });
+        if (!signedIn || signedIn.error) {
+          return { message: "Account created. Sign in to continue." };
+        }
+        router.push(callbackUrl);
+        router.refresh();
+        return { message: "Account created. Taking you in…" };
+      }}
+      extra={
+        <div className="flex flex-col gap-2 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={resending}
+              onClick={() => void resendCode()}
+            >
+              {resending ? "Sending…" : "Send a new code"}
+            </Button>
+            <button type="button" className="text-primary hover:underline" onClick={onBack}>
+              Use a different email
+            </button>
+          </div>
+          {resend && (
+            <p
+              role={resend.tone === "error" ? "alert" : "status"}
+              className={resend.tone === "error" ? "text-danger" : "text-fg-muted"}
+            >
+              {resend.text}
+            </p>
+          )}
+        </div>
+      }
+      footer={[{ text: "Already have an account?", linkLabel: "Sign in", href: "/auth/login" }]}
+    />
+  );
+}
+
+export function SignupForm({ googleEnabled = false, available = true }: AuthFormOptions) {
   const params = useSearchParams();
-  const next = params?.get("next");
-  const callbackUrl = next && next.startsWith("/") ? next : "/";
+  const callbackUrl = landingAfterSignIn(params?.get("next"));
+  // Set once the code has been emailed: the account does not exist yet, only this pending form.
+  const [pending, setPending] = useState<{
+    details: { name: string; email: string; password: string };
+    hint: string | null;
+  } | null>(null);
+
+  if (pending) {
+    return (
+      <VerifyCodeForm
+        details={pending.details}
+        callbackUrl={callbackUrl}
+        hint={pending.hint}
+        onBack={() => setPending(null)}
+      />
+    );
+  }
 
   return (
     <AuthForm
       title="Create an account"
-      description="An account is optional - it only adds saved history, favourites and workflows."
-      submitLabel="Create account"
-      pendingLabel="Creating your account…"
+      description="An account is optional - it only adds saved history, favourites and workflows. We will email you a code to confirm your address."
+      submitLabel="Send verification code"
+      pendingLabel="Sending your code…"
       fields={[
         { name: "name", label: "Name", type: "text", autoComplete: "name" },
         { name: "email", label: "Email", type: "email", autoComplete: "email" },
@@ -130,18 +259,20 @@ export function SignupForm({ googleEnabled = false, available = true }: AuthForm
       validate={validateSignup}
       onSubmit={async ({ name, email, password }) => {
         if (!available) return { formError: UNAVAILABLE };
-        const created = await postJson<"name" | "email" | "password" | "confirm">(
+        const requested = await postJson<"name" | "email" | "password" | "confirm">(
           "/api/auth/signup",
           { name, email, password },
         );
-        if (!created.ok) return created.result;
-        const signedIn = await signIn("credentials", { email, password, redirect: false });
-        if (!signedIn || signedIn.error) {
-          return { message: "Account created. Sign in to continue." };
-        }
-        router.push(callbackUrl);
-        router.refresh();
-        return { message: "Account created. Taking you in…" };
+        if (!requested.ok) return requested.result;
+        setPending({
+          details: { name, email: String(requested.data.email ?? email), password },
+          // Only a developer's machine with no mail provider ever sees the console transport.
+          hint:
+            requested.data.transport === "console"
+              ? "No email provider is configured on this machine, so the code was written to the server console."
+              : null,
+        });
+        return {};
       }}
       extra={<GoogleButton enabled={googleEnabled && available} callbackUrl={callbackUrl} />}
       footer={[{ text: "Already have an account?", linkLabel: "Sign in", href: "/auth/login" }]}
@@ -239,7 +370,7 @@ function SetNewPasswordForm({ token }: { token: string }) {
   return (
     <AuthForm
       title="Choose a new password"
-      submitLabel="Save new password"
+      submitLabel="Save password"
       pendingLabel="Saving…"
       fields={[
         {
@@ -263,8 +394,19 @@ function SetNewPasswordForm({ token }: { token: string }) {
           password,
         });
         if (!saved.ok) return saved.result;
-        setTimeout(() => router.push("/auth/login"), 1200);
-        return { message: "Your password has been changed. Taking you to sign in…" };
+        // The person just proved who they are twice over (the emailed link, the new password), so
+        // they are signed straight in and land on the home page.
+        const email = typeof saved.data.email === "string" ? saved.data.email : "";
+        const signedIn = email
+          ? await signIn("credentials", { email, password, redirect: false })
+          : null;
+        if (!signedIn || signedIn.error) {
+          setTimeout(() => router.push("/auth/login"), 1200);
+          return { message: "Your password has been changed. Taking you to sign in…" };
+        }
+        router.push("/");
+        router.refresh();
+        return { message: "Password saved. Taking you home…" };
       }}
       footer={[{ text: "Changed your mind?", linkLabel: "Back to sign in", href: "/auth/login" }]}
     />

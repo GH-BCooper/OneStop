@@ -35,8 +35,13 @@ export async function POST(request: Request): Promise<Response> {
   const prisma = getPrisma();
   if (!prisma) return fail(503, "DATABASE_UNAVAILABLE", NO_DATABASE_MESSAGE);
   try {
-    await resetPasswordWithToken(str(body, "token"), str(body, "password"), prisma);
-    return ok({ message: "Your password has been changed. Sign in with it now." });
+    const { email } = await resetPasswordWithToken(
+      str(body, "token"),
+      str(body, "password"),
+      prisma,
+    );
+    // The address comes back so the browser can sign the person straight in with the new password.
+    return ok({ message: "Your password has been changed.", email });
   } catch (err) {
     return toErrorResponse(err, "api/auth/reset/confirm");
   }

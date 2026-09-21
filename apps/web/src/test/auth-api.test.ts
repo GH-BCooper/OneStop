@@ -29,6 +29,7 @@ vi.mock("@/auth", () => ({
 }));
 
 const { POST: signup } = await import("@/app/api/auth/signup/route");
+const { POST: verifySignup } = await import("@/app/api/auth/signup/verify/route");
 const { POST: requestReset } = await import("@/app/api/auth/reset/route");
 const resetConfirm = await import("@/app/api/auth/reset/confirm/route");
 const account = await import("@/app/api/account/route");
@@ -40,6 +41,7 @@ interface Envelope {
   settings?: { theme: string };
   jobCount?: number;
   message?: string;
+  email?: string;
   transport?: string;
   valid?: boolean;
   reason?: string;
@@ -85,28 +87,109 @@ describeDb("auth routes (Postgres)", () => {
     vi.restoreAllMocks();
   });
 
-  it("creates an account and never echoes the password", async () => {
-    const { status, body } = await json(
+  /** The 6-digit code the sign-up route "emailed" - with no provider it is written to the console. */
+  function emailedCode(): string {
+    const warn = console.warn as unknown as { mock: { calls: unknown[][] } };
+    const text = warn.mock.calls
+      .map((call) => String(call[0]))
+      .reverse()
+      .find((t) => /verification code is: \d{6}/.test(t));
+    return /verification code is: (\d{6})/.exec(text ?? "")?.[1] ?? "";
+  }
+
+  it("emails a code first and creates the account only once the code is entered", async () => {
+    const requested = await json(
       await post(signup, "/api/auth/signup", {
         name: "Sam",
         email: "sam@example.com",
         password: "a-good-password",
       }),
     );
-    expect(status).toBe(201);
-    expect(body.user).toMatchObject({ email: "sam@example.com", hasPassword: true });
-    expect(JSON.stringify(body)).not.toContain("a-good-password");
+    expect(requested.status).toBe(200);
+    expect(requested.body).toMatchObject({ ok: true, email: "sam@example.com" });
+    expect(JSON.stringify(requested.body)).not.toContain("a-good-password");
+    // Nothing exists yet: no account, so nobody could sign in.
+    expect(await prisma.user.count()).toBe(0);
+    await expect(
+      verifyCredentials("sam@example.com", "a-good-password", prisma),
+    ).rejects.toBeTruthy();
+
+    const code = emailedCode();
+    expect(code).toMatch(/^\d{6}$/);
+
+    // A wrong code is refused and creates nothing.
+    const wrongCode = code === "000000" ? "111111" : "000000";
+    const wrong = await json(
+      await post(verifySignup, "/api/auth/signup/verify", {
+        email: "sam@example.com",
+        code: wrongCode,
+      }),
+    );
+    expect(wrong.status).toBe(400);
+    expect(wrong.body.error?.field).toBe("code");
+    expect(await prisma.user.count()).toBe(0);
+
+    // The right one creates the account, verified, with the password from the first step.
+    const verified = await json(
+      await post(verifySignup, "/api/auth/signup/verify", { email: "sam@example.com", code }),
+    );
+    expect(verified.status).toBe(201);
+    expect(verified.body.user).toMatchObject({ email: "sam@example.com", hasPassword: true });
+    expect(JSON.stringify(verified.body)).not.toContain("a-good-password");
     await expect(
       verifyCredentials("sam@example.com", "a-good-password", prisma),
     ).resolves.toBeTruthy();
+    expect(
+      (await prisma.user.findUnique({ where: { email: "sam@example.com" } }))?.emailVerified,
+    ).toBeTruthy();
+
+    // The code is single-use.
+    const again = await json(
+      await post(verifySignup, "/api/auth/signup/verify", { email: "sam@example.com", code }),
+    );
+    expect(again.status).toBe(400);
   });
 
-  it("answers a duplicate email and a weak password with a field-level message", async () => {
+  it("locks a code after five wrong guesses, even if the right one comes next", async () => {
     await post(signup, "/api/auth/signup", {
       name: "Sam",
       email: "sam@example.com",
       password: "a-good-password",
     });
+    const code = emailedCode();
+    const wrongCode = code === "000000" ? "111111" : "000000";
+    for (let i = 0; i < 5; i++) {
+      await post(verifySignup, "/api/auth/signup/verify", {
+        email: "sam@example.com",
+        code: wrongCode,
+      });
+    }
+    const locked = await json(
+      await post(verifySignup, "/api/auth/signup/verify", { email: "sam@example.com", code }),
+    );
+    expect(locked.status).toBe(400);
+    expect(locked.body.error?.message).toMatch(/too many/i);
+    expect(await prisma.user.count()).toBe(0);
+  });
+
+  it("refuses a second code straight away, and refuses to sign up on a server that cannot send mail", async () => {
+    const details = { name: "Sam", email: "sam@example.com", password: "a-good-password" };
+    await post(signup, "/api/auth/signup", details);
+    const tooSoon = await json(await post(signup, "/api/auth/signup", details));
+    expect(tooSoon.status).toBe(400);
+    expect(tooSoon.body.error?.message).toMatch(/just sent/i);
+
+    vi.stubEnv("NODE_ENV", "production");
+    const unavailable = await json(
+      await post(signup, "/api/auth/signup", { ...details, email: "other@example.com" }),
+    );
+    vi.unstubAllEnvs();
+    expect(unavailable.status).toBe(503);
+    expect(unavailable.body.error?.code).toBe("MAIL_UNAVAILABLE");
+  });
+
+  it("answers a duplicate email and a weak password with a field-level message", async () => {
+    await signUp({ name: "Sam", email: "sam@example.com", password: "a-good-password" }, prisma);
     const duplicate = await json(
       await post(signup, "/api/auth/signup", {
         name: "Sam again",

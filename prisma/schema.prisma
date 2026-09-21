@@ -95,6 +95,22 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
+/// A sign-up that is waiting for its emailed code. The account (a `User` row) is created only when
+/// the code is entered correctly, so an address nobody controls can never become an account. The
+/// code is stored as an HMAC, never in clear; the password is already a bcrypt hash.
+model SignupOtp {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  codeHash     String
+  attempts     Int      @default(0)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@map("signup_otps")
+}
+
 /// master plan §16. `userId` is null for guest jobs.
 model Job {
   id             String   @id @default(uuid())

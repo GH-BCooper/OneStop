@@ -4,16 +4,27 @@
 // visitor sees a dropdown with the two settings tabs and sign out - there is nothing else a click
 // on "Account" should do once there is an account to manage.
 import { buttonClasses, cn } from "@onestop/ui";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useEffect, useId, useRef, useState } from "react";
+import { PROFILE_UPDATED, type ProfilePatch } from "@/lib/profile-events";
+import { signOutToLanding } from "@/lib/sign-out";
 
 /** Mounted by the header only when accounts are configured, so it can rely on the session. */
 export function AccountMenu() {
   const { data: session, status } = useSession();
   const [open, setOpen] = useState(false);
+  // A name or picture changed on the profile page: shown at once, ahead of the session cookie.
+  const [changed, setChanged] = useState<ProfilePatch>({});
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
+
+  useEffect(() => {
+    const onChange = (e: Event) =>
+      setChanged((prev) => ({ ...prev, ...(e as CustomEvent<ProfilePatch>).detail }));
+    window.addEventListener(PROFILE_UPDATED, onChange);
+    return () => window.removeEventListener(PROFILE_UPDATED, onChange);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -43,9 +54,9 @@ export function AccountMenu() {
     );
   }
 
-  const label = session.user.name?.trim() || session.user.email || "Account";
+  const label = (changed.name ?? session.user.name)?.trim() || session.user.email || "Account";
   const initial = label.trim().charAt(0).toUpperCase() || "A";
-  const avatar = session.user.image;
+  const avatar = changed.image !== undefined ? changed.image : session.user.image;
 
   return (
     <div ref={rootRef} className="relative">
@@ -64,11 +75,7 @@ export function AccountMenu() {
       >
         {avatar ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={avatar}
-            alt=""
-            className="h-6 w-6 shrink-0 rounded-full object-cover"
-          />
+          <img src={avatar} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
         ) : (
           <span
             aria-hidden="true"
@@ -116,7 +123,7 @@ export function AccountMenu() {
             type="button"
             onClick={() => {
               setOpen(false);
-              void signOut({ redirectTo: "/" });
+              void signOutToLanding();
             }}
             className="block w-full px-3 py-2 text-left text-sm text-danger hover:bg-surface-muted"
           >

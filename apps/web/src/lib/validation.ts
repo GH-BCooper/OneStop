@@ -56,6 +56,12 @@ export function validateNewPassword(v: { password: string; confirm: string }) {
   });
 }
 
+export function validateVerifyCode(v: { code: string }) {
+  return compact({
+    code: /^\d{6}$/.test(v.code.trim()) ? undefined : "Enter the 6-digit code from the email.",
+  });
+}
+
 export function validatePasswordChange(v: {
   currentPassword: string;
   newPassword: string;
