@@ -18,6 +18,7 @@ const SIGN_IN_REQUIRED = "Sign in to sync your settings across devices.";
 const THEMES: ThemePreference[] = ["light", "dark", "system"];
 /** Keys the free-form `preferences` column accepts, so a client cannot fill it with anything. */
 export const PREFERENCE_KEYS = [
+  "aiSource",
   "defaultDownload",
   "confirmBeforeDelete",
   "saveHistory",

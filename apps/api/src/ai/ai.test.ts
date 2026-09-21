@@ -27,7 +27,7 @@ import {
   NO_RUNTIME_MESSAGE,
 } from "./modelRuntime.ts";
 import { parsePlanAnswer, pageSpec, planWithRules, splitClauses } from "./planner.ts";
-import { AI_PROVIDERS } from "./providers.ts";
+import { AI_PROVIDERS, availableConfigs } from "./providers.ts";
 import { answerFromText, chunkText, selectContext } from "./ragContext.ts";
 import { recommendationsFor } from "./recommendations.ts";
 // Registering every real executor is what makes the end-to-end sections real.
@@ -316,10 +316,83 @@ describe("the model runtime", () => {
       );
     } catch (err) {
       const error = err as AiError;
-      expect(error.message).toContain("rate limit was reached");
-      expect(error.message).toContain("17 seconds");
+      expect(error.message).toContain("Out of credits.");
+      expect(error.message).toContain("https://console.groq.com/settings/billing");
       expect(error.message).not.toContain("rate limited"); // the provider body never leaks
     }
+  });
+
+  it("moves on to another runtime when one runs out of credits or rejects its key", async () => {
+    restoreFetch?.();
+    restoreFetch = setAiFetch(((url: string) => {
+      if (String(url).includes("api.groq.com")) {
+        return Promise.resolve(new Response("limit", { status: 429 }));
+      }
+      if (String(url).includes("openrouter.ai")) {
+        return Promise.resolve(new Response("bad key", { status: 401 }));
+      }
+      if (String(url).includes("generativelanguage.googleapis.com")) {
+        return Promise.resolve(
+          jsonResponse({ candidates: [{ content: { parts: [{ text: "Answered by Gemini." }] } }] }),
+        );
+      }
+      return Promise.reject(new Error("ECONNREFUSED"));
+    }) as unknown as typeof fetch);
+
+    // The visitor's own three keys: whichever order they are tried in, the one that works answers.
+    for (let i = 0; i < 6; i++) {
+      const { text, config } = await chat(
+        [{ role: "user", content: "hi" }],
+        {},
+        { mode: "own", provider: "groq", keys: { groq: "g", openrouter: "o", google: "k" } },
+      );
+      expect(text).toBe("Answered by Gemini.");
+      expect(config.provider).toBe("google");
+    }
+  });
+
+  it("says 'Out of credits' with every link when all of them are used up", async () => {
+    restoreFetch?.();
+    restoreFetch = setAiFetch((() =>
+      Promise.resolve(new Response("{}", { status: 429 }))) as unknown as typeof fetch);
+    await expect(
+      chat(
+        [{ role: "user", content: "hi" }],
+        {},
+        { mode: "own", provider: "groq", keys: { groq: "g", openrouter: "o" } },
+      ),
+    ).rejects.toMatchObject({
+      code: "AI_RATE_LIMIT",
+      message: expect.stringMatching(
+        /^Out of credits\. Visit https:\/\/\S+ or https:\/\/\S+ to increase your credits usage\.$/,
+      ),
+    });
+  });
+
+  it("uses only the server's keys for the hosted service, and only the visitor's for their own", () => {
+    vi.stubEnv("GROQ_API_KEY", "server-groq");
+    const hosted = availableConfigs({ mode: "hosted", keys: { openrouter: "browser-key" } });
+    expect(hosted.map((c) => c.provider).sort()).toEqual(["groq", "ollama"]);
+    expect(hosted.find((c) => c.provider === "groq")?.apiKey).toBe("server-groq");
+
+    const own = availableConfigs({
+      mode: "own",
+      provider: "openrouter",
+      keys: { openrouter: "browser-key" },
+    });
+    expect(own.map((c) => c.provider)[0]).toBe("openrouter");
+    expect(own.some((c) => c.provider === "groq")).toBe(false);
+  });
+
+  it("reports the hosted service as unavailable when its key is rejected", async () => {
+    vi.stubEnv("GROQ_API_KEY", "server-groq");
+    restoreFetch?.();
+    restoreFetch = setAiFetch((() =>
+      Promise.resolve(new Response("nope", { status: 401 }))) as unknown as typeof fetch);
+    const status = await getAiStatus({ mode: "hosted" });
+    expect(status.available).toBe(false);
+    expect(status.ollamaReachable).toBe(false);
+    expect(status.checks?.find((c) => c.provider === "groq")?.ok).toBe(false);
   });
 
   it("turns a rejected key into a message that says what to do", async () => {
@@ -557,7 +630,7 @@ describe("the AI tools", () => {
       [{ name: "contract.txt", mimeType: "text/plain", bytes: bytes(FIXTURE_DOC) }],
     );
     expect(result.ok).toBe(false);
-    expect(result.error).toContain("rate limit was reached");
+    expect(result.error).toContain("Out of credits.");
   }, 120_000);
 });
 

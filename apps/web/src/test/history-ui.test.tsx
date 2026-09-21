@@ -205,7 +205,11 @@ describe("/settings", () => {
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe("dark"));
     expect(readThemePreference()).toBe("dark");
     expect(screen.getByText(/saved on this device/i)).toBeTruthy();
-    expect(fetchMock).not.toHaveBeenCalled();
+    // A guest's settings are never sent anywhere; the only call is the AI service's own
+    // availability check, which carries nothing from the visitor.
+    expect(
+      fetchMock.mock.calls.every(([url]) => String(url).includes("/api/assistant/status")),
+    ).toBe(true);
   });
 
   it("saves to the account when signed in, and picks the account's settings up first", async () => {

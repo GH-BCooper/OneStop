@@ -5,7 +5,8 @@
 // or with the reason there is none plus the Free/Paid external recommendations from §7.3.
 //
 // Splitting planning from running is what lets the user read the plan before any bytes move.
-import { MAX_REQUEST_CHARS, isAiProviderId, planAssistantRequest } from "@onestop/api";
+import { MAX_REQUEST_CHARS, planAssistantRequest } from "@onestop/api";
+import { readAiCredentials } from "@/lib/ai-request";
 import { fail, ok, readJson } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
@@ -29,18 +30,15 @@ export async function POST(request: Request): Promise<Response> {
     .slice(0, MAX_FILE_NAMES)
     .map((n) => n.slice(0, 260));
 
-  // The user's own key rides in a header, as it does for /status, so it is never in a URL.
-  const apiKey = request.headers.get("x-onestop-ai-key");
-  const provider = typeof body.provider === "string" ? body.provider : null;
+  // The runtime choice (and the user's own keys) ride in a header, as they do for /status, so
+  // they are never in a URL.
+  const credentials = readAiCredentials(request, body.provider);
 
   try {
     const plan = await planAssistantRequest({
       request: text,
       fileNames,
-      credentials: {
-        provider: isAiProviderId(provider) ? provider : null,
-        apiKey: apiKey && apiKey.trim() !== "" ? apiKey : null,
-      },
+      credentials,
     });
     return ok({ plan });
   } catch (err) {

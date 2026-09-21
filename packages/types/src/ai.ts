@@ -20,6 +20,20 @@ export interface AiProviderInfo {
   defaultModel: string;
   /** Free tier, or a paid account. Every provider here is free; the field keeps that explicit. */
   cost: "free" | "paid";
+  /** Where to raise a quota or add credits once the free allowance is used up. Not for local runtimes. */
+  creditsUrl?: string;
+}
+
+/** How the assistant chooses its runtime: OneStop's own hosted keys, or the visitor's own. */
+export type AiSource = "onestop" | "own";
+
+/** The result of one cheap liveness/key check against a single runtime. */
+export interface AiProviderCheck {
+  provider: AiProviderId;
+  /** True when this runtime would answer a request right now. */
+  ok: boolean;
+  /** Plain-words explanation, safe to show. */
+  message: string;
 }
 
 /** What `/api/assistant/status` reports, and what the Settings page renders. */
@@ -37,6 +51,12 @@ export interface AiStatus {
   configured: AiProviderId[];
   /** The provider the user picked in Settings, when they picked one. */
   preferred: AiProviderId | null;
+  /** Every runtime that would answer right now (a request is spread across these at random). */
+  usable?: AiProviderId[];
+  /** One entry per runtime that was considered, with the reason when it is not usable. */
+  checks?: AiProviderCheck[];
+  /** Whether an Ollama server answers from *this* server - false on a hosted deployment. */
+  ollamaReachable?: boolean;
 }
 
 /** 16-ai-assistant.md, "Interfaces". */

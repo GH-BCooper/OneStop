@@ -12,9 +12,10 @@
 //   AI_AUTH         the key was rejected
 //   AI_TIMEOUT      the model took too long
 //   AI_FAILED       anything else
-import type { AiProviderId, AiStatus } from "@onestop/types";
+import type { AiProviderCheck, AiProviderId, AiStatus } from "@onestop/types";
 import {
   AI_PROVIDERS,
+  AI_PROVIDER_IDS,
   availableConfigs,
   configFor,
   isAiProviderId,
@@ -38,6 +39,25 @@ export class AiError extends Error {
 
 export const NO_RUNTIME_MESSAGE =
   "No AI runtime is available. Install Ollama and run `ollama serve` for fully offline AI, or add a free API key in Settings.";
+
+/** What the assistant says when it cannot answer at all - short, and points at the one place to fix it. */
+export const OUT_OF_SERVICE_MESSAGE =
+  "AI assistant is out of service right now. Check your app settings for issue remediation.";
+
+/** Every runtime that could answer has used up its free allowance. */
+export function outOfCreditsMessage(configs: AiRuntimeConfig[]): string {
+  const urls = [
+    ...new Set(configs.map((c) => c.info.creditsUrl).filter((u): u is string => Boolean(u))),
+  ];
+  return urls.length > 0
+    ? `Out of credits. Visit ${urls.join(" or ")} to increase your credits usage.`
+    : "Out of credits. Try again in a little while.";
+}
+
+/** The one line the assistant shows for a failed AI call, whatever the cause. */
+export function assistantFailureMessage(err: AiError): string {
+  return err.code === "AI_RATE_LIMIT" ? err.message : OUT_OF_SERVICE_MESSAGE;
+}
 
 export function rateLimitMessage(provider: string, retryAfterSeconds?: number): string {
   const seconds = retryAfterSeconds && retryAfterSeconds > 0 ? Math.ceil(retryAfterSeconds) : 0;
@@ -321,32 +341,87 @@ export async function chatWith(
   return text;
 }
 
+// ---- who is out of credits ----------------------------------------------------------------------
+
+/** Providers that recently said "too many requests", and until when. Per server process, on purpose. */
+const exhausted = new Map<string, number>();
+
+function exhaustedKey(config: AiRuntimeConfig): string {
+  // Keyed by the key itself (not just the provider) so one visitor's spent key never marks the
+  // server's key - or another visitor's - as spent.
+  return `${config.provider}:${config.apiKey ?? ""}`;
+}
+
+function markExhausted(config: AiRuntimeConfig, retryAfterSeconds?: number): void {
+  const seconds = Math.min(600, Math.max(30, retryAfterSeconds ?? 60));
+  exhausted.set(exhaustedKey(config), Date.now() + seconds * 1000);
+}
+
+function isExhausted(config: AiRuntimeConfig): boolean {
+  const until = exhausted.get(exhaustedKey(config));
+  if (until === undefined) return false;
+  if (until > Date.now()) return true;
+  exhausted.delete(exhaustedKey(config));
+  return false;
+}
+
 /**
  * One completion from the best runtime available to this caller.
  *
- * A provider that is simply not there (`AI_UNAVAILABLE`) makes it try the next one — that is how
- * "Ollama is the default, but a configured free key still works when Ollama is not running"
- * behaves without the user having to think about it. A rate limit or a bad key is *not* retried
- * on another provider: those are answers the user has to see.
+ * The runtimes are tried one after another - the visitor's pick first, then the rest in random
+ * order, with any that recently ran out of credits moved to the back. Whatever stops one of them
+ * (not running, a rejected key, a rate limit, a timeout, a provider having a bad minute) simply
+ * hands the request to the next, so a single provider being out never costs the user their answer.
+ * Only when every one has failed does the caller see an error, and then it is the most useful one:
+ * "out of credits" beats "key rejected" beats "timed out" beats "not reachable".
  */
 export async function chat(
   messages: ChatMessage[],
   options: ChatOptions = {},
   credentials: AiCredentials = {},
 ): Promise<{ text: string; config: AiRuntimeConfig }> {
-  const configs = availableConfigs(credentials);
-  if (configs.length === 0) throw new AiError("AI_UNAVAILABLE", NO_RUNTIME_MESSAGE);
-  let last: AiError | null = null;
+  const all = availableConfigs(credentials);
+  if (all.length === 0) throw new AiError("AI_UNAVAILABLE", NO_RUNTIME_MESSAGE);
+  const configs = [...all.filter((c) => !isExhausted(c)), ...all.filter((c) => isExhausted(c))];
+
+  const failures: { config: AiRuntimeConfig; error: AiError }[] = [];
   for (const config of configs) {
+    if (config.provider === "ollama") {
+      // A server that is not there is skipped up front - no waiting on a connection that will
+      // never open (the answer is cached for a few seconds, so this is not a port scan).
+      const probe = await probeOllama(config.host, options.signal);
+      if (!probe.ok) {
+        failures.push({
+          config,
+          error: new AiError("AI_UNAVAILABLE", `Ollama is not reachable at ${config.host}.`),
+        });
+        continue;
+      }
+    }
     try {
       return { text: await chatWith(config, messages, options), config };
     } catch (err) {
       const error = err instanceof AiError ? err : new AiError("AI_FAILED", String(err), err);
-      if (error.code !== "AI_UNAVAILABLE") throw error;
-      last = error;
+      if (options.signal?.aborted) throw error;
+      if (error.code === "AI_RATE_LIMIT") markExhausted(config);
+      failures.push({ config, error });
     }
   }
-  throw last ?? new AiError("AI_UNAVAILABLE", NO_RUNTIME_MESSAGE);
+
+  const of = (code: AiErrorCode) => failures.filter((f) => f.error.code === code);
+  const limited = of("AI_RATE_LIMIT");
+  if (limited.length > 0) {
+    throw new AiError(
+      "AI_RATE_LIMIT",
+      outOfCreditsMessage(limited.map((f) => f.config)),
+      limited[0]!.error.detail,
+    );
+  }
+  for (const code of ["AI_AUTH", "AI_TIMEOUT", "AI_FAILED"] as const) {
+    const found = of(code)[0];
+    if (found) throw found.error;
+  }
+  throw failures[0]?.error ?? new AiError("AI_UNAVAILABLE", NO_RUNTIME_MESSAGE);
 }
 
 // ---- status ------------------------------------------------------------------------------------
@@ -363,6 +438,8 @@ const probes = new Map<string, Probe>();
 /** Clears the liveness cache (tests, and the Settings page after a change). */
 export function resetAiProbes(): void {
   probes.clear();
+  exhausted.clear();
+  checks.clear();
 }
 
 /** Is the local Ollama server answering? Cached briefly so a page load is not a port scan. */
@@ -394,9 +471,127 @@ export async function probeOllama(host: string, signal?: AbortSignal): Promise<P
   return probe;
 }
 
+// ---- checking a runtime -------------------------------------------------------------------------
+
+const CHECK_TTL_MS = 60_000;
+const checks = new Map<string, { at: number; result: AiProviderCheck }>();
+
+/** A request that proves the key works without spending any of the free allowance. */
+function checkCall(config: AiRuntimeConfig): { url: string; headers: Record<string, string> } {
+  switch (config.provider) {
+    case "groq":
+      return {
+        url: "https://api.groq.com/openai/v1/models",
+        headers: { authorization: `Bearer ${config.apiKey ?? ""}` },
+      };
+    case "openrouter":
+      return {
+        url: "https://openrouter.ai/api/v1/auth/key",
+        headers: { authorization: `Bearer ${config.apiKey ?? ""}` },
+      };
+    default:
+      return {
+        url: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1",
+        headers: { "x-goog-api-key": config.apiKey ?? "" },
+      };
+  }
+}
+
 /**
- * What the UI shows: which runtime would answer right now, and the disclosure that goes with it.
- * Never throws — "nothing is available" is a normal answer with a plain-words `message`.
+ * Is this runtime usable right now? Ollama answers on its port; a hosted one accepts the key. Never
+ * throws - "no" is an ordinary answer - and the answer is cached briefly so a page load is cheap.
+ */
+export async function checkProvider(
+  config: AiRuntimeConfig,
+  signal?: AbortSignal,
+): Promise<AiProviderCheck> {
+  const label = config.info.label;
+  if (config.provider === "ollama") {
+    const probe = await probeOllama(config.host, signal);
+    if (!probe.ok) {
+      return { provider: "ollama", ok: false, message: `Ollama is not running at ${config.host}.` };
+    }
+    const hasModel =
+      probe.models.length === 0 ||
+      probe.models.some((m) => m === config.model || m.split(":")[0] === config.model);
+    return {
+      provider: "ollama",
+      ok: hasModel,
+      message: hasModel
+        ? `Ollama is running at ${config.host} with ${config.model}.`
+        : `Ollama is running, but the model "${config.model}" is not pulled yet. Run "ollama pull ${config.model}".`,
+    };
+  }
+
+  const cacheKey = `${config.provider}:${config.apiKey ?? ""}`;
+  const cached = checks.get(cacheKey);
+  if (cached && Date.now() - cached.at < CHECK_TTL_MS) return cached.result;
+
+  let result: AiProviderCheck;
+  if (isExhausted(config)) {
+    result = {
+      provider: config.provider,
+      ok: false,
+      message: `${label} is out of credits for now.`,
+    };
+  } else {
+    const call = checkCall(config);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000);
+    signal?.addEventListener("abort", () => controller.abort(), { once: true });
+    try {
+      const response = await doFetch(call.url, {
+        headers: call.headers,
+        signal: controller.signal,
+      });
+      if (response.ok) {
+        result = { provider: config.provider, ok: true, message: `${label} accepted the key.` };
+      } else if (response.status === 429) {
+        markExhausted(config, retryAfter(response));
+        result = {
+          provider: config.provider,
+          ok: false,
+          message: `${label} is out of credits for now.`,
+        };
+      } else if (
+        response.status === 401 ||
+        response.status === 403 ||
+        (config.provider === "google" && response.status === 400)
+      ) {
+        result = {
+          provider: config.provider,
+          ok: false,
+          message: `${label} rejected the API key. Check it and try again.`,
+        };
+      } else {
+        result = {
+          provider: config.provider,
+          ok: false,
+          message: `${label} is having trouble right now.`,
+        };
+      }
+    } catch {
+      result = {
+        provider: config.provider,
+        ok: false,
+        message: `${label} could not be reached. Check your internet connection.`,
+      };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  // A network blip should not stick for a minute: only settled answers are remembered.
+  if (result.ok || /rejected|out of credits/.test(result.message)) {
+    checks.set(cacheKey, { at: Date.now(), result });
+  }
+  return result;
+}
+
+/**
+ * What the UI shows: which runtimes would answer right now, and the disclosure that goes with the
+ * first of them. Never throws - "nothing is available" is a normal answer with a plain-words
+ * `message`. Every runtime that could be used is checked (in parallel), so "available" means a real
+ * request would succeed, not merely that a key is present.
  */
 export async function getAiStatus(
   credentials: AiCredentials = {},
@@ -406,47 +601,57 @@ export async function getAiStatus(
   const configs = availableConfigs(credentials);
   const base = { configured: configs.map((c) => c.provider), preferred };
 
-  for (const config of configs) {
-    if (config.provider === "ollama") {
-      const probe = await probeOllama(config.host, signal);
-      if (!probe.ok) continue;
-      const hasModel =
-        probe.models.length === 0 ||
-        probe.models.some((m) => m === config.model || m.split(":")[0] === config.model);
-      return {
-        ...base,
-        available: true,
-        provider: "ollama",
-        providerLabel: AI_PROVIDERS.ollama.label,
-        model: config.model,
-        local: true,
-        disclosure: AI_PROVIDERS.ollama.disclosure,
-        message: hasModel
-          ? `Ollama is running at ${config.host} with ${config.model}.`
-          : `Ollama is running at ${config.host}, but the model "${config.model}" is not pulled yet. Run "ollama pull ${config.model}".`,
-      };
-    }
+  const results = await Promise.all(configs.map((c) => checkProvider(c, signal)));
+  const ollamaResult = results.find((r) => r.provider === "ollama");
+  const ollamaReachable = ollamaResult
+    ? ollamaResult.ok || /model/.test(ollamaResult.message)
+    : false;
+  // Requests are spread across the runtimes at random, but the status has to read the same every
+  // time it is asked: the visitor's pick first, then the fixed order (local before hosted).
+  const rank = (i: number) =>
+    configs[i]!.provider === preferred ? -1 : AI_PROVIDER_IDS.indexOf(configs[i]!.provider);
+  const usableIndexes = configs
+    .map((_, i) => i)
+    .filter((i) => results[i]!.ok)
+    .sort((a, b) => rank(a) - rank(b));
+  const extras = {
+    checks: results,
+    usable: usableIndexes.map((i) => configs[i]!.provider),
+    ollamaReachable,
+  };
+
+  const firstIndex = usableIndexes[0];
+  if (firstIndex !== undefined) {
+    const config = configs[firstIndex]!;
     return {
       ...base,
+      ...extras,
       available: true,
       provider: config.provider,
       providerLabel: config.info.label,
       model: config.model,
-      local: false,
+      local: config.info.local,
       disclosure: config.info.disclosure,
-      message: `${config.info.label} is ready with ${config.model}.`,
+      message: results[firstIndex]!.message.replace(
+        / accepted the key\.$/,
+        ` is ready with ${config.model}.`,
+      ),
     };
   }
 
+  // Nothing answers. If a hosted runtime was configured and failed, say why; otherwise the
+  // ordinary "nothing is set up" line.
+  const hostedFailure = results.find((r, i) => configs[i]!.info.needsKey && !r.ok);
   return {
     ...base,
+    ...extras,
     available: false,
     provider: null,
     providerLabel: null,
     model: null,
     local: true,
     disclosure: AI_PROVIDERS.ollama.disclosure,
-    message: NO_RUNTIME_MESSAGE,
+    message: hostedFailure?.message ?? NO_RUNTIME_MESSAGE,
   };
 }
 

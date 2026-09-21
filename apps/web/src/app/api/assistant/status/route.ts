@@ -4,10 +4,11 @@
 // entirely on your device" vs. "your files are sent to Groq") always describes the runtime that
 // will actually be used, not the one that was configured last week.
 //
-// The user's own key arrives in the `x-onestop-ai-key` header rather than the query string, so it
-// never lands in a URL, a log line or a browser history entry. It is used for this one request
+// The user's own keys arrive in the `x-onestop-ai` header rather than the query string, so they
+// never land in a URL, a log line or a browser history entry. They are used for this one request
 // and never stored.
-import { getAiStatus, isAiProviderId } from "@onestop/api";
+import { getAiStatus } from "@onestop/api";
+import { readAiCredentials } from "@/lib/ai-request";
 import { fail, ok } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
@@ -15,13 +16,11 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
-  const provider = url.searchParams.get("provider");
-  const apiKey = request.headers.get("x-onestop-ai-key");
   try {
-    const status = await getAiStatus({
-      provider: isAiProviderId(provider) ? provider : null,
-      apiKey: apiKey && apiKey.trim() !== "" ? apiKey : null,
-    });
+    const status = await getAiStatus(
+      readAiCredentials(request, url.searchParams.get("provider")),
+      request.signal,
+    );
     return ok({ status });
   } catch (err) {
     console.error("[api/assistant/status] unexpected failure", err);

@@ -23,7 +23,7 @@ export const PREFERENCES_CHANGED = "onestop:preferences-changed";
 export const AI_MODES = [
   {
     id: "ollama",
-    label: "Ollama (local, fully offline)",
+    label: "Ollama (no API key needed)",
     local: true,
     needsKey: false,
     disclosure: "Runs entirely on your device — nothing leaves your machine, and it works offline.",
@@ -31,7 +31,7 @@ export const AI_MODES = [
   },
   {
     id: "groq",
-    label: "Groq free tier (your own key)",
+    label: "Groq (free tier)",
     local: false,
     needsKey: true,
     disclosure:
@@ -40,7 +40,7 @@ export const AI_MODES = [
   },
   {
     id: "openrouter",
-    label: "OpenRouter free models (your own key)",
+    label: "OpenRouter (free models)",
     local: false,
     needsKey: true,
     disclosure:
@@ -49,7 +49,7 @@ export const AI_MODES = [
   },
   {
     id: "google",
-    label: "Google AI Studio free tier (your own key)",
+    label: "Gemini (Google AI Studio free tier)",
     local: false,
     needsKey: true,
     disclosure:
@@ -106,13 +106,46 @@ export function writeAiKey(provider: string, key: string | null): void {
   notify();
 }
 
-/** The headers an assistant request carries: the user's own key, only when they set one. */
-export function aiHeaders(provider?: string | null): Record<string, string> {
-  const key = readAiKey(provider);
-  return key === "" ? {} : { "x-onestop-ai-key": key };
+/** Which AI the visitor chose: OneStop's own hosted service (the default) or their own provider. */
+export type AiSource = "onestop" | "own";
+
+export function readAiSource(): AiSource {
+  return readLocalPreferences().aiSource === "own" ? "own" : "onestop";
+}
+
+/** The runtime to use for a request: the visitor's pick when they use their own, else none. */
+export function activeAiProvider(): string | null {
+  return readAiSource() === "own" ? readPreferredAI() : null;
+}
+
+export function readAllAiKeys(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  return readKeyMap();
+}
+
+function encodeHeader(value: unknown): string {
+  return btoa(unescape(encodeURIComponent(JSON.stringify(value))));
+}
+
+/**
+ * The header an assistant request carries (see `lib/ai-request.ts` on the server): either "use
+ * OneStop's service" - no key at all - or the visitor's own provider and the keys saved in this
+ * browser. The server uses it for that one request and forgets it.
+ */
+export function aiHeaders(source: AiSource = readAiSource()): Record<string, string> {
+  if (source !== "own") return { "x-onestop-ai": encodeHeader({ mode: "onestop" }) };
+  return {
+    "x-onestop-ai": encodeHeader({
+      mode: "own",
+      provider: readPreferredAI(),
+      keys: readAllAiKeys(),
+    }),
+  };
 }
 
 export interface LocalPreferences {
+  /** OneStop's own hosted AI service, or the visitor's own provider and keys. */
+  aiSource: AiSource;
   /** Where a finished result goes by default. */
   defaultDownload: "ask" | "auto";
   confirmBeforeDelete: boolean;
@@ -122,6 +155,7 @@ export interface LocalPreferences {
 }
 
 export const DEFAULT_PREFERENCES: LocalPreferences = {
+  aiSource: "onestop",
   defaultDownload: "ask",
   confirmBeforeDelete: true,
   saveHistory: true,

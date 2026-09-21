@@ -12,7 +12,7 @@
 // before a single file is touched. Nothing here executes anything.
 import type { AssistantPlan } from "@onestop/types";
 import { detectIntent } from "./intent.ts";
-import { AiError, chat, NO_RUNTIME_MESSAGE, type ChatMessage } from "./modelRuntime.ts";
+import { AiError, assistantFailureMessage, chat, type ChatMessage } from "./modelRuntime.ts";
 import { buildPlan, type PlanContext } from "./planner.ts";
 import type { AiCredentials } from "./providers.ts";
 import { recommendationsFor } from "./recommendations.ts";
@@ -47,7 +47,8 @@ export async function greetUser(
 ): Promise<{ message: string; runtime: AssistantPlan["runtime"] }> {
   const label = name?.trim() || "there";
   const hour = new Date().getHours();
-  const timeOfDay = hour < 5 ? "night" : hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
+  const timeOfDay =
+    hour < 5 ? "night" : hour < 12 ? "morning" : hour < 18 ? "afternoon" : "evening";
   try {
     const { text, config } = await chat(
       [
@@ -210,7 +211,7 @@ export async function planAssistantRequest(input: AssistantRequest): Promise<Ass
           ok: true,
           intent,
           plan: null,
-          message: `${NO_RUNTIME_MESSAGE} I can still run any OneStop tool directly — just describe the task.`,
+          message: assistantFailureMessage(err),
           rejected: [],
           recommendations: null,
           runtime: null,
@@ -225,12 +226,12 @@ export async function planAssistantRequest(input: AssistantRequest): Promise<Ass
     result = await buildPlan(context);
   } catch (err) {
     if (err instanceof AiError) {
-      // A rate limit or a rejected key is shown as itself, not as "something went wrong".
+      // Out of credits is shown as itself; anything else is one short "out of service" line.
       return {
         ok: false,
         intent,
         plan: null,
-        message: err.message,
+        message: assistantFailureMessage(err),
         rejected: [],
         recommendations: null,
         runtime: null,

@@ -2,10 +2,12 @@
 //
 // The phase-16 screens (16-ai-assistant.md): the assistant workspace and the Settings AI card.
 //
-// Two of this phase's acceptance criteria are things the *user has to see*, so they are tested
-// here rather than only on the server:
-//   * the third-party disclosure appears before a hosted runtime is used, and reads differently
-//     from the local one;
+// Acceptance criteria that are things the *user has to see*, so they are tested here rather than
+// only on the server:
+//   * the assistant screen stays clean - no provider names or disclosure text - and says one short
+//     "out of service" line (pointing at the app settings) only when nothing can answer;
+//   * the Settings AI card is where the disclosure lives, and reads differently for a hosted
+//     service than for the local one;
 //   * an impossible request shows grouped Free/Paid recommendations instead of a made-up tool.
 import { render, screen, waitFor } from "@testing-library/react";
 import { fireEvent } from "@testing-library/dom";
@@ -13,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiStatus, AssistantPlan } from "@onestop/types";
 import { AssistantView } from "@/components/assistant/AssistantView";
 import { SettingsView } from "@/components/settings/SettingsView";
-import { readAiKey } from "@/lib/preferences";
+import { readAiKey, writeAiKey } from "@/lib/preferences";
 
 const fetchMock = vi.fn();
 
@@ -104,34 +106,75 @@ afterEach(() => {
 });
 
 describe("the assistant workspace", () => {
-  it("shows the local runtime and its 'nothing leaves your machine' disclosure", async () => {
-    fetchMock.mockResolvedValue(respond({ ok: true, status: LOCAL_STATUS }));
-    render(<AssistantView />);
-    const disclosure = await screen.findByTestId("assistant-disclosure");
-    expect(disclosure.textContent).toContain("entirely on your device");
-    expect(screen.getByTestId("assistant-runtime").textContent).toContain("On this device");
-  });
-
-  it("says out loud when the runtime is a third-party service", async () => {
+  it("keeps the screen clean when a runtime is available: no provider or disclosure text", async () => {
     fetchMock.mockResolvedValue(respond({ ok: true, status: HOSTED_STATUS }));
     render(<AssistantView />);
-    const disclosure = await screen.findByTestId("assistant-disclosure");
-    expect(disclosure.textContent).toContain("Groq's servers");
-    expect(disclosure.textContent).toContain("transmitted to Groq");
-    expect(screen.getByTestId("assistant-runtime").textContent).toContain("Third-party service");
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(screen.queryByTestId("assistant-runtime")).toBeNull();
+    expect(screen.queryByTestId("assistant-disclosure")).toBeNull();
+    expect(screen.queryByTestId("assistant-out-of-service")).toBeNull();
+    expect(document.body.textContent).not.toMatch(/third-party|groq|ollama/i);
   });
 
-  it("still works, and says so, when no runtime is configured", async () => {
+  it("shows one short 'out of service' line pointing at the app settings when nothing can answer", async () => {
     fetchMock.mockResolvedValue(
       respond({ ok: true, status: { ...LOCAL_STATUS, available: false, provider: null } }),
     );
     render(<AssistantView />);
-    await waitFor(() =>
-      expect(screen.getByTestId("assistant-runtime").textContent).toContain("Not configured"),
+    const notice = await screen.findByTestId("assistant-out-of-service");
+    expect(notice.textContent).toMatch(/out of service/i);
+    expect(notice.textContent).toMatch(/app settings/i);
+    expect(notice.textContent).not.toMatch(/ollama|install|api key/i);
+    expect(screen.getByRole("link", { name: /app settings/i }).getAttribute("href")).toBe(
+      "/account?tab=app",
     );
-    expect(screen.getByTestId("assistant-runtime").textContent).toContain(
-      "built-in offline method",
+  });
+
+  it("shows rotating 'working on it' notices while the answer is on its way", async () => {
+    let releasePlan: (value: unknown) => void = () => {};
+    fetchMock.mockImplementation((url: string) =>
+      String(url).includes("/status")
+        ? Promise.resolve(respond({ ok: true, status: LOCAL_STATUS }))
+        : new Promise((resolve) => {
+            releasePlan = resolve;
+          }),
     );
+    render(<AssistantView />);
+    fireEvent.change(screen.getByTestId("assistant-request"), { target: { value: "hi" } });
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+    const notice = await screen.findByTestId("assistant-notice");
+    expect(notice.textContent).toMatch(/figuring out/i);
+    releasePlan(respond({ ok: true, plan: PLAN }));
+    await screen.findByTestId("assistant-plan");
+    expect(screen.queryByTestId("assistant-notice")).toBeNull();
+  });
+
+  it("turns the address in an out-of-credits reply into a link", async () => {
+    const OUT_OF_CREDITS: AssistantPlan = {
+      ok: true,
+      intent: { kind: "chat", request: "hi", confidence: 0.5, needsFiles: false, source: "rules" },
+      plan: null,
+      message:
+        "Out of credits. Visit https://console.groq.com/settings/billing to increase your credits usage.",
+      rejected: [],
+      recommendations: null,
+      runtime: null,
+    };
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(
+        String(url).includes("/status")
+          ? respond({ ok: true, status: LOCAL_STATUS })
+          : respond({ ok: true, plan: OUT_OF_CREDITS }),
+      ),
+    );
+    render(<AssistantView />);
+    fireEvent.change(screen.getByTestId("assistant-request"), { target: { value: "hi" } });
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+    const link = await screen.findByRole("link", {
+      name: "https://console.groq.com/settings/billing",
+    });
+    expect(link.getAttribute("href")).toBe("https://console.groq.com/settings/billing");
+    expect(document.body.textContent).toContain("to increase your credits usage.");
   });
 
   it("shows a plan as numbered OneStop tools before anything is run", async () => {
@@ -218,18 +261,47 @@ describe("the assistant workspace", () => {
 });
 
 describe("the Settings AI card", () => {
+  const settingsFetch = (status: Partial<AiStatus> = {}) =>
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(
+        String(url).includes("/api/assistant/status")
+          ? respond({ ok: true, status: { ...HOSTED_STATUS, ollamaReachable: false, ...status } })
+          : respond({ ok: true, settings: null }),
+      ),
+    );
+
+  it("offers OneStop's own service first, and says whether it is available", async () => {
+    settingsFetch();
+    render(<SettingsView accountsEnabled={false} />);
+    await waitFor(() =>
+      expect(screen.getByTestId("onestop-ai-availability").textContent).toBe("(available)"),
+    );
+    expect(screen.getByRole("radio", { name: /use onestop ai service/i })).toBeTruthy();
+    expect(screen.getByRole("radio", { name: /your own ai service provider/i })).toBeTruthy();
+    // The provider list is hidden until "your own" is chosen.
+    expect(screen.queryByTestId("ai-runtime-groq")).toBeNull();
+  });
+
+  it("shows '(unavailable)' when OneStop's service cannot answer", async () => {
+    settingsFetch({ available: false });
+    render(<SettingsView accountsEnabled={false} />);
+    await waitFor(() =>
+      expect(screen.getByTestId("onestop-ai-availability").textContent).toBe("(unavailable)"),
+    );
+  });
+
   it("keeps a user-supplied key on the device and never sends it to the account", async () => {
-    fetchMock.mockResolvedValue(respond({ ok: true, settings: null }));
+    settingsFetch();
     render(<SettingsView accountsEnabled={false} />);
 
-    fireEvent.change(await screen.findByLabelText(/preferred runtime/i), {
-      target: { value: "groq" },
-    });
+    fireEvent.click(await screen.findByRole("radio", { name: /your own ai service provider/i }));
+    const groq = await screen.findByTestId("ai-runtime-groq");
+    fireEvent.click(groq.querySelector("input") as HTMLInputElement);
 
     const disclosure = await screen.findByTestId("ai-disclosure");
     expect(disclosure.textContent).toContain("Groq's servers");
 
-    const key = screen.getByLabelText(/api key/i) as HTMLInputElement;
+    const key = screen.getByLabelText(/^your .* api key$/i) as HTMLInputElement;
     expect(key.type).toBe("password");
     fireEvent.change(key, { target: { value: "gsk_my_own_key" } });
 
@@ -240,14 +312,75 @@ describe("the Settings AI card", () => {
     }
   });
 
-  it("shows the local runtime as private, with no key field", async () => {
-    fetchMock.mockResolvedValue(respond({ ok: true, settings: null }));
+  it("fills the key back in when the provider already has one saved", async () => {
+    settingsFetch();
+    writeAiKey("groq", "gsk_saved_earlier");
     render(<SettingsView accountsEnabled={false} />);
-    fireEvent.change(await screen.findByLabelText(/preferred runtime/i), {
-      target: { value: "ollama" },
-    });
+    fireEvent.click(await screen.findByRole("radio", { name: /your own ai service provider/i }));
+    const groq = await screen.findByTestId("ai-runtime-groq");
+    fireEvent.click(groq.querySelector("input") as HTMLInputElement);
+    expect((screen.getByLabelText(/^your .* api key$/i) as HTMLInputElement).value).toBe(
+      "gsk_saved_earlier",
+    );
+  });
+
+  it("dims Ollama out when the server cannot reach one, and shows it as private when it can", async () => {
+    settingsFetch({ ollamaReachable: false });
+    const unreachable = render(<SettingsView accountsEnabled={false} />);
+    fireEvent.click(await screen.findByRole("radio", { name: /your own ai service provider/i }));
+    const dimmed = await screen.findByTestId("ai-runtime-ollama");
+    await waitFor(() => expect(dimmed.getAttribute("aria-disabled")).toBe("true"));
+    expect((dimmed.querySelector("input") as HTMLInputElement).disabled).toBe(true);
+    unreachable.unmount();
+
+    localStorage.clear();
+    settingsFetch({ ollamaReachable: true, provider: "ollama", local: true });
+    render(<SettingsView accountsEnabled={false} />);
+    fireEvent.click(await screen.findByRole("radio", { name: /your own ai service provider/i }));
+    const ollama = await screen.findByTestId("ai-runtime-ollama");
+    await waitFor(() => expect(ollama.getAttribute("aria-disabled")).toBeNull());
+    fireEvent.click(ollama.querySelector("input") as HTMLInputElement);
     const disclosure = await screen.findByTestId("ai-disclosure");
     expect(disclosure.textContent).toContain("entirely on your device");
-    expect(screen.queryByLabelText(/api key/i)).toBeNull();
+    expect(screen.queryByLabelText(/^your .* api key$/i)).toBeNull();
+  });
+
+  it("really checks the key, and reports the provider's answer", async () => {
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(
+        String(url).includes("/api/assistant/status")
+          ? respond({
+              ok: true,
+              status: {
+                ...HOSTED_STATUS,
+                ollamaReachable: false,
+                checks: [
+                  {
+                    provider: "groq",
+                    ok: false,
+                    message: "Groq free tier rejected the API key. Check it and try again.",
+                  },
+                ],
+              },
+            })
+          : respond({ ok: true, settings: null }),
+      ),
+    );
+    render(<SettingsView accountsEnabled={false} />);
+    fireEvent.click(await screen.findByRole("radio", { name: /your own ai service provider/i }));
+    fireEvent.click(
+      (await screen.findByTestId("ai-runtime-groq")).querySelector("input") as HTMLInputElement,
+    );
+    fireEvent.change(screen.getByLabelText(/^your .* api key$/i), {
+      target: { value: "gsk_wrong" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /check connection/i }));
+    const result = await screen.findByTestId("ai-status");
+    expect(result.textContent).toContain("rejected the API key");
+    // The check itself sent the key in the header, not in the URL.
+    const call = fetchMock.mock.calls
+      .filter(([u]) => String(u).includes("/api/assistant/status"))
+      .at(-1)!;
+    expect(String(call[0])).not.toContain("gsk_wrong");
   });
 });

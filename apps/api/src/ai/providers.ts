@@ -36,6 +36,7 @@ export const AI_PROVIDERS: Record<AiProviderId, AiProviderInfo> = {
     setupUrl: "https://console.groq.com/keys",
     defaultModel: "llama-3.3-70b-versatile",
     cost: "free",
+    creditsUrl: "https://console.groq.com/settings/billing",
   },
   openrouter: {
     id: "openrouter",
@@ -46,16 +47,18 @@ export const AI_PROVIDERS: Record<AiProviderId, AiProviderInfo> = {
     setupUrl: "https://openrouter.ai/keys",
     defaultModel: "meta-llama/llama-3.3-70b-instruct:free",
     cost: "free",
+    creditsUrl: "https://openrouter.ai/settings/credits",
   },
   google: {
     id: "google",
-    label: "Google AI Studio free tier",
+    label: "Google Gemini free tier",
     local: false,
     needsKey: true,
     disclosure: hostedDisclosure("Google"),
     setupUrl: "https://aistudio.google.com/app/apikey",
     defaultModel: "gemini-2.0-flash",
     cost: "free",
+    creditsUrl: "https://aistudio.google.com/usage",
   },
 };
 
@@ -65,11 +68,22 @@ export function isAiProviderId(value: unknown): value is AiProviderId {
   return typeof value === "string" && (AI_PROVIDER_IDS as string[]).includes(value);
 }
 
-/** What the caller may override per request: the provider, their own key and the model name. */
+/**
+ * What the caller may override per request: the provider, their own key and the model name.
+ *
+ * `mode` is how the assistant picks its keys. "hosted" is OneStop's own service: only the keys the
+ * server itself holds (and Ollama, if the server can reach one) are used, and anything the browser
+ * sent is ignored. "own" is the visitor's own account: only the keys they typed into Settings are
+ * used, never the server's. Left unset (the AI tools' page runs), a key sent with the request wins
+ * for its provider and the server's keys fill in the rest.
+ */
 export interface AiCredentials {
+  mode?: "hosted" | "own" | null;
   provider?: string | null;
   /** The user's own key, typed into Settings. Never persisted server-side. */
   apiKey?: string | null;
+  /** Every key the user has saved, by provider - so a fallback can use the others. */
+  keys?: Partial<Record<AiProviderId, string>> | null;
   model?: string | null;
   /** Ollama only: a host other than the configured one. */
   host?: string | null;
@@ -101,7 +115,8 @@ export function envKey(provider: AiProviderId): string | null {
     case "openrouter":
       return env("OPENROUTER_API_KEY");
     case "google":
-      return env("GOOGLE_AI_API_KEY");
+      // `GEMINI_API_KEY` is what Google's own docs and most hosting guides call it.
+      return env("GOOGLE_AI_API_KEY") ?? env("GEMINI_API_KEY");
     case "ollama":
       return null;
   }
@@ -129,12 +144,21 @@ export function configFor(
   credentials: AiCredentials = {},
 ): AiRuntimeConfig | null {
   const info = AI_PROVIDERS[provider];
-  const supplied =
+  const single =
     typeof credentials.apiKey === "string" && credentials.apiKey.trim() !== ""
       ? credentials.apiKey.trim()
       : null;
+  const fromMap = credentials.keys?.[provider];
   // A key typed into Settings is only ever used for the provider it was typed for.
-  const key = (credentials.provider === provider ? supplied : null) ?? envKey(provider);
+  const supplied =
+    (typeof fromMap === "string" && fromMap.trim() !== "" ? fromMap.trim() : null) ??
+    (credentials.provider === provider ? single : null);
+  const key =
+    credentials.mode === "hosted"
+      ? envKey(provider)
+      : credentials.mode === "own"
+        ? supplied
+        : (supplied ?? envKey(provider));
   if (info.needsKey && !key) return null;
   const model =
     (credentials.provider === provider && typeof credentials.model === "string"
@@ -149,12 +173,29 @@ export function configFor(
   return { provider, info, model, host, apiKey: key };
 }
 
-/** Providers that could be used right now, best first. Ollama always leads: local is the default. */
+function shuffled<T>(items: T[]): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
+
+/**
+ * Providers that could be used right now, in the order to try them: the one the visitor picked
+ * first, then the rest at random - so when several are set up the load is spread across them and
+ * one running out of credits is simply skipped for the next.
+ */
 export function availableConfigs(credentials: AiCredentials = {}): AiRuntimeConfig[] {
-  const preferred = isAiProviderId(credentials.provider) ? credentials.provider : null;
-  const order: AiProviderId[] = preferred
-    ? [preferred, ...AI_PROVIDER_IDS.filter((id) => id !== preferred)]
-    : [...AI_PROVIDER_IDS];
+  const preferred =
+    credentials.mode === "hosted"
+      ? null
+      : isAiProviderId(credentials.provider)
+        ? credentials.provider
+        : null;
+  const rest = shuffled(AI_PROVIDER_IDS.filter((id) => id !== preferred));
+  const order: AiProviderId[] = preferred ? [preferred, ...rest] : rest;
   return order
     .map((id) => configFor(id, credentials))
     .filter((c): c is AiRuntimeConfig => c !== null);

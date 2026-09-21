@@ -17,6 +17,7 @@ import {
   aiHeaders,
   aiMode,
   DEFAULT_PREFERENCES,
+  readAllAiKeys,
   readAiKey,
   writeAiKey,
   applyThemePreference,
@@ -64,8 +65,8 @@ function Switch({
       } ${disabled ? "opacity-60" : ""}`}
     >
       <span
-        className={`absolute top-0.5 h-4.5 w-4.5 rounded-full bg-white shadow transition-transform ${
-          checked ? "translate-x-5.5" : "translate-x-0.5"
+        className={`absolute top-0.5 h-4.5 w-4.5 rounded-full shadow transition-transform ${
+          checked ? "translate-x-5.5 bg-primary-fg" : "translate-x-0.5 bg-fg-muted"
         }`}
       />
     </button>
@@ -79,8 +80,13 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
   const [preferredAI, setPreferredAI] = useState<string>("");
   const [prefs, setPrefs] = useState<LocalPreferences>(DEFAULT_PREFERENCES);
   const [aiKey, setAiKey] = useState("");
-  const [aiStatus, setAiStatus] = useState<AiStatus | null>(null);
+  const [aiStatus, setAiStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [checkingAi, setCheckingAi] = useState(false);
+  // What OneStop's own service can do right now, straight from the server (null while asking).
+  const [hosted, setHosted] = useState<{ available: boolean; ollamaReachable: boolean } | null>(
+    null,
+  );
+  const [savedKeys, setSavedKeys] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   // Set as soon as the visitor changes anything. The account's settings arrive asynchronously,
@@ -95,6 +101,7 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
     setPreferredAI(stored);
     setAiKey(readAiKey(stored || null));
     setPrefs(readLocalPreferences());
+    setSavedKeys(readAllAiKeys());
     setReady(true);
   }, []);
 
@@ -112,6 +119,28 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
     });
     return () => controller.abort();
   }, [signedIn, status]);
+
+  // Asked once, and again whenever the visitor might have changed something that affects it.
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/assistant/status", {
+      headers: aiHeaders("onestop"),
+      signal: controller.signal,
+      cache: "no-store",
+    })
+      .then((response) => response.json())
+      .then((body: { status?: AiStatus }) => {
+        if (!body.status) return setHosted({ available: false, ollamaReachable: false });
+        setHosted({
+          available: body.status.available,
+          ollamaReachable: Boolean(body.status.ollamaReachable),
+        });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setHosted({ available: false, ollamaReachable: false });
+      });
+    return () => controller.abort();
+  }, []);
 
   const confirmSaved = (saved: unknown) => {
     setNotice(
@@ -131,10 +160,12 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
   };
 
   const selectedMode = aiMode(preferredAI || null);
+  const source = prefs.aiSource === "own" ? "own" : "onestop";
 
   const changeAI = async (next: string) => {
     touched.current = true;
     setPreferredAI(next);
+    // The key for this provider comes back by itself if it was entered before.
     setAiKey(readAiKey(next || null));
     setAiStatus(null);
     writePreferredAI(next || null);
@@ -142,10 +173,24 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
     confirmSaved(signedIn ? await saveSettings({ preferredAI: next || null }) : true);
   };
 
+  const changeSource = async (next: "onestop" | "own") => {
+    setAiStatus(null);
+    await changePref("aiSource", next);
+    // Switching to "your own" with nothing chosen yet: start from a provider that already has a
+    // key saved, else Ollama when it answers, else Groq - never an empty, half-configured state.
+    if (next === "own" && !preferredAI) {
+      const keys = readAllAiKeys();
+      const withKey = AI_MODES.find((m) => m.needsKey && keys[m.id]);
+      const start = withKey?.id ?? (hosted?.ollamaReachable ? "ollama" : "groq");
+      await changeAI(start);
+    }
+  };
+
   const changeAiKey = (next: string) => {
     touched.current = true;
     setAiKey(next);
     if (preferredAI) writeAiKey(preferredAI, next);
+    setSavedKeys(readAllAiKeys());
     setAiStatus(null);
   };
 
@@ -153,15 +198,24 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
     setCheckingAi(true);
     setAiStatus(null);
     try {
-      const query = preferredAI ? `?provider=${encodeURIComponent(preferredAI)}` : "";
-      const response = await fetch(`/api/assistant/status${query}`, {
-        headers: aiHeaders(preferredAI || null),
+      const response = await fetch("/api/assistant/status", {
+        headers: aiHeaders("own"),
+        cache: "no-store",
       });
       const body = (await response.json()) as { status?: AiStatus };
-      setAiStatus(body.status ?? null);
+      const check = body.status?.checks?.find((c) => c.provider === preferredAI);
+      setAiStatus(
+        check
+          ? { ok: check.ok, message: check.message }
+          : {
+              ok: false,
+              message: aiKey.trim()
+                ? "That provider could not be checked. Try again."
+                : "Paste your API key first, then check it.",
+            },
+      );
     } catch {
-      setAiStatus(null);
-      setNotice("The AI runtime could not be checked — is the app still running?");
+      setAiStatus({ ok: false, message: "The check could not run - is the app still reachable?" });
     } finally {
       setCheckingAi(false);
     }
@@ -224,104 +278,208 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
         </fieldset>
       </Card>
 
-      <Card className="flex flex-col gap-3">
+      <Card className="flex flex-col gap-4">
         <div>
-          <CardTitle>AI runtime</CardTitle>
+          <CardTitle>AI service</CardTitle>
           <CardDescription>
-            Ollama runs entirely on this machine and works offline, and is what OneStop uses when
-            nothing is configured. The hosted free tiers need internet and send your prompt — and
-            the contents of any file you give the assistant — to that provider. They are never the
-            default, and each one uses a free key you supply yourself.
+            Choose what powers the AI Assistant and the AI tools. Every AI tool also works with no
+            AI at all, using OneStop&rsquo;s built-in offline methods.
           </CardDescription>
         </div>
-        <label htmlFor="settings-ai" className="text-sm font-medium">
-          Preferred runtime
-        </label>
-        <select
-          id="settings-ai"
-          className={fieldClass}
-          value={preferredAI}
-          disabled={!ready}
-          onChange={(e) => void changeAI(e.target.value)}
-        >
-          <option value="">No preference (Ollama first, then any configured key)</option>
-          {AI_MODES.map((mode) => (
-            <option key={mode.id} value={mode.id}>
-              {mode.label}
-            </option>
-          ))}
-        </select>
 
-        {selectedMode && (
-          <p
-            data-testid="ai-disclosure"
-            className={`rounded-md border p-3 text-sm ${
-              selectedMode.local
-                ? "border-border bg-surface-muted text-fg-muted"
-                : "border-warning bg-surface text-fg"
+        <div role="radiogroup" aria-label="AI service" className="flex flex-col gap-2">
+          <label
+            className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm ${
+              source === "onestop" ? "border-primary bg-surface-muted" : "border-border"
             }`}
           >
-            <strong>{selectedMode.local ? "Private by default." : "Heads up."}</strong>{" "}
-            {selectedMode.disclosure}
+            <input
+              type="radio"
+              name="ai-source"
+              className="mt-1"
+              checked={source === "onestop"}
+              disabled={!ready}
+              onChange={() => void changeSource("onestop")}
+            />
+            <span className="flex flex-col gap-0.5">
+              <span className="font-medium">
+                Use OneStop AI service{" "}
+                <span
+                  data-testid="onestop-ai-availability"
+                  className={
+                    hosted === null
+                      ? "text-fg-muted"
+                      : hosted.available
+                        ? "text-success"
+                        : "text-danger"
+                  }
+                >
+                  {hosted === null
+                    ? "(checking…)"
+                    : hosted.available
+                      ? "(available)"
+                      : "(unavailable)"}
+                </span>
+              </span>
+              <span className="text-fg-muted">
+                Nothing to set up. OneStop uses whichever of its own AI services is available and
+                switches to another on its own if one runs out.
+              </span>
+            </span>
+          </label>
+
+          <label
+            className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 text-sm ${
+              source === "own" ? "border-primary bg-surface-muted" : "border-border"
+            }`}
+          >
+            <input
+              type="radio"
+              name="ai-source"
+              className="mt-1"
+              checked={source === "own"}
+              disabled={!ready}
+              onChange={() => void changeSource("own")}
+            />
+            <span className="flex flex-col gap-0.5">
+              <span className="font-medium">Use your own AI service provider</span>
+              <span className="text-fg-muted">
+                Bring your own free Ollama, Groq, OpenRouter or Gemini account.
+              </span>
+            </span>
+          </label>
+        </div>
+
+        {source === "onestop" && (
+          <p
+            data-testid="ai-disclosure"
+            className="rounded-md border border-warning bg-surface p-3 text-sm text-fg"
+          >
+            <strong>Heads up.</strong> OneStop&rsquo;s AI service may run on a hosted free tier
+            (Groq, OpenRouter or Google Gemini) or on the machine that runs OneStop. When it does,
+            the text and file contents you send the AI are transmitted to that provider and need an
+            internet connection.
           </p>
         )}
 
-        {selectedMode?.needsKey && (
-          <div className="flex flex-col gap-1">
-            <label htmlFor="settings-ai-key" className="text-sm font-medium">
-              Your {selectedMode.label.replace(/\s*\(.*\)$/, "")} API key
-            </label>
-            <input
-              id="settings-ai-key"
-              type="password"
-              autoComplete="off"
-              spellCheck={false}
-              className={fieldClass}
-              value={aiKey}
-              disabled={!ready}
-              placeholder="Paste your own free key"
-              onChange={(e) => changeAiKey(e.target.value)}
-            />
-            <p className="text-xs text-fg-muted">
-              Stored in this browser only — never sent to your OneStop account and never shared. Get
-              a free key at{" "}
-              <a
-                href={selectedMode.setupUrl}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="text-primary underline"
+        {source === "own" && (
+          <>
+            <div role="radiogroup" aria-label="Preferred runtime" className="flex flex-col gap-2">
+              <p className="text-sm font-medium">Preferred runtime</p>
+              {AI_MODES.map((mode) => {
+                // Ollama needs a server on the same machine as OneStop; on a hosted site (or
+                // where it is not installed or running) it cannot be used, so it is dimmed out.
+                const blocked = mode.id === "ollama" && hosted !== null && !hosted.ollamaReachable;
+                const selected = preferredAI === mode.id;
+                return (
+                  <label
+                    key={mode.id}
+                    data-testid={`ai-runtime-${mode.id}`}
+                    aria-disabled={blocked || undefined}
+                    title={
+                      blocked
+                        ? "Ollama isn't running on the machine that hosts OneStop, so it can't be used here."
+                        : undefined
+                    }
+                    className={`flex items-center gap-3 rounded-lg border p-3 text-sm ${
+                      blocked
+                        ? "cursor-not-allowed border-border opacity-45"
+                        : selected
+                          ? "cursor-pointer border-primary bg-surface-muted"
+                          : "cursor-pointer border-border"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="ai-runtime"
+                      checked={selected}
+                      disabled={!ready || blocked}
+                      onChange={() => void changeAI(mode.id)}
+                    />
+                    <span className="flex-1 font-medium">{mode.label}</span>
+                    {mode.needsKey && savedKeys[mode.id] && (
+                      <span className="text-xs text-fg-muted">key saved</span>
+                    )}
+                    {blocked && <span className="text-xs text-fg-muted">not available here</span>}
+                  </label>
+                );
+              })}
+            </div>
+
+            {selectedMode && (
+              <p
+                data-testid="ai-disclosure"
+                className={`rounded-md border p-3 text-sm ${
+                  selectedMode.local
+                    ? "border-border bg-surface-muted text-fg-muted"
+                    : "border-warning bg-surface text-fg"
+                }`}
               >
-                {selectedMode.setupUrl}
-              </a>
-              .
+                <strong>{selectedMode.local ? "Private by default." : "Heads up."}</strong>{" "}
+                {selectedMode.disclosure}
+              </p>
+            )}
+
+            {selectedMode?.needsKey && (
+              <div className="flex flex-col gap-1">
+                <label htmlFor="settings-ai-key" className="text-sm font-medium">
+                  Your {selectedMode.label.replace(/\s*\(.*\)$/, "")} API key
+                </label>
+                <input
+                  id="settings-ai-key"
+                  type="password"
+                  autoComplete="off"
+                  spellCheck={false}
+                  className={fieldClass}
+                  value={aiKey}
+                  disabled={!ready}
+                  placeholder="Paste your own free key"
+                  onChange={(e) => changeAiKey(e.target.value)}
+                />
+                <p className="text-xs text-fg-muted">
+                  Stored in this browser only — never sent to your OneStop account and never shared.
+                  Get a free key at{" "}
+                  <a
+                    href={selectedMode.setupUrl}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="text-primary underline"
+                  >
+                    {selectedMode.setupUrl}
+                  </a>
+                  .
+                </p>
+              </div>
+            )}
+
+            {selectedMode && (
+              <div className="flex flex-wrap items-center gap-3">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={checkingAi}
+                  onClick={() => void checkAi()}
+                >
+                  {checkingAi ? "Checking…" : "Check connection"}
+                </Button>
+                {aiStatus && (
+                  <p
+                    data-testid="ai-status"
+                    role="status"
+                    className={`text-sm ${aiStatus.ok ? "text-success" : "text-danger"}`}
+                  >
+                    {aiStatus.message}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <p className="text-xs text-fg-muted">
+              Keys you have saved for the other providers are used as backups: if your preferred one
+              runs out of credits, OneStop moves on to the next.
             </p>
-          </div>
+          </>
         )}
-
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={checkingAi}
-            onClick={() => void checkAi()}
-          >
-            {checkingAi ? "Checking…" : "Check the AI runtime"}
-          </Button>
-          {aiStatus && (
-            <p
-              data-testid="ai-status"
-              className={`text-sm ${aiStatus.available ? "text-fg-muted" : "text-danger"}`}
-            >
-              {aiStatus.message}
-            </p>
-          )}
-        </div>
-
-        <p className="text-sm text-fg-muted">
-          Every AI tool also works with no runtime at all, using OneStop&rsquo;s built-in offline
-          methods — a summary, a grammar check or a translation simply uses the local engine and
-          says so.
-        </p>
       </Card>
 
       <Card className="flex flex-col gap-3">

@@ -38,7 +38,7 @@ Status values to use: `Not started` → `In progress` → `Complete`. If a phase
 The owner deployed V1 (commit `b7a0538`) to Render + Neon themselves and reported it back broken:
 sign-up failed and every tool run failed, both with a generic "Something went wrong". Root cause,
 found by reading the two routes' error handling and `docs/DEPLOYMENT.md` §2: Render had
-`DATABASE_URL` set, but `npm run db:deploy` (`prisma migrate deploy`) was a documented *manual*
+`DATABASE_URL` set, but `npm run db:deploy` (`prisma migrate deploy`) was a documented _manual_
 step that was never run against the new Neon database — so the connection worked but every table
 was missing, and both signup (writes `User`) and every tool run (writes a `Job` row unconditionally
 once a database is configured) hit the same raw, uncaught Prisma error. Fixed at the root:
@@ -75,6 +75,71 @@ user isn't already looking at), and a bell icon with nothing real behind it woul
 rather than functional. The dashboard's "Recent activity" panel (`RecentJobs`, already real) covers
 the same need honestly; a real notification source is a fair candidate for a future "Next Up" item
 if one is ever needed.
+
+---
+
+## Post-V1: second owner pass (2026-09-22)
+
+The owner used the Render deployment and asked for fifteen changes in one message. All are in, in
+both the deployed and the local app (same code). What was found and decided, in the order asked:
+
+1. **Name change did not reach the header.** The header reads the name from the session cookie and
+   nothing refreshed it. The profile page now announces the change to the header immediately
+   (`lib/profile-events.ts`) and brings the cookie up to date behind it; the `jwt` callback reads the
+   new name back from the database instead of trusting the client. Auth.js silently ignores an
+   `update()` made while the session is still loading, which is why the sync waits for it.
+2. **Sign out went to `localhost:10000`.** Auth.js built its redirect from the internal address
+   behind Render's proxy. Sign-out now clears the session and sends the browser to a _relative_ `/`
+   (`lib/sign-out.ts`), and repeats the sign-out if a session read that was already in flight
+   revived the cookie (found in the real-browser run). `applyPublicAuthUrl` also points Auth.js at
+   `RENDER_EXTERNAL_URL` when the configured URL is missing or `localhost`.
+3. **Emails.** Sign-up and reset now send real email. The mailer gained a **Brevo** HTTPS transport
+   (Render's free tier blocks SMTP, so SMTP alone cannot work there), tries every configured
+   transport in order, and derives the SMTP sender from the account. Reset links are built from
+   `RENDER_EXTERNAL_URL`/`APP_URL`, never the request's `Host` header (that would allow a
+   password-reset-poisoning attack). Saving the new password signs the person in and lands on `/`.
+4. **Sign-in landed on `/account`.** It was the bounce from a signed-out `/account` carrying
+   `?next=/account`. That redirect no longer carries `next`, and `landingAfterSignIn` never returns
+   an `/account` or `/auth` path.
+5. **Email-verified sign-up.** New `SignupOtp` table (migration `20260922090000_signup_otp`, applied
+   by the build's `maybe-migrate` step). `POST /api/auth/signup` only stores a pending sign-up and
+   emails a 6-digit code; `POST /api/auth/signup/verify` creates the account. The code is stored as
+   an HMAC, expires in 10 minutes, allows 5 wrong guesses and 1 resend per 30 seconds.
+6. / 11. **Assistant screen.** The provider/disclosure block is gone. When nothing can answer it
+   shows one line: "AI assistant is out of service right now. Check your app settings for issue
+   remediation." Failures no longer say anything about Ollama or keys.
+7. **Header** is fixed: `overflow-x: hidden` on `<html>`/`<body>` had turned them into scroll
+   containers, which breaks `position: sticky`. Now `overflow-x: clip`.
+8. **Home buttons swapped** (see Open Questions for the interpretation).
+9. **Working notices** while the assistant is planning or running ("Figuring out…", "Processing…",
+   "Preparing…", "Last-minute changes…", and more), rotating every ~2 s.
+10. **"No AI runtime is available" on Render** was a real bug, not a missing key: the chat path turned
+    _every_ AI failure (a rejected key, a rate limit, a timeout) into that Ollama-install message.
+    Failures are now distinguished, and a failing provider hands the request to the next.
+    12.-14. **AI service settings.** Settings has "Use OneStop AI service (available/unavailable)" versus
+    "Use your own AI service provider". The first uses only the server's keys; the second only the
+    visitor's (Ollama / Groq / OpenRouter / Gemini, key auto-filled from this browser, kept in
+    `localStorage` only, never sent to the account). Availability is a real, cached check (a
+    zero-cost `models`/`auth/key` request, or Ollama's port), and **Check connection** now really tests
+    the key instead of only reporting that one exists. Ollama is dimmed out when the server cannot
+    reach one (always, on a hosted instance). Requests go to the visitor's pick first (own) or a
+    random provider (hosted), falling through the rest; when all are used up the answer is "Out of
+    credits. Visit <link> to increase your credits usage."
+11. **Theme.** Purple/blue removed. Dark is black lacquer with cool steel highlights; light is
+    polished chrome with champagne glints; graphite and platinum are the accents. Derived from the
+    two reference images' measured colours and built from layered CSS gradients (no image is used),
+    with matching card sheen/shadow and button sheen. `themeColor`, the manifest and the icon
+    background follow.
+
+A testing hazard found on the way: the suite loads `.env`, and the local `.env` holds a working SMTP
+login, so the new sign-up tests briefly **sent real email through it** (a few messages to
+`example.com` addresses, which cannot be delivered). `tests/setup/env.ts` now pins the mail
+transport to the console for every test.
+
+**Still needs a human (needs the Render dashboard, which this repository cannot reach):** set
+`BREVO_API_KEY` and `MAIL_FROM` (or `RESEND_API_KEY`, or `SMTP_URL` on a paid instance) on the
+Render service. Until then sign-up and password reset answer "Email delivery is not set up on this
+server yet". See `docs/DEPLOYMENT.md` §5.1.
 
 ---
 
@@ -679,8 +744,19 @@ Master plan §27 "The product should be" - every clause:
 
 (Anything ambiguous that needs a decision from the user rather than a guess.)
 
+- **Open (2026-09-22):** "Replace the buttons: 'Search tools' and 'Ask OneStop AI'" was read as
+  _swap their places_ - "Ask OneStop AI" now sits beside the search box and hands over whatever was typed;
+  "Search tools" sits underneath. If a different replacement was meant (new labels, icons, a different
+  layout), say which.
+- **Open (2026-09-22):** the third-party-service disclosure was removed from the assistant screen as
+  asked, which CLAUDE.md §2.1 says must be shown in the UI. It is kept where the choice is made: Settings
+  shows the "Heads up" disclosure for OneStop's service and for each hosted provider. Confirm that is
+  enough.
+- **Open (2026-09-22):** "pick randomly" was implemented as: OneStop's service picks any available
+  provider at random; with your own provider, your chosen runtime goes first and the others you have
+  keys for are random backups. A provider that is out of credits is moved to the back for a minute.
 - _(none open)_. **Resolved (03):** the phase-02 category question, as described in the Decisions Log. Two judgement calls were made the conservative way and are worth a glance: JSON/XML Formatter & Validator are filed under **Excel, CSV & Data** (phase 08 owns them; **resolved (12)** - phase 12 does not repeat them, it adds only the HTML/CSS/JS formatters), and "User-Agent Viewer" (12.20, shows your own browser) is kept as a separate tool from "User-Agent Lookup" (13.6, parses any UA string). **Resolved (02):** the master plan and the feature list are now in the repo as `docs/OneStop_MasterDoc.md` and `docs/OneStop_Features.md`. Phase 02 was checked against them: routes match master §3.1, Home matches §5, nav order matches Features §18 ("§18" in `02-ui-shell.md` means the Features doc, not master §18, which covers hosting). Home category cards now use master §4's 8 categories, with counts taken from the Features list.
-- **Open (post-V1 redesign):** should a signed-out visitor ever be blocked from *directly* opening a tool page (not just from seeing it in the nav)? The current implementation keeps direct guest tool access working everywhere, per master plan §9, and only simplifies the nav/home page for a signed-out visitor. If the owner actually wants tool pages themselves gated behind sign-in, that is a real product decision (and a bigger, riskier change - it touches the rate limiter, history, and every tool page's tests) that needs an explicit yes rather than a redesign-session guess.
+- **Open (post-V1 redesign):** should a signed-out visitor ever be blocked from _directly_ opening a tool page (not just from seeing it in the nav)? The current implementation keeps direct guest tool access working everywhere, per master plan §9, and only simplifies the nav/home page for a signed-out visitor. If the owner actually wants tool pages themselves gated behind sign-in, that is a real product decision (and a bigger, riskier change - it touches the rate limiter, history, and every tool page's tests) that needs an explicit yes rather than a redesign-session guess.
 
 ---
 

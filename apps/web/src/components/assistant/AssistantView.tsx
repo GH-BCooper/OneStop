@@ -12,16 +12,19 @@ import { getTool, toolHref } from "@onestop/tool-registry";
 import type { AiStatus, AssistantPlan, WorkflowRunResult } from "@onestop/types";
 import { Badge, Button, buttonClasses } from "@onestop/ui";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, type DragEvent } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { checkFiles, formatBytes } from "@/components/tools/UploadZone";
-import { aiHeaders, readPreferredAI } from "@/lib/preferences";
+import { activeAiProvider, aiHeaders } from "@/lib/preferences";
 import { Recommendations } from "./Recommendations";
 
 /** Anything can be attached: which tools may run is decided by the plan, not by the picker. */
 const ANY_FILE = { name: "the assistant", inputTypes: ["any"], supportsBatch: true };
 
 const EXAMPLES = [
-  { icon: "📄", text: "Convert this PDF to Excel, remove the first 2 pages, then compress the result" },
+  {
+    icon: "📄",
+    text: "Convert this PDF to Excel, remove the first 2 pages, then compress the result",
+  },
   { icon: "🔗", text: "Merge these PDFs and add page numbers" },
   { icon: "💬", text: "What is the notice period in this contract?" },
   { icon: "🖼️", text: "Remove the background from these photos and save them as WebP" },
@@ -61,9 +64,7 @@ function Bubble({ from, children }: { from: "user" | "assistant"; children: Reac
     <div className={`flex ${from === "user" ? "justify-end" : "justify-start"}`}>
       <div
         className={`max-w-[85%] rounded-2xl px-4 py-3 text-sm ${
-          from === "user"
-            ? "bg-primary text-primary-fg"
-            : "border border-border bg-surface text-fg"
+          from === "user" ? "bg-primary text-primary-fg" : "border border-border bg-surface text-fg"
         }`}
       >
         {children}
@@ -72,40 +73,103 @@ function Bubble({ from, children }: { from: "user" | "assistant"; children: Reac
   );
 }
 
-function RuntimeStatus({ status }: { status: AiStatus | null }) {
+/** One short line, only when the assistant cannot answer - no provider names, no setup steps. */
+function OutOfService({ status }: { status: AiStatus | null }) {
+  if (!status || status.available) return null;
   return (
-    <div className="flex flex-col gap-1 text-xs text-fg-muted" data-testid="assistant-runtime">
-      <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={status?.available ? (status.local ? "success" : "warning") : "neutral"}>
-          {status === null
-            ? "Checking…"
-            : status.available
-              ? status.local
-                ? "On this device"
-                : "Third-party service"
-              : "Not configured"}
-        </Badge>
-        <span>{status?.message ?? "Checking…"}</span>
-        <Link href="/settings" className="text-primary hover:underline">
-          Change in Settings
-        </Link>
-      </div>
-      {status?.available && <p data-testid="assistant-disclosure">{status.disclosure}</p>}
-      {status && !status.available && (
-        <p>
-          The assistant still works: it plans with OneStop&rsquo;s own rules, and every tool it
-          runs has a built-in offline method.
-        </p>
-      )}
-    </div>
+    <p
+      role="status"
+      data-testid="assistant-out-of-service"
+      className="rounded-lg border border-warning/50 bg-warning/10 px-3 py-2 text-sm"
+    >
+      AI assistant is out of service right now. Check your{" "}
+      <Link href="/account?tab=app" className="font-medium underline">
+        app settings
+      </Link>{" "}
+      for issue remediation.
+    </p>
   );
 }
 
-function AssistantTurn({ turn, onRun, onDiscard }: { turn: Turn; onRun: () => void; onDiscard: () => void }) {
+/** Text with any http(s) address turned into a link, e.g. the "increase your credits" page. */
+function Linkified({ text }: { text: string }) {
+  const parts = text.split(/(https?:\/\/[^\s]+)/g);
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (!/^https?:\/\//.test(part)) return <Fragment key={i}>{part}</Fragment>;
+        const url = part.replace(/[.,;:!?)]+$/, "");
+        const tail = part.slice(url.length);
+        return (
+          <Fragment key={i}>
+            <a
+              href={url}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="font-medium underline"
+            >
+              {url}
+            </a>
+            {tail}
+          </Fragment>
+        );
+      })}
+    </>
+  );
+}
+
+const PLANNING_NOTICES = [
+  "Figuring out…",
+  "Processing…",
+  "Preparing…",
+  "Reading your request…",
+  "Lining up the right tools…",
+  "Last-minute changes…",
+  "Almost there…",
+];
+
+const RUNNING_NOTICES = [
+  "Running…",
+  "Working on your files…",
+  "Crunching…",
+  "Putting it together…",
+  "Polishing the result…",
+  "Last-minute changes…",
+];
+
+/** A status line that changes every couple of seconds, so a slow answer never looks frozen. */
+function RotatingNotice({ messages }: { messages: string[] }) {
+  const [index, setIndex] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setIndex((i) => (i + 1) % messages.length), 2200);
+    return () => clearInterval(timer);
+  }, [messages]);
+  return (
+    <span
+      role="status"
+      aria-live="polite"
+      data-testid="assistant-notice"
+      className="inline-flex items-center gap-2 text-fg-muted"
+    >
+      <span aria-hidden="true" className="os-pulse-dot" />
+      {messages[index]}
+    </span>
+  );
+}
+
+function AssistantTurn({
+  turn,
+  onRun,
+  onDiscard,
+}: {
+  turn: Turn;
+  onRun: () => void;
+  onDiscard: () => void;
+}) {
   if (turn.status === "planning") {
     return (
       <Bubble from="assistant">
-        <span className="text-fg-muted">Thinking…</span>
+        <RotatingNotice messages={PLANNING_NOTICES} />
       </Bubble>
     );
   }
@@ -114,7 +178,7 @@ function AssistantTurn({ turn, onRun, onDiscard }: { turn: Turn; onRun: () => vo
     return (
       <Bubble from="assistant">
         <p role="alert" className="text-danger">
-          {turn.error}
+          <Linkified text={turn.error ?? ""} />
         </p>
       </Bubble>
     );
@@ -123,7 +187,7 @@ function AssistantTurn({ turn, onRun, onDiscard }: { turn: Turn; onRun: () => vo
   if (turn.status === "running") {
     return (
       <Bubble from="assistant">
-        <span className="text-fg-muted">Running…</span>
+        <RotatingNotice messages={RUNNING_NOTICES} />
       </Bubble>
     );
   }
@@ -186,7 +250,9 @@ function AssistantTurn({ turn, onRun, onDiscard }: { turn: Turn; onRun: () => vo
     if (plan.intent.kind === "chat") {
       return (
         <Bubble from="assistant">
-          <p className="whitespace-pre-line">{plan.message}</p>
+          <p className="whitespace-pre-line">
+            <Linkified text={plan.message ?? ""} />
+          </p>
         </Bubble>
       );
     }
@@ -195,7 +261,9 @@ function AssistantTurn({ turn, onRun, onDiscard }: { turn: Turn; onRun: () => vo
       return (
         <Bubble from="assistant">
           <div className="flex flex-col gap-3">
-            <p className="whitespace-pre-line">{plan.message}</p>
+            <p className="whitespace-pre-line">
+              <Linkified text={plan.message ?? ""} />
+            </p>
             {plan.recommendations && <Recommendations groups={plan.recommendations} />}
           </div>
         </Bubble>
@@ -209,7 +277,11 @@ function AssistantTurn({ turn, onRun, onDiscard }: { turn: Turn; onRun: () => vo
         <div className="flex flex-col gap-3" data-testid="assistant-plan">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="neutral">{plan.intent.kind.replace("-", " ")}</Badge>
-            {plan.runtime && <Badge tone={plan.runtime.local ? "success" : "warning"}>planned by {plan.runtime.model}</Badge>}
+            {plan.runtime && (
+              <Badge tone={plan.runtime.local ? "success" : "warning"}>
+                planned by {plan.runtime.model}
+              </Badge>
+            )}
           </div>
           <p className="whitespace-pre-line">{plan.plan.explanation}</p>
           <ol className="flex flex-col gap-2">
@@ -249,7 +321,9 @@ function AssistantTurn({ turn, onRun, onDiscard }: { turn: Turn; onRun: () => vo
               </ul>
             </div>
           )}
-          {needsFiles && <p className="text-warning">Attach the file(s) this needs, then run it.</p>}
+          {needsFiles && (
+            <p className="text-warning">Attach the file(s) this needs, then run it.</p>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" disabled={needsFiles} onClick={onRun} data-testid="assistant-run">
               Run
@@ -277,14 +351,12 @@ export function AssistantView() {
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const provider = typeof window === "undefined" ? null : readPreferredAI();
+  const provider = typeof window === "undefined" ? null : activeAiProvider();
 
   const loadStatus = useCallback(async (signal?: AbortSignal) => {
-    const picked = readPreferredAI();
     try {
-      const query = picked ? `?provider=${encodeURIComponent(picked)}` : "";
-      const response = await fetch(`/api/assistant/status${query}`, {
-        headers: aiHeaders(picked),
+      const response = await fetch("/api/assistant/status", {
+        headers: aiHeaders(),
         ...(signal ? { signal } : {}),
       });
       const body = (await response.json()) as { status?: AiStatus };
@@ -303,10 +375,8 @@ export function AssistantView() {
   // One hello per visit to the empty screen - fetched once, not re-fetched as turns come and go.
   useEffect(() => {
     const controller = new AbortController();
-    const picked = readPreferredAI();
-    const query = picked ? `?provider=${encodeURIComponent(picked)}` : "";
-    fetch(`/api/assistant/greeting${query}`, {
-      headers: aiHeaders(picked),
+    fetch("/api/assistant/greeting", {
+      headers: aiHeaders(),
       signal: controller.signal,
     })
       .then((response) => response.json())
@@ -317,6 +387,16 @@ export function AssistantView() {
         // No greeting is a cosmetic loss, never a blocker - the composer works either way.
       });
     return () => controller.abort();
+  }, []);
+
+  // The home page's "Ask OneStop AI" carries whatever was typed in its search box.
+  useEffect(() => {
+    try {
+      const q = new URLSearchParams(window.location.search).get("q");
+      if (q && q.trim()) setRequest(q.trim().slice(0, 4000));
+    } catch {
+      // No query string is the normal case.
+    }
   }, []);
 
   useEffect(() => {
@@ -360,7 +440,7 @@ export function AssistantView() {
     try {
       const response = await fetch("/api/assistant/plan", {
         method: "POST",
-        headers: { "content-type": "application/json", ...aiHeaders(provider) },
+        headers: { "content-type": "application/json", ...aiHeaders() },
         body: JSON.stringify({
           request: turn.request,
           fileNames: turn.files.map((f) => f.name),
@@ -396,7 +476,7 @@ export function AssistantView() {
     try {
       const response = await fetch("/api/assistant/run", {
         method: "POST",
-        headers: aiHeaders(provider),
+        headers: aiHeaders(),
         body: form,
       });
       const body = (await response.json()) as RunResponse;
@@ -543,7 +623,7 @@ export function AssistantView() {
           ))}
         </div>
         <div className="w-full max-w-md px-4">
-          <RuntimeStatus status={status} />
+          <OutOfService status={status} />
         </div>
       </div>
     );
@@ -551,7 +631,7 @@ export function AssistantView() {
 
   return (
     <div className="flex flex-col gap-4" data-testid="assistant">
-      <RuntimeStatus status={status} />
+      <OutOfService status={status} />
       <div className="flex flex-col gap-4">
         {turns.map((turn) => (
           <div key={turn.id} className="flex flex-col gap-3">

@@ -111,19 +111,52 @@ Netlify behaves the same way.
 
 `.env.example` documents all of them. These are the ones a hosted instance needs:
 
-| Variable                                                    | Needed       | Value                                                                                                    |
-| ----------------------------------------------------------- | ------------ | -------------------------------------------------------------------------------------------------------- |
-| `APP_URL`                                                   | **yes**      | the public HTTPS URL, no trailing slash                                                                  |
-| `NEXTAUTH_URL`                                              | **yes**      | the same URL                                                                                             |
-| `NEXTAUTH_SECRET`                                           | for accounts | `npx auth secret`, or `openssl rand -base64 32`                                                          |
-| `DATABASE_URL`                                              | for accounts | the pooled Postgres URL from §2                                                                          |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`                 | optional     | a free Google Cloud OAuth client; add `<APP_URL>/api/auth/callback/google` as an authorised redirect URI |
-| `RESEND_API_KEY` or `SMTP_URL`                              | optional     | real password-reset email; without it the link is printed to the server log                              |
-| `MAX_UPLOAD_MB`                                             | optional     | default 100. Lower it on a small free instance                                                           |
-| `TEMP_FILE_TTL_MINUTES`                                     | optional     | default 60                                                                                               |
-| `TEMP_DIR`                                                  | serverless   | `/tmp`                                                                                                   |
-| `RUN_RATE_LIMIT` / `RUN_RATE_WINDOW_SECONDS`                | optional     | per-caller cap on `POST /api/tools/run`; default 120 per 60 s                                            |
-| `GROQ_API_KEY` / `OPENROUTER_API_KEY` / `GOOGLE_AI_API_KEY` | optional     | see §6                                                                                                   |
+| Variable                                                          | Needed               | Value                                                                                                    |
+| ----------------------------------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------- |
+| `APP_URL`                                                         | **yes**              | the public HTTPS URL, no trailing slash                                                                  |
+| `NEXTAUTH_URL`                                                    | **yes**              | the same URL                                                                                             |
+| `NEXTAUTH_SECRET`                                                 | for accounts         | `npx auth secret`, or `openssl rand -base64 32`                                                          |
+| `DATABASE_URL`                                                    | for accounts         | the pooled Postgres URL from §2                                                                          |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`                       | optional             | a free Google Cloud OAuth client; add `<APP_URL>/api/auth/callback/google` as an authorised redirect URI |
+| `BREVO_API_KEY` + `MAIL_FROM`, or `RESEND_API_KEY`, or `SMTP_URL` | **yes** for accounts | the email that carries the sign-up code and the password-reset link - see §5.1                           |
+| `MAX_UPLOAD_MB`                                                   | optional             | default 100. Lower it on a small free instance                                                           |
+| `TEMP_FILE_TTL_MINUTES`                                           | optional             | default 60                                                                                               |
+| `TEMP_DIR`                                                        | serverless           | `/tmp`                                                                                                   |
+| `RUN_RATE_LIMIT` / `RUN_RATE_WINDOW_SECONDS`                      | optional             | per-caller cap on `POST /api/tools/run`; default 120 per 60 s                                            |
+| `GROQ_API_KEY` / `OPENROUTER_API_KEY` / `GOOGLE_AI_API_KEY`       | optional             | see §6                                                                                                   |
+
+### 5.1 Email on a hosted instance (sign-up code and password reset)
+
+Signing up asks for a 6-digit code that is emailed to the address, and the account is created only
+when the code is typed back. Password reset emails a link. **A hosted server therefore has to be
+able to send email** - with nothing configured it says so ("Email delivery is not set up on this
+server yet") rather than pretending it sent something.
+
+Pick one; all are free:
+
+- **Brevo** (recommended on Render's free tier). Create a free account, verify one sender address
+  under _Senders_, create an API key, then set `BREVO_API_KEY` and `MAIL_FROM` (for example
+  `OneStop <you@example.com>`, the address you verified). It is plain HTTPS, so it is not affected by
+  the SMTP block below.
+- **Resend.** `RESEND_API_KEY`. Without a verified domain it only delivers to your own address, so it
+  suits a personal instance, not one anyone can sign up to.
+- **SMTP** (for example Gmail with an app password): `SMTP_URL=smtp://you%40gmail.com:APP_PASSWORD@smtp.gmail.com:587`.
+  **Render's free web services block outbound SMTP ports**, so this only works on a paid instance or
+  another host.
+
+If several are set they are tried in that order, so one being down never costs anyone their code. The
+links in the email use `RENDER_EXTERNAL_URL` (Render sets it) or `APP_URL` - never the request's
+`Host` header - so a `localhost` value left in `APP_URL` cannot break them.
+
+### 5.2 The AI service
+
+With **Use OneStop AI service** selected (the default in Settings), the assistant uses the keys set on
+the server - `GROQ_API_KEY`, `OPENROUTER_API_KEY`, `GOOGLE_AI_API_KEY` (or `GEMINI_API_KEY`) and, if
+the server can reach one, `OLLAMA_HOST`. A request goes to one of them at random and moves on to the
+next if that one is out of credits or down; only when every one is used up does the user see "Out of
+credits. Visit <link> to increase your credits usage." Settings shows the service as _(available)_ or
+_(unavailable)_ from a real check of those keys. Ollama cannot run on a free host, so on a hosted
+instance it is dimmed out in Settings unless `OLLAMA_HOST` points at a machine that is running it.
 
 `APP_URL` matters more than it looks: **dynamic QR codes encode `<APP_URL>/q/<id>`**, so set it to
 the real public URL before printing any code.

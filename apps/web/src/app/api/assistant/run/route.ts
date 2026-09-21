@@ -15,9 +15,10 @@ import {
   loadFileCoreConfig,
   type PipelineFileInput,
 } from "@onestop/api";
-import { ERROR_MESSAGES, type ExecutionPlan } from "@onestop/types";
+import { ERROR_MESSAGES, type AiProviderId, type ExecutionPlan } from "@onestop/types";
 import { NextResponse } from "next/server";
 import { currentUserId } from "@/auth";
+import { readAiCredentials } from "@/lib/ai-request";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -94,11 +95,12 @@ export async function POST(request: Request): Promise<Response> {
 
   // The runtime choice rides along so a planned step that is itself an AI tool (a summary, a
   // question about a file) uses the same runtime the user picked in Settings.
-  const provider = form.get("provider");
-  const apiKey = request.headers.get("x-onestop-ai-key");
+  const chosen = readAiCredentials(request, form.get("provider"));
+  const chosenKey =
+    chosen.provider && (chosen.keys?.[chosen.provider as AiProviderId] ?? chosen.apiKey);
   const credentials = {
-    ...(isAiProviderId(provider) ? { aiProvider: provider } : {}),
-    ...(apiKey && apiKey.trim() !== "" ? { aiKey: apiKey } : {}),
+    ...(isAiProviderId(chosen.provider) ? { aiProvider: chosen.provider } : {}),
+    ...(chosenKey ? { aiKey: chosenKey } : {}),
   };
   if (Object.keys(credentials).length > 0) {
     plan.steps = plan.steps.map((step) => ({

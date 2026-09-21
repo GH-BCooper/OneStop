@@ -114,9 +114,11 @@ Sign-in needs both `DATABASE_URL` and `NEXTAUTH_SECRET`. **Google sign-in** appe
 `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set — create a free OAuth client in the Google
 Cloud Console and add `<APP_URL>/api/auth/callback/google` as an authorised redirect URI.
 
-**Password-reset email.** With nothing configured the reset link is printed to the server console,
-which needs no account anywhere. Set `RESEND_API_KEY` (Resend's free tier) or `SMTP_URL` to send it
-for real.
+**Sign-up code and password-reset email.** Signing up emails a 6-digit code (the account is only
+created when it is typed back), and password reset emails a link. With nothing configured both are
+printed to the server console, which needs no account anywhere - fine on your own machine. Set
+`SMTP_URL` (for example Gmail with an app password), `BREVO_API_KEY` + `MAIL_FROM`, or
+`RESEND_API_KEY` to send them for real; `docs/DEPLOYMENT.md` §5.1 covers which to pick on a host.
 
 Passwords are stored as salted bcrypt hashes (cost 12); reset tokens only as SHA-256 hashes,
 single-use, expiring after an hour.

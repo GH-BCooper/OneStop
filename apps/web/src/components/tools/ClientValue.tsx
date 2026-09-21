@@ -8,7 +8,7 @@
 // read-only so nothing is taken silently.
 import { useEffect, useRef } from "react";
 import type { ClientOption } from "@onestop/tool-registry";
-import { readAiKey, readPreferredAI } from "@/lib/preferences";
+import { activeAiProvider, readAiKey } from "@/lib/preferences";
 
 export function readClientValue(source: ClientOption["source"]): string {
   if (typeof window === "undefined") return "";
@@ -18,8 +18,9 @@ export function readClientValue(source: ClientOption["source"]): string {
     // The AI runtime and its key are Settings values the server cannot know (16-ai-assistant.md).
     // They are always `visible: false`, so nothing is shown on the page: the key in particular is
     // never rendered, and `redactOptionValues` strips it before the run is recorded.
-    if (source === "aiProvider") return readPreferredAI() ?? "";
-    if (source === "aiKey") return readAiKey();
+    // Only when the visitor uses their own provider: OneStop's own service needs neither.
+    if (source === "aiProvider") return activeAiProvider() ?? "";
+    if (source === "aiKey") return activeAiProvider() ? readAiKey(activeAiProvider()) : "";
     return navigator.language ?? "";
   } catch {
     return "";
