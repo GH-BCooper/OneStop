@@ -112,6 +112,8 @@ export interface ToolStateViewProps {
   acceptedTypes?: string;
   /** Whether this run was actually written to history — drives the confirmation line below. */
   historySaved?: boolean;
+  /** Live percentage/label from the run's progress store (see `lib/useProgress.ts`). */
+  progress?: { percent: number; label: string } | null;
   onReset?: () => void;
   onDownload?: () => void;
 }
@@ -184,6 +186,7 @@ export function ToolStateView({
   toolName,
   acceptedTypes,
   historySaved,
+  progress,
   onReset,
   onDownload,
 }: ToolStateViewProps) {
@@ -226,12 +229,29 @@ export function ToolStateView({
       </div>
 
       {(state.status === "validating" || state.status === "processing") && (
-        <div
-          role="progressbar"
-          aria-label={title}
-          className="h-2 w-full overflow-hidden rounded-full bg-surface-muted"
-        >
-          <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
+        <div className="flex flex-col gap-1">
+          <div
+            role="progressbar"
+            aria-label={title}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            {...(progress ? { "aria-valuenow": progress.percent } : {})}
+            className="h-2 w-full overflow-hidden rounded-full bg-surface-muted"
+          >
+            {progress ? (
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
+                style={{ width: `${progress.percent}%` }}
+              />
+            ) : (
+              <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
+            )}
+          </div>
+          {progress && (
+            <p className="text-xs text-fg-muted">
+              {progress.label} — {progress.percent}%
+            </p>
+          )}
         </div>
       )}
 

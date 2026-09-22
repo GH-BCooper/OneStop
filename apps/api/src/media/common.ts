@@ -556,6 +556,17 @@ export interface MediaResult {
 }
 
 /**
+ * Scales one file's own 0-1 FFmpeg progress into its slice of the whole job (file `index` of
+ * `total`), and forwards it to `ctx.reportProgress`. A no-op when nothing is polling for progress.
+ */
+export function scaledProgress(
+  ctx: ExecContext & { index: number; total: number },
+): ((fraction: number) => void) | undefined {
+  if (!ctx.reportProgress) return undefined;
+  return (fraction) => ctx.reportProgress!((ctx.index + Math.max(0, Math.min(1, fraction))) / ctx.total);
+}
+
+/**
  * The "one file in → one file out, ZIP when several" executor shape shared by most media tools.
  * `perFile` is also what workflows (phase 15) can call in isolation.
  */
@@ -564,7 +575,7 @@ export function eachMedia(
   perFile: (
     media: MediaInput,
     options: Record<string, unknown>,
-    ctx: ExecContext & { dir: string; index: number },
+    ctx: ExecContext & { dir: string; index: number; total: number },
   ) => Promise<MediaResult>,
   {
     verb,
@@ -589,7 +600,7 @@ export function eachMedia(
         const results: MediaResult[] = [];
         for (const [index, media] of inputs.entries()) {
           throwIfAborted(ctx!.signal);
-          results.push(await perFile(media, options, { ...ctx!, dir, index }));
+          results.push(await perFile(media, options, { ...ctx!, dir, index, total: inputs.length }));
         }
         const notes = [
           ...new Set(results.map((r) => r.note).filter((n): n is string => Boolean(n))),

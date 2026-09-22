@@ -28,6 +28,7 @@ import { readLocalPreferences } from "@/lib/preferences";
 import { recordRecentTool } from "@/lib/recent-tools";
 import { toolAvailability } from "@/lib/connectivity";
 import { useConnectivity } from "@/lib/use-connectivity";
+import { newProgressToken, useProgressPolling } from "@/lib/useProgress";
 import {
   initialToolState,
   toolReducer,
@@ -102,6 +103,8 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
   );
   // The real File objects, kept beside the reducer's metadata so they can be uploaded.
   const [files, setFiles] = useState<File[]>([]);
+  const [progressToken, setProgressToken] = useState<string | null>(null);
+  const progress = useProgressPolling(progressToken, state.status === "processing");
   const [text, setText] = useState(state.input?.kind === "text" ? state.input.value : "");
   const toolOptions = getToolOptions(tool.id);
   const [optionValues, setOptionValues] = useState<OptionValues>(() =>
@@ -205,8 +208,11 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
     }
 
     dispatch({ type: "START" });
+    const token = newProgressToken();
+    setProgressToken(token);
     const body = new FormData();
     body.set("toolId", tool.id);
+    body.set("progressToken", token);
     for (const file of files) body.append("files", file);
     if (state.input?.kind === "text") body.set("text", state.input.value);
     if (toolOptions.length > 0) {
@@ -400,6 +406,7 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
         toolName={tool.name}
         acceptedTypes={kind === "file" ? accepted : undefined}
         historySaved={signedIn || readLocalPreferences().saveHistory}
+        progress={progress}
         onReset={() => dispatch({ type: "RESET" })}
         onDownload={download}
       />

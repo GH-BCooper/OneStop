@@ -14,12 +14,14 @@
 // any workflow: only *saving* one needs an account.
 import {
   describeIssues,
+  endProgress,
   getPrisma,
   getWorkflow,
   loadFileCoreConfig,
   parseSteps,
   runBatch,
   runWorkflow,
+  setProgress,
   validateWorkflow,
   type PipelineFileInput,
 } from "@onestop/api";
@@ -119,6 +121,8 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   // ---- run -------------------------------------------------------------------------------
+  const rawToken = form.get("progressToken");
+  const progressToken = typeof rawToken === "string" && rawToken.trim() !== "" ? rawToken : null;
   const batch = form.get("mode") === "batch";
   try {
     if (batch) {
@@ -130,19 +134,36 @@ export async function POST(request: Request): Promise<Response> {
         name,
         userId,
         ...(Number.isFinite(concurrency) ? { concurrency } : {}),
+      }, {
+        onFileProgress: (p) => {
+          const done = p.status !== "running";
+          const percent = ((p.fileIndex + (done ? 1 : 0)) / p.fileCount) * 100;
+          const verb = p.status === "running" ? "Processing" : p.status === "success" ? "Finished" : "Failed";
+          setProgress(progressToken, percent, `${verb} ${p.name} (${p.fileIndex + 1}/${p.fileCount})`);
+        },
       });
+      endProgress(progressToken, result.failed === 0);
       return NextResponse.json(
         { ok: result.failed === 0, mode: "batch", batch: result },
         { status: 200, headers: { "cache-control": "no-store" } },
       );
     }
-    const result = await runWorkflow({ steps, files, workflowId, name, userId });
+    const result = await runWorkflow({ steps, files, workflowId, name, userId }, {
+      onProgress: (p) => {
+        const done = p.status !== "running";
+        const percent = ((p.stepIndex + (done ? 1 : 0)) / p.stepCount) * 100;
+        const verb = p.status === "running" ? "Running" : p.status === "success" ? "Finished" : "Failed";
+        setProgress(progressToken, percent, `${verb} step ${p.stepIndex + 1}/${p.stepCount}: ${p.toolName}`);
+      },
+    });
+    endProgress(progressToken, result.ok);
     return NextResponse.json(
       { ok: result.ok, mode: "chain", run: result },
       { status: result.ok ? 200 : 422, headers: { "cache-control": "no-store" } },
     );
   } catch (err) {
     console.error("[api/workflows/run] unexpected failure", err);
+    endProgress(progressToken, false);
     return problem(500, "FAILED", "Something went wrong. Please try again.");
   }
 }

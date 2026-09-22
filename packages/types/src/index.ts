@@ -61,6 +61,12 @@ export interface ExecContext {
   /** Cancellation signal for long-running work. */
   signal?: AbortSignal;
   /**
+   * Lets a long-running tool (FFmpeg encodes, mainly) report how far through its own work it is,
+   * as a fraction from 0 to 1. Optional — most tools finish fast enough that the pipeline's own
+   * stage progress (validating/processing/done) is all the UI needs. Never required to call it.
+   */
+  reportProgress?: (fraction: number) => void;
+  /**
    * The address the request came from, when the host could tell (17-online-media-network-tools.md).
    * "What is my public IP?" cannot be answered by a server-side executor any other way, and the
    * per-IP rate limit the network tools apply needs something to count against. It is untrusted

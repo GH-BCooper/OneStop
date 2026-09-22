@@ -21,6 +21,7 @@ import {
   outName,
   readOutput,
   sameVideoFormat,
+  scaledProgress,
   unsupported,
   VIDEO_FORMATS,
   videoEncodeArgs,
@@ -65,6 +66,8 @@ export interface EncodeVideoOptions extends Omit<VideoEncodeOptions, "hasAudio">
   /** Try a lossless stream copy first (only when there are no filters and no trim). */
   remux?: boolean;
   signal?: AbortSignal;
+  /** 0-1 fraction of this encode, for the run's progress bar. */
+  onProgress?: (fraction: number) => void;
 }
 
 /** Encodes `m` into `format`; returns the bytes and whether it was a lossless remux. */
@@ -107,7 +110,7 @@ export async function encodeVideo(
         muxer,
         out,
       ],
-      { cwd: dir, signal: o.signal },
+      { cwd: dir, signal: o.signal, durationSec: m.duration, onProgress: o.onProgress },
     );
     return { bytes: await readOutput(dir, out), remuxed: true };
   }
@@ -121,7 +124,7 @@ export async function encodeVideo(
       ...videoEncodeArgs(format, { ...o, hasAudio: Boolean(m.audio) }),
       out,
     ],
-    { cwd: dir, signal: o.signal },
+    { cwd: dir, signal: o.signal, durationSec: o.duration ?? m.duration, onProgress: o.onProgress },
   );
   return { bytes: await readOutput(dir, out), remuxed: false };
 }
@@ -146,7 +149,7 @@ function converter(toolId: string, fixed: VideoFormat | null, zipStem: string): 
         m,
         ctx.dir,
         format,
-        { remux: mode === "auto", quality: quality(options), signal: ctx.signal },
+        { remux: mode === "auto", quality: quality(options), signal: ctx.signal, onProgress: scaledProgress(ctx) },
         `out-${ctx.index}`,
       );
       return {
@@ -211,6 +214,7 @@ export const videoCompressorExecutor: Executor = eachMedia(
       audioKbps,
       filters: scale ? [scale] : [],
       signal: ctx.signal,
+      onProgress: scaledProgress(ctx),
     };
     if (level === "size") {
       const targetMb = optNumber(options, "targetMb", 10, { min: 1, max: 4000 });
@@ -268,7 +272,7 @@ export const videoToGifExecutor: Executor = eachMedia(
         "gif",
         out,
       ],
-      { cwd: ctx.dir, signal: ctx.signal },
+      { cwd: ctx.dir, signal: ctx.signal, durationSec: duration, onProgress: scaledProgress(ctx) },
     );
     const bytes = await readOutput(ctx.dir, out);
     const capped =
@@ -386,7 +390,7 @@ export const videoResizerExecutor: Executor = eachMedia(
       m,
       ctx.dir,
       format,
-      { filters, quality: quality(options), signal: ctx.signal },
+      { filters, quality: quality(options), signal: ctx.signal, onProgress: scaledProgress(ctx) },
       `out-${ctx.index}`,
     );
     return {
@@ -421,7 +425,12 @@ export const changeResolutionExecutor: Executor = eachMedia(
       m,
       ctx.dir,
       format,
-      { filters: [filter, "setsar=1"], quality: quality(options), signal: ctx.signal },
+      {
+        filters: [filter, "setsar=1"],
+        quality: quality(options),
+        signal: ctx.signal,
+        onProgress: scaledProgress(ctx),
+      },
       `out-${ctx.index}`,
     );
     return {
@@ -442,7 +451,7 @@ export const changeQualityExecutor: Executor = eachMedia(
       m,
       ctx.dir,
       format,
-      { quality: level, audioKbps, signal: ctx.signal },
+      { quality: level, audioKbps, signal: ctx.signal, onProgress: scaledProgress(ctx) },
       `out-${ctx.index}`,
     );
     return {
@@ -475,7 +484,12 @@ export const rotateVideoExecutor: Executor = eachMedia(
       m,
       ctx.dir,
       format,
-      { filters, quality: quality(options, "high"), signal: ctx.signal },
+      {
+        filters,
+        quality: quality(options, "high"),
+        signal: ctx.signal,
+        onProgress: scaledProgress(ctx),
+      },
       `out-${ctx.index}`,
     );
     const what = [

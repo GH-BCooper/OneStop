@@ -25,6 +25,7 @@ import {
 } from "@onestop/types";
 import { loadFileCoreConfig, type FileCoreConfig } from "./config.ts";
 import { getJobStore, type JobStore } from "./job.ts";
+import { endProgress, setProgress } from "../progress/store.ts";
 import { getTempStore, type TempFile, type TempStore } from "./tempStore.ts";
 import { sanitizeFileName, validateOutputFile, validateUpload } from "./validate.ts";
 
@@ -49,6 +50,8 @@ export interface RunPipelineInput {
   options?: Record<string, unknown>;
   /** The caller's address, when the host knows it (see `ExecContext.clientIp`). */
   clientIp?: string | null;
+  /** When set, run stages are written to the progress store for the browser to poll. */
+  progressToken?: string | null;
 }
 
 export interface PipelineOutcome {
@@ -183,6 +186,9 @@ export async function runPipeline(
   const inputFiles = input.files ?? [];
   const options = input.options ?? {};
   const mode = detectExecutionMode(tool);
+  const progressToken = input.progressToken ?? null;
+  const report = (percent: number, label: string) => setProgress(progressToken, percent, label);
+  report(5, "Preparing…");
 
   // ---- create job ---------------------------------------------------------------------------
   const job = await jobs.create({
@@ -216,12 +222,14 @@ export async function runPipeline(
       status: "failed",
       outputMetadata: { code, message, ...detail },
     });
+    endProgress(progressToken, false);
     return { job: failed, ok: false, files: [], error: { code, message } };
   };
 
   try {
     // ---- validate -------------------------------------------------------------------------
     await jobs.update(job.id, { status: "validating" });
+    report(15, "Validating…");
 
     if (tool.requiresAuth && !input.userId) {
       return await failJob("AUTH_REQUIRED", `Sign in to use ${tool.name}.`);
@@ -276,6 +284,7 @@ export async function runPipeline(
 
     // ---- process ----------------------------------------------------------------------------
     await jobs.update(job.id, { status: "processing" });
+    report(30, "Processing…");
     const payload: FileRef[] | string | null = refs.length > 0 ? refs : (input.text ?? null);
 
     const ctx: ExecContext = {
@@ -289,6 +298,9 @@ export async function runPipeline(
         }
         return temp.read(file.tempId);
       },
+      // Most tools finish inside the 30-90% window without ever calling this; FFmpeg-backed
+      // tools (10-audio-video-tools.md) report real fractional progress through it.
+      reportProgress: (fraction) => report(30 + Math.max(0, Math.min(1, fraction)) * 60, "Processing…"),
     };
 
     let result: ExecResult;
@@ -301,6 +313,7 @@ export async function runPipeline(
 
     if (!result.ok) return await failJob(result.code, result.message);
 
+    report(92, "Saving result…");
     // ---- validate output --------------------------------------------------------------------
     const outputs: OutputFileRef[] = [];
     for (const file of result.files ?? []) {
@@ -342,6 +355,7 @@ export async function runPipeline(
       },
     });
 
+    endProgress(progressToken, true);
     return {
       job: finished,
       ok: true,

@@ -186,6 +186,25 @@ export interface RunOptions {
   timeoutMs?: number;
   /** Collect stdout (ffprobe's JSON). FFmpeg output always goes to files instead. */
   stdout?: boolean;
+  /**
+   * The input's known duration in seconds. When given alongside `onProgress`, stderr's
+   * `time=HH:MM:SS.ss` lines (FFmpeg prints one per progress update at `-loglevel info`) are
+   * turned into a 0-1 fraction of the way through encoding.
+   */
+  durationSec?: number;
+  onProgress?: (fraction: number) => void;
+}
+
+const FFMPEG_TIME = /time=(\d+):(\d{2}):(\d{2}(?:\.\d+)?)/;
+
+/** Reads the last `time=` marker out of one stderr chunk, in seconds. Null if there isn't one. */
+function parseFfmpegTime(chunk: string): number | null {
+  let last: RegExpExecArray | null = null;
+  let match: RegExpExecArray | null;
+  const re = new RegExp(FFMPEG_TIME, "g");
+  while ((match = re.exec(chunk))) last = match;
+  if (!last) return null;
+  return Number(last[1]) * 3600 + Number(last[2]) * 60 + Number(last[3]);
 }
 
 export class FfmpegRunError extends Error {
@@ -201,7 +220,7 @@ export class FfmpegRunError extends Error {
 function run(
   binary: string,
   args: string[],
-  { cwd, signal, timeoutMs = 15 * 60_000, stdout = false }: RunOptions,
+  { cwd, signal, timeoutMs = 15 * 60_000, stdout = false, durationSec, onProgress }: RunOptions,
 ): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) {
@@ -216,9 +235,15 @@ function run(
     });
     let err = "";
     let out = "";
+    const canTrackProgress = Boolean(onProgress && durationSec && durationSec > 0);
     child.stderr!.on("data", (chunk: Buffer) => {
+      const text = chunk.toString();
+      if (canTrackProgress) {
+        const seconds = parseFfmpegTime(text);
+        if (seconds !== null) onProgress!(Math.max(0, Math.min(1, seconds / durationSec!)));
+      }
       // Keep the tail: that is where FFmpeg prints the reason it failed and loudnorm's JSON.
-      err = (err + chunk.toString()).slice(-64_000);
+      err = (err + text).slice(-64_000);
     });
     child.stdout?.on("data", (chunk: Buffer) => {
       if (out.length < 16 * 1024 * 1024) out += chunk.toString();

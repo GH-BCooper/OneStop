@@ -16,6 +16,7 @@ import {
   outName,
   readOutput,
   sameAudioFormat,
+  scaledProgress,
   unsupported,
   type AudioEncodeOptions,
   type AudioFormat,
@@ -31,6 +32,8 @@ export interface EncodeAudioOptions extends AudioEncodeOptions {
   /** Keep the tags (and MP3/M4A cover art) of the input. Default true. */
   keepTags?: boolean;
   signal?: AbortSignal;
+  /** 0-1 fraction of this encode, for the run's progress bar. */
+  onProgress?: (fraction: number) => void;
 }
 
 /** Encodes the first audio track of `m` into `format`; returns the output bytes. */
@@ -65,7 +68,7 @@ export async function encodeAudio(
       ...audioEncodeArgs(format, o),
       out,
     ],
-    { cwd: dir, signal: o.signal },
+    { cwd: dir, signal: o.signal, durationSec: o.duration ?? m.duration, onProgress: o.onProgress },
   );
   return readOutput(dir, out);
 }
@@ -117,7 +120,7 @@ function fixedFormat(toolId: string, format: AudioFormat, verb: string, need: "a
         m,
         ctx.dir,
         format,
-        { ...encodeOptions(options, 192), signal: ctx.signal },
+        { ...encodeOptions(options, 192), signal: ctx.signal, onProgress: scaledProgress(ctx) },
         `out-${ctx.index}`,
       );
       return {
@@ -171,7 +174,7 @@ export const audioConverterExecutor: Executor = eachMedia(
       m,
       ctx.dir,
       format,
-      { ...encodeOptions(options, 192), signal: ctx.signal },
+      { ...encodeOptions(options, 192), signal: ctx.signal, onProgress: scaledProgress(ctx) },
       `out-${ctx.index}`,
     );
     return { file: outFile(outName(m, "", format), format, bytes), note: lengthNote(m) };
@@ -203,6 +206,7 @@ export const audioCompressorExecutor: Executor = eachMedia(
         sampleRate: sampleRateOption(options) ?? (level === "strong" ? 32000 : undefined),
         channels: channelsOption(options) ?? (level === "strong" ? 1 : undefined),
         signal: ctx.signal,
+        onProgress: scaledProgress(ctx),
       },
       `out-${ctx.index}`,
     );

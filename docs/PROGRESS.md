@@ -217,6 +217,60 @@ the same: re-check `GET https://openrouter.ai/api/v1/models` for a current `:fre
 
 ---
 
+## Post-V1: fourth owner pass — real progress bars (2026-09-22)
+
+The owner asked for a percentage progress bar on any conversion, media manipulation or workflow run
+(the workflow runner screenshot showed only a static "Running…" button with no indication of how
+far along it was). The pipeline is deliberately still one synchronous request/response
+(04-file-core.md) — no job queue, no polling architecture rewrite — so this was built as a small,
+additive side channel rather than a restructure, to avoid risking the ~950 passing tests across 20
+already-complete phases:
+
+- **`apps/api/src/progress/store.ts`** (new): an in-memory `Map<token, {percent, label, done}>`,
+  swept after 10 minutes. The browser generates a random `progressToken` before it starts a run,
+  sends it alongside the existing `POST /api/tools/run` / `POST /api/workflows/run` body, and polls
+  the new `GET /api/progress/:token` every 400ms *while that POST is still in flight*. Nothing
+  reads the store to decide anything — a caller that never polls loses nothing, so this could not
+  regress an existing test, and none did.
+- **Stage-based percentage for every tool** (`runPipeline` in `file-processing/pipeline.ts`): 5%
+  preparing → 15% validating → 30% processing start → (25-90% executor-reported, see below) → 92%
+  saving the result → 100% done, or frozen at whatever it reached on failure. This alone covers all
+  206 registry tools with real (not fake/animated) stage transitions, since it needs zero per-tool
+  changes.
+- **Real fractional progress for FFmpeg-backed tools**: `ExecContext` gained an optional
+  `reportProgress(fraction: 0-1)`. `ffmpegCheck.ts`'s one shared spawn function now parses FFmpeg's
+  own `time=HH:MM:SS.ss` stderr lines against the input's known duration and calls it. Wired through
+  the two shared encode functions everything else calls — `encodeVideo` (convertVideo.ts) and
+  `encodeAudio` (convertAudio.ts) — so all 7 video-encode tools (converter, compressor, resizer,
+  resolution, quality, rotate, to-mp4/webm) and all 9 audio-encode tools (converter, compressor,
+  the four fixed-format converters, video-to-mp3) get genuine, live, sub-file percentages for free.
+  `eachMedia`'s per-file context also grew a `total` (file count), and `scaledProgress(ctx)` in
+  `media/common.ts` scales one file's 0-1 fraction into its slice of a multi-file job.
+  **Deliberately not wired** (logged rather than silently skipped, per CLAUDE.md §9): trim, merge,
+  normalize, subtitles, waveform, extract-audio/frames and video-to-gif call `runFfmpeg` directly
+  rather than through the two shared encoders; they still get the honest stage-based percentage
+  above, just not FFmpeg's own sub-progress. Worth revisiting if those specifically feel slow.
+- **Workflows and batch runs** get real step/file-based percentages from their existing (already
+  built in phase 15, never before wired to anything) `onProgress`/`onFileProgress` callbacks in
+  `run.ts`/`batch.ts` — the route handler turns "step 2 of 4 running" into a percent and a label and
+  writes it to the same store. Sub-step FFmpeg fractions are not composed into a workflow's overall
+  percent (would need threading `progressToken` through every step's inner `runPipeline` call and
+  rescaling) — out of scope for this pass, same reasoning as above.
+- **Frontend**: `lib/useProgress.ts` (new) is the one polling hook, used by `ToolPage.tsx` (covers
+  every generic tool page — one integration point, all 206 tools) and `WorkflowRunner.tsx` (the
+  component in the owner's screenshot). `ToolStateMachine.tsx`'s progress bar now renders a real
+  `width: {percent}%` fill and a label line when progress data has arrived, falling back to the
+  original indeterminate pulse only until the first poll lands (so `role="progressbar"` keeps
+  existing for the one test that already asserts it).
+- Not touched: the AI Assistant's tool-execution UI. It already has its own rotating
+  "Figuring out… / Processing… / Preparing…" notices from the third UX pass and wasn't part of what
+  was asked (conversions, media manipulation, workflows); worth wiring to the same store later if
+  the owner wants it there too.
+
+Typecheck, lint and the full unit suite were run after this change with no failures or new skips.
+
+---
+
 ## Decisions Log
 
 (Append one line per real architectural decision — e.g. which Postgres host, which AI runtime default, whether LibreOffice is required or optional locally, etc. Newest at the bottom.)
@@ -383,6 +437,8 @@ the same: re-check `GET https://openrouter.ai/api/v1/models` for a current `:fre
 - **20 - Live suites instead of a manual checklist.** `ai/live.test.ts`, `shared/libreoffice.live.test.ts` and `online-media/live.test.ts` each skip themselves when the thing they test is not installed, so they are green everywhere and real where it counts. CI now installs LibreOffice and yt-dlp so two of them run there too. The live _download_ additionally needs `ONESTOP_LIVE_DOWNLOAD=1`, because `17-online-media-network-tools.md` forbids real downloads in CI.
 - **20 - Hosting is documented as two routes, not one.** `docs/DEPLOYMENT.md` recommends a container host (Render/Railway/Fly) because FFmpeg, yt-dlp and LibreOffice cannot exist on a serverless free tier, and documents Vercel/Netlify honestly as "the document, data, image and utility tools" rather than pretending the media tools will work there. Neither is in the code: both are the same repository with different environment variables.
 - **20 - Local AI is documented as unavailable on every free host.** Ollama needs several GB of RAM and no free tier has it. Rather than leave that implicit, `DEPLOYMENT.md` §6 states it and gives the two honest options (leave AI off, or use a free hosted API key). This satisfies the acceptance criterion's "clearly documented as unavailable on a given free host - never silently broken".
+
+- **Post-V1 (progress bars) - a polled in-memory store, not a job queue or a streamed response.** The pipeline stays a single synchronous request/response on purpose (04-file-core.md's whole point). A `progressToken` generated client-side and polled via `GET /api/progress/:token` while the original `POST` is in flight was the smallest change that made percentages real without touching the request/response contract 20 phases of tests already depend on. `PipelineDeps`/streaming the POST response itself were considered and rejected for that reason.
 
 ## Deviations From Plan
 
@@ -892,10 +948,13 @@ registry).
 
 What a first real feature addition should look at, in the order it would pay off:
 
-1. **Progress reporting for long jobs.** The oldest open product question in this file, raised in
-   phases 05, 06 and 10 and still unanswered. A ten-minute encode showing only "Processing" is the
-   single worst moment in the app. It needs a decision about how (server-sent events on the
-   existing job id is the obvious, dependency-free answer) more than it needs code.
+1. ~~**Progress reporting for long jobs.**~~ **Done** in the fourth owner pass above: a polled
+   progress store gives every tool run, workflow and batch a real percentage, with genuine
+   FFmpeg-level sub-progress for the video/audio tools that go through `encodeVideo`/`encodeAudio`.
+   Left for later, not a defect: the handful of media tools that call `runFfmpeg` directly (trim,
+   merge, normalize, subtitles, waveform, extract-audio/frames, video-to-gif) only get the coarser
+   stage-based percentage, and workflow/batch runs don't compose a step's own FFmpeg sub-progress
+   into the overall bar. The AI Assistant's execution UI wasn't wired to this store either.
 2. **AI-tool quality, now that there is a real runtime to test against.** `ai/live.test.ts` is the
    opening: phase 16's tools were all written against mocks, and a live suite is what turns
    "the prompt looks right" into "the output is right". The summarizer and the assistant's planner

@@ -17,6 +17,7 @@ import { Badge, Button, buttonClasses, Card, CardTitle } from "@onestop/ui";
 import { useState } from "react";
 import { FilePreview, previewable } from "@/components/tools/ToolStateMachine";
 import { checkFiles, formatBytes, UploadZone } from "@/components/tools/UploadZone";
+import { newProgressToken, useProgressPolling } from "@/lib/useProgress";
 
 export interface WorkflowRunnerProps {
   steps: WorkflowStep[];
@@ -80,6 +81,8 @@ export function WorkflowRunner({ steps, name, workflowId = null }: WorkflowRunne
   const [error, setError] = useState<string | null>(null);
   const [run, setRun] = useState<WorkflowRunResult | null>(null);
   const [batch, setBatch] = useState<BatchRunResult | null>(null);
+  const [progressToken, setProgressToken] = useState<string | null>(null);
+  const progress = useProgressPolling(progressToken, running);
 
   if (!first) return null;
 
@@ -101,10 +104,14 @@ export function WorkflowRunner({ steps, name, workflowId = null }: WorkflowRunne
     setRun(null);
     setBatch(null);
 
+    const token = newProgressToken();
+    setProgressToken(token);
+
     const form = new FormData();
     form.set("steps", JSON.stringify(steps));
     form.set("name", name);
     form.set("mode", mode);
+    form.set("progressToken", token);
     if (workflowId) form.set("workflowId", workflowId);
     for (const file of files) form.append("files", file);
 
@@ -183,6 +190,33 @@ export function WorkflowRunner({ steps, name, workflowId = null }: WorkflowRunne
           </Button>
         ) : null}
       </div>
+
+      {running ? (
+        <div className="flex flex-col gap-1">
+          <div
+            role="progressbar"
+            aria-label="Workflow progress"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            {...(progress ? { "aria-valuenow": progress.percent } : {})}
+            className="h-2 w-full overflow-hidden rounded-full bg-surface-muted"
+          >
+            {progress ? (
+              <div
+                className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
+                style={{ width: `${progress.percent}%` }}
+              />
+            ) : (
+              <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
+            )}
+          </div>
+          {progress && (
+            <p className="text-xs text-fg-muted">
+              {progress.label} — {progress.percent}%
+            </p>
+          )}
+        </div>
+      ) : null}
 
       {error ? (
         <p role="alert" className="text-sm text-danger">

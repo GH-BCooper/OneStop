@@ -76,6 +76,8 @@ export async function POST(request: Request): Promise<Response> {
   if (typeof toolId !== "string" || toolId.trim() === "") {
     return problem(400, "UNSUPPORTED_INPUT", "No tool was specified.");
   }
+  const rawToken = form.get("progressToken");
+  const progressToken = typeof rawToken === "string" && rawToken.trim() !== "" ? rawToken : null;
 
   const rawText = form.get("text");
   const text = typeof rawText === "string" ? rawText : null;
@@ -128,7 +130,7 @@ export async function POST(request: Request): Promise<Response> {
     // and every public tool still runs - auth is never required to use one (master plan 9).
     const userId = await currentUserId();
     const outcome = await runPipeline(
-      { toolId, userId, files, text, options, clientIp: clientIpOf(request) },
+      { toolId, userId, files, text, options, clientIp: clientIpOf(request), progressToken },
       { config },
     );
     return NextResponse.json(
