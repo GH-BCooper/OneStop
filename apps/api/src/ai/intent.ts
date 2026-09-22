@@ -42,6 +42,12 @@ const GENERATE_VERBS =
 const CATALOGUE_RE =
   /\b(list|show|display|name)\b[^.?!]*\btools?\b|\bhow many\b[^.?!]*\btools?\b|\b(what|which)\b[^.?!]*\btools?\b|\ball (of )?(the |your )?tools\b|\btools? (do you have|are there|exist|are available|can (you|onestop) use)\b/i;
 
+/** "list my workflows", "what are my favourite tools", "show my favourites" — the client's own
+ *  saved-workflow / starred-tool lists, not the registry, but still a plain listing rather than
+ *  something to run (see `catalogue.ts`). */
+const MY_LISTS_RE =
+  /\b(my|the)\b[^.?!]*\bworkflows?\b|\bworkflows?\b[^.?!]*\b(do i have|have i saved|are there)\b|\bfavou?rites?\b/i;
+
 const TOOL_VERBS =
   /\b(convert|merge|split|compress|rotate|resize|crop|extract|remove|delete|encrypt|decrypt|watermark|sign|ocr|scan|flatten|unlock|protect|zip|unzip|archive|encode|decode|hash|format|validate|clean|deduplicate|transcode|trim)\b/i;
 
@@ -69,7 +75,7 @@ export function detectIntentRules(
   // "list all the pdf tools", "how many image tools do you have" — asking about OneStop's own
   // catalogue, not asking it to run anything. An explicit action verb ("compress", "convert", …)
   // always wins over the word "tool" showing up in the sentence.
-  if (!toolish && CATALOGUE_RE.test(text)) {
+  if (!toolish && (CATALOGUE_RE.test(text) || MY_LISTS_RE.test(text))) {
     return { ...base, kind: "catalogue", confidence: 0.9, needsFiles: false };
   }
 
@@ -122,7 +128,7 @@ const INTENT_SYSTEM = [
   '  "question"    — answer a question about the content of an uploaded file',
   '  "generate"    — produce or rework text with the model alone (write, rewrite, translate, summarise)',
   '  "chat"        — plain conversation: greetings, small talk, general questions with nothing to run',
-  '  "catalogue"   — asking what OneStop\'s own tools are (counts, "list the pdf tools", "what tools do you have")',
+  '  "catalogue"   — asking what OneStop\'s own tools are, or the user\'s own saved workflows/favourite tools (counts, "list the pdf tools", "what tools do you have", "list my workflows", "my favourite tools")',
   '  "unsupported" — OneStop cannot do this at all (3D modelling, sending email, browsing the web…)',
   "confidence is 0 to 1. Never add prose, never add other keys.",
 ].join("\n");

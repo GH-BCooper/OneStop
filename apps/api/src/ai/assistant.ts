@@ -11,7 +11,7 @@
 // Planning and running are two calls on purpose: the user sees the plan, in their own terms,
 // before a single file is touched. Nothing here executes anything.
 import type { AssistantPlan } from "@onestop/types";
-import { buildCatalogueAnswer, catalogueMessage } from "./catalogue.ts";
+import { buildCatalogueAnswer, catalogueMessage, type WorkflowSummary } from "./catalogue.ts";
 import { detectIntent } from "./intent.ts";
 import { AiError, assistantFailureMessage, chat, type ChatMessage } from "./modelRuntime.ts";
 import { buildPlan, type PlanContext } from "./planner.ts";
@@ -101,6 +101,11 @@ export interface AssistantRequest {
   history?: AssistantHistory;
   /** The signed-in user's own name/email/birthday, when known - never another user's. */
   profile?: AssistantProfile;
+  /** The caller's own saved workflows, exactly as the Workflows page already has them (account or
+   *  this device) - never fetched server-side, so a guest's device-only list still shows up. */
+  workflows?: WorkflowSummary[];
+  /** The caller's own starred tool ids, same source as the star icon elsewhere in the app. */
+  favoriteToolIds?: string[];
   credentials?: AiCredentials;
   signal?: AbortSignal;
 }
@@ -178,7 +183,10 @@ export async function planAssistantRequest(input: AssistantRequest): Promise<Ass
   // "List all the pdf tools" et al. — answered straight from the registry, never the model, so
   // it is instant, free and works fully offline like the registry itself (CLAUDE.md §2).
   if (intent.kind === "catalogue") {
-    const catalogue = buildCatalogueAnswer(request);
+    const catalogue = buildCatalogueAnswer(request, {
+      workflows: input.workflows,
+      favoriteToolIds: input.favoriteToolIds,
+    });
     return {
       ok: true,
       intent,

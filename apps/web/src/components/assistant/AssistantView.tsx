@@ -15,7 +15,9 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { checkFiles, formatBytes } from "@/components/tools/UploadZone";
+import { useFavorites } from "@/lib/use-favorites";
 import { activeAiProvider, aiHeaders } from "@/lib/preferences";
+import { fetchWorkflows, readLocalWorkflows, WORKFLOWS_CHANGED } from "@/lib/workflows";
 import { Recommendations } from "./Recommendations";
 import { ToolCatalogue } from "./ToolCatalogue";
 
@@ -265,7 +267,9 @@ function AssistantTurn({
         <Bubble from="assistant">
           <div className="flex flex-col gap-3">
             <p className="whitespace-pre-line">{plan.message}</p>
-            {plan.catalogue && <ToolCatalogue catalogue={plan.catalogue} />}
+            {plan.catalogue && plan.catalogue.totalTools > 0 && (
+              <ToolCatalogue catalogue={plan.catalogue} />
+            )}
           </div>
         </Bubble>
       );
@@ -372,6 +376,29 @@ export function AssistantView() {
   const { data: session, status: sessionStatus } = useSession();
   const sessionReady = sessionStatus !== "loading";
   const userId = session?.user?.id ?? null;
+  const { favorites } = useFavorites();
+
+  // "list my workflows" needs the same list the Workflows page shows — account or this device —
+  // kept in hand so a "catalogue" answer never has to fetch anything mid-turn.
+  const [workflowSummaries, setWorkflowSummaries] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    if (!sessionReady) return;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const list = userId ? await fetchWorkflows() : readLocalWorkflows();
+        if (!cancelled) setWorkflowSummaries(list.map((w) => ({ id: w.id, name: w.name })));
+      } catch {
+        if (!cancelled) setWorkflowSummaries([]);
+      }
+    };
+    void load();
+    window.addEventListener(WORKFLOWS_CHANGED, load);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(WORKFLOWS_CHANGED, load);
+    };
+  }, [sessionReady, userId]);
 
   const loadStatus = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -491,6 +518,8 @@ export function AssistantView() {
           fileNames: turn.files.map((f) => f.name),
           history,
           provider,
+          workflows: workflowSummaries,
+          favoriteToolIds: favorites,
         }),
       });
       const body = (await response.json()) as PlanResponse;

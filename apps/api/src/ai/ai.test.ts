@@ -117,6 +117,13 @@ describe("intent detection", () => {
     ).toBe("tool-chain");
   });
 
+  it("routes 'my workflows' / 'my favourites' to the catalogue too, without needing the word tool", () => {
+    expect(detectIntentRules("list my workflows").kind).toBe("catalogue");
+    expect(detectIntentRules("what workflows do I have").kind).toBe("catalogue");
+    expect(detectIntentRules("show my favourite tools").kind).toBe("catalogue");
+    expect(detectIntentRules("what are my favorites").kind).toBe("catalogue");
+  });
+
   it("marks genuinely out-of-scope requests as unsupported", () => {
     expect(detectIntentRules("generate a 3D model of a house").kind).toBe("unsupported");
     expect(detectIntentRules("send an email to my supplier").kind).toBe("unsupported");
@@ -770,6 +777,47 @@ describe("master plan §7.1, end to end", () => {
     const archive = await temp.read(finalFile.id);
     expect(decode(archive.slice(0, 2))).toBe("PK");
   }, 300_000);
+});
+
+describe("the catalogue: a user's own workflows and favourite tools", () => {
+  it("lists the caller's saved workflows, linked straight to their 'use' view", async () => {
+    const planned = await planAssistantRequest({
+      request: "list my workflows",
+      fileNames: [],
+      workflows: [{ id: "wf-1", name: "convert csv to image" }],
+    });
+    expect(planned.catalogue?.scope).toBe("workflows");
+    expect(planned.catalogue?.groups).toEqual([
+      {
+        id: "workflows",
+        name: "Workflows",
+        icon: "🧩",
+        href: "/workflows",
+        count: 1,
+        tools: [{ id: "wf-1", name: "convert csv to image", href: "/workflows/wf-1?use=1" }],
+      },
+    ]);
+  });
+
+  it("says so, rather than showing an empty listing, when the caller has no saved workflows", async () => {
+    const planned = await planAssistantRequest({ request: "list my workflows", fileNames: [] });
+    expect(planned.catalogue?.groups[0]?.count).toBe(0);
+    expect(planned.message).toContain("don't have any saved workflows yet");
+  });
+
+  it("resolves the caller's favourite tool ids back to real, clickable registry entries", async () => {
+    const planned = await planAssistantRequest({
+      request: "what are my favourite tools",
+      fileNames: [],
+      favoriteToolIds: ["merge-pdf", "compress-pdf", "not-a-real-tool"],
+    });
+    expect(planned.catalogue?.scope).toBe("favorites");
+    const tool = getTool("merge-pdf")!;
+    expect(planned.catalogue?.groups[0]?.tools).toEqual([
+      { id: "merge-pdf", name: tool.name, href: expect.any(String) },
+      { id: "compress-pdf", name: getTool("compress-pdf")!.name, href: expect.any(String) },
+    ]);
+  });
 });
 
 describe("chat memory and the signed-in user's own profile", () => {

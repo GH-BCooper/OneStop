@@ -23,6 +23,31 @@ export const dynamic = "force-dynamic";
 
 const MAX_FILE_NAMES = 50;
 const MAX_HISTORY_CHARS = 4000;
+const MAX_WORKFLOWS = 100;
+const MAX_FAVORITES = 300;
+
+// Round-tripped from the client exactly like `fileNames` — the assistant never fetches a user's
+// workflows/favourites itself, so a guest's device-only lists still work with no server data.
+function readWorkflowSummaries(body: Record<string, unknown>): { id: string; name: string }[] {
+  if (!Array.isArray(body.workflows)) return [];
+  const out: { id: string; name: string }[] = [];
+  for (const raw of body.workflows.slice(0, MAX_WORKFLOWS)) {
+    if (!raw || typeof raw !== "object") continue;
+    const id = (raw as { id?: unknown }).id;
+    const name = (raw as { name?: unknown }).name;
+    if (typeof id === "string" && id !== "" && typeof name === "string" && name !== "") {
+      out.push({ id, name: name.slice(0, 200) });
+    }
+  }
+  return out;
+}
+
+function readFavoriteToolIds(body: Record<string, unknown>): string[] {
+  if (!Array.isArray(body.favoriteToolIds)) return [];
+  return body.favoriteToolIds
+    .filter((id): id is string => typeof id === "string" && id !== "")
+    .slice(0, MAX_FAVORITES);
+}
 
 function readHistory(body: Record<string, unknown>): AssistantHistory {
   if (!Array.isArray(body.history)) return [];
@@ -77,6 +102,8 @@ export async function POST(request: Request): Promise<Response> {
   const credentials = readAiCredentials(request, body.provider);
   const history = readHistory(body);
   const profile = await readProfile();
+  const workflows = readWorkflowSummaries(body);
+  const favoriteToolIds = readFavoriteToolIds(body);
 
   try {
     const plan = await planAssistantRequest({
@@ -84,6 +111,8 @@ export async function POST(request: Request): Promise<Response> {
       fileNames,
       ...(history.length > 0 ? { history } : {}),
       ...(profile ? { profile } : {}),
+      ...(workflows.length > 0 ? { workflows } : {}),
+      ...(favoriteToolIds.length > 0 ? { favoriteToolIds } : {}),
       credentials,
     });
     return ok({ plan });
