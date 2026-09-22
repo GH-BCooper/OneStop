@@ -11,6 +11,7 @@
 // Planning and running are two calls on purpose: the user sees the plan, in their own terms,
 // before a single file is touched. Nothing here executes anything.
 import type { AssistantPlan } from "@onestop/types";
+import { buildCatalogueAnswer, catalogueMessage } from "./catalogue.ts";
 import { detectIntent } from "./intent.ts";
 import { AiError, assistantFailureMessage, chat, type ChatMessage } from "./modelRuntime.ts";
 import { buildPlan, type PlanContext } from "./planner.ts";
@@ -77,14 +78,41 @@ const CHAT_SYSTEM = [
   "Chat naturally and helpfully, in a few short sentences unless asked for more.",
   "You specialise in OneStop's own tools. If what the person actually wants is a file task (convert, merge, compress, OCR, resize, translate a document, and so on), say you can do that and ask them to describe the task or attach the file, rather than trying to do it in this reply.",
   "You cannot run code, browse the web, access the internet, or do anything outside OneStop's own registered tools - be upfront about that rather than pretending otherwise.",
+  "Earlier turns of this same chat, when given, are the real conversation history - use them to answer follow-ups (\"what did I just ask\", \"my name\", and so on) instead of claiming you have no memory of them.",
 ].join("\n");
+
+/** The signed-in user's own profile facts, offered to the model as-is - never fetched or guessed. */
+export interface AssistantProfile {
+  name?: string | null;
+  email?: string | null;
+  birthday?: string | null;
+}
+
+/** Prior turns of the same chat thread, oldest first. Round-tripped by the client; never stored server-side. */
+export type AssistantHistory = ChatMessage[];
+
+export const MAX_HISTORY_TURNS = 12;
 
 export interface AssistantRequest {
   request: string;
   /** Names of the files the user attached, used for type-compatibility and for the prompt. */
   fileNames: string[];
+  /** Earlier user/assistant turns from this same thread, oldest first - see `AssistantHistory`. */
+  history?: AssistantHistory;
+  /** The signed-in user's own name/email/birthday, when known - never another user's. */
+  profile?: AssistantProfile;
   credentials?: AiCredentials;
   signal?: AbortSignal;
+}
+
+function profileSystemLine(profile?: AssistantProfile): string | null {
+  if (!profile) return null;
+  const facts: string[] = [];
+  if (profile.name) facts.push(`name is ${profile.name}`);
+  if (profile.email) facts.push(`email is ${profile.email}`);
+  if (profile.birthday) facts.push(`birthday is ${profile.birthday}`);
+  if (facts.length === 0) return null;
+  return `The signed-in user's own ${facts.join(", ")}. Only share this back with them, never imply it is about anyone else.`;
 }
 
 export const MAX_REQUEST_CHARS = 4000;
@@ -97,6 +125,7 @@ function unsupported(request: string, message: string): AssistantPlan {
     message,
     rejected: [],
     recommendations: recommendationsFor(request),
+    catalogue: null,
     runtime: null,
   };
 }
@@ -122,12 +151,16 @@ export async function planAssistantRequest(input: AssistantRequest): Promise<Ass
       message: "Tell the assistant what you would like done.",
       rejected: [],
       recommendations: null,
+      catalogue: null,
       runtime: null,
     };
   }
 
+  const recentHistory = (input.history ?? []).slice(-MAX_HISTORY_TURNS);
+
   const intent = await detectIntent(request, {
     hasFiles: input.fileNames.length > 0,
+    ...(recentHistory.length > 0 ? { history: recentHistory } : {}),
     ...(input.credentials ? { credentials: input.credentials } : {}),
     ...(input.signal ? { signal: input.signal } : {}),
   });
@@ -139,6 +172,22 @@ export async function planAssistantRequest(input: AssistantRequest): Promise<Ass
         "OneStop cannot do that itself. Here are tools that can — the free ones first.",
       ),
       intent,
+    };
+  }
+
+  // "List all the pdf tools" et al. — answered straight from the registry, never the model, so
+  // it is instant, free and works fully offline like the registry itself (CLAUDE.md §2).
+  if (intent.kind === "catalogue") {
+    const catalogue = buildCatalogueAnswer(request);
+    return {
+      ok: true,
+      intent,
+      plan: null,
+      message: catalogueMessage(catalogue),
+      rejected: [],
+      recommendations: null,
+      catalogue,
+      runtime: null,
     };
   }
 
@@ -160,6 +209,7 @@ export async function planAssistantRequest(input: AssistantRequest): Promise<Ass
         message: "Attach the file you would like the assistant to read, then ask again.",
         rejected: [],
         recommendations: null,
+        catalogue: null,
         runtime: null,
       };
     }
@@ -173,6 +223,7 @@ export async function planAssistantRequest(input: AssistantRequest): Promise<Ass
       message: null,
       rejected: [],
       recommendations: null,
+      catalogue: null,
       runtime: null,
     };
   }
@@ -182,8 +233,11 @@ export async function planAssistantRequest(input: AssistantRequest): Promise<Ass
   // answer calls none). With no runtime configured this still never fails the request: it says so
   // and points back at the tools, which all have their own non-AI path regardless.
   if (intent.kind === "chat") {
+    const profileLine = profileSystemLine(input.profile);
     const messages: ChatMessage[] = [
       { role: "system", content: CHAT_SYSTEM },
+      ...(profileLine ? [{ role: "system" as const, content: profileLine }] : []),
+      ...recentHistory,
       { role: "user", content: request },
     ];
     try {
@@ -203,6 +257,7 @@ export async function planAssistantRequest(input: AssistantRequest): Promise<Ass
         message: text.trim(),
         rejected: [],
         recommendations: null,
+        catalogue: null,
         runtime: { provider: config.provider, model: config.model, local: config.info.local },
       };
     } catch (err) {
@@ -214,6 +269,7 @@ export async function planAssistantRequest(input: AssistantRequest): Promise<Ass
           message: assistantFailureMessage(err),
           rejected: [],
           recommendations: null,
+          catalogue: null,
           runtime: null,
         };
       }
@@ -234,6 +290,7 @@ export async function planAssistantRequest(input: AssistantRequest): Promise<Ass
         message: assistantFailureMessage(err),
         rejected: [],
         recommendations: null,
+        catalogue: null,
         runtime: null,
       };
     }
@@ -266,6 +323,7 @@ export async function planAssistantRequest(input: AssistantRequest): Promise<Ass
     message: null,
     rejected: result.rejected,
     recommendations: null,
+    catalogue: null,
     runtime: result.runtime
       ? {
           provider: result.runtime.provider,

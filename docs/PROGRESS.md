@@ -867,6 +867,25 @@ the assistant appeared broken while the Settings page looked healthy.
 Verified live against Groq, Google and OpenRouter with real keys, and against a local Ollama, in
 both hosted and own-provider modes.
 
+### 2026-09-22 — Assistant can list/count OneStop's own tools
+
+"Can you list me all the pdf tools?" used to fall through to `unsupported` (the model, when asked,
+correctly said no *tool* does that — it's an informational request, not a job to run — so the
+assistant answered with the external-recommendations panel instead of just answering from its own
+registry).
+
+- New `catalogue` `AssistantIntentKind`. Detected entirely by rules (`CATALOGUE_RE` in
+  `apps/api/src/ai/intent.ts`) — "list/show/what/which ... tools", "how many ... tools", "all the
+  tools" — with an explicit action verb (`compress`, `convert`, …) always winning first, so a real
+  tool-chain request that happens to say "tool" is never hijacked.
+- `apps/api/src/ai/catalogue.ts` builds the answer straight from `@onestop/tool-registry`'s
+  `GROUPS`/`toolsForCatalogPage`/`toolHref` — no model call, so it's instant, free and fully
+  offline, same as the registry itself (CLAUDE.md §2). A keyword match narrows to one catalogue
+  group (pdf/documents/data/images/media/qr/ai/utilities); no match lists all 8 with counts.
+- `AssistantPlan` gained a `catalogue: ToolCatalogueAnswer | null` field; the web app renders it
+  with the new `ToolCatalogue` component — each tool and each group is a real `next/link` straight
+  to its page, never a made-up name.
+
 ## Next Up
 
 **All 20 phases are complete.** `docs/build/` is finished; there is no next phase file.

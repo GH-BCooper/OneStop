@@ -17,6 +17,7 @@ import { Fragment, useCallback, useEffect, useRef, useState, type DragEvent } fr
 import { checkFiles, formatBytes } from "@/components/tools/UploadZone";
 import { activeAiProvider, aiHeaders } from "@/lib/preferences";
 import { Recommendations } from "./Recommendations";
+import { ToolCatalogue } from "./ToolCatalogue";
 
 /** Anything can be attached: which tools may run is decided by the plan, not by the picker. */
 const ANY_FILE = { name: "the assistant", inputTypes: ["any"], supportsBatch: true };
@@ -258,6 +259,18 @@ function AssistantTurn({
       );
     }
 
+    // "List the pdf tools" etc. — a registry listing, not a plan to confirm and run.
+    if (plan.intent.kind === "catalogue") {
+      return (
+        <Bubble from="assistant">
+          <div className="flex flex-col gap-3">
+            <p className="whitespace-pre-line">{plan.message}</p>
+            {plan.catalogue && <ToolCatalogue catalogue={plan.catalogue} />}
+          </div>
+        </Bubble>
+      );
+    }
+
     if (!plan.plan) {
       return (
         <Bubble from="assistant">
@@ -455,6 +468,15 @@ export function AssistantView() {
     }
     setComposerError(null);
     const id = crypto.randomUUID();
+    // Prior plain-conversation turns from this same thread, oldest first, round-tripped so the
+    // assistant can answer a follow-up ("what did I just ask", "my name") — nothing is persisted
+    // server-side, so this is the only place the history lives.
+    const history = turns
+      .filter((t) => t.plan?.intent.kind === "chat" && t.plan.message)
+      .flatMap((t) => [
+        { role: "user" as const, content: t.request },
+        { role: "assistant" as const, content: t.plan!.message! },
+      ]);
     const turn: Turn = { id, request: text, files, status: "planning" };
     setTurns((all) => [...all, turn]);
     setRequest("");
@@ -467,6 +489,7 @@ export function AssistantView() {
         body: JSON.stringify({
           request: turn.request,
           fileNames: turn.files.map((f) => f.name),
+          history,
           provider,
         }),
       });

@@ -84,6 +84,8 @@ export type AssistantIntentKind =
   | "generate"
   /** Plain conversation - greetings, small talk, general questions with nothing to run. */
   | "chat"
+  /** Asking what OneStop's own tools are — counts and listings straight from the registry. */
+  | "catalogue"
   /** OneStop genuinely cannot do this — answer with external recommendations. */
   | "unsupported";
 
@@ -120,6 +122,32 @@ export interface PlanRejection {
   reason: string;
 }
 
+/** One tool in a catalogue listing, ready to link straight to its page. */
+export interface ToolCatalogueEntry {
+  id: string;
+  name: string;
+  href: string;
+}
+
+/** One catalogue group ("PDF", "Images", …) with its tools, for a "list the X tools" answer. */
+export interface ToolCatalogueGroup {
+  id: string;
+  name: string;
+  icon: string;
+  /** The group's page in All Tools. */
+  href: string;
+  count: number;
+  tools: ToolCatalogueEntry[];
+}
+
+/** The answer to "how many / list the … tools", read straight from the registry — never the AI. */
+export interface ToolCatalogueAnswer {
+  /** "all", or the matched group id (e.g. "pdf", "media"). */
+  scope: string;
+  totalTools: number;
+  groups: ToolCatalogueGroup[];
+}
+
 /** The answer to "plan this request" — never executes anything by itself. */
 export interface AssistantPlan {
   ok: boolean;
@@ -131,6 +159,8 @@ export interface AssistantPlan {
   rejected: PlanRejection[];
   /** Present when OneStop cannot do this at all (master plan §7.3). */
   recommendations: RecommendationGroups | null;
+  /** Present for a "catalogue" intent: counts and clickable listings from the registry. */
+  catalogue: ToolCatalogueAnswer | null;
   /** Which runtime produced the plan; null when the rule-based planner did it alone. */
   runtime: { provider: AiProviderId; model: string; local: boolean } | null;
 }

@@ -38,6 +38,10 @@ const ABOUT_A_FILE =
 const GENERATE_VERBS =
   /\b(write|draft|compose|generate|rewrite|rephrase|paraphrase|proofread|translate|summari[sz]e|shorten|expand|make it (shorter|longer|formal|casual))\b/i;
 
+/** "list all the pdf tools", "how many image tools do you have", "what qr tools are there". */
+const CATALOGUE_RE =
+  /\b(list|show|display|name)\b[^.?!]*\btools?\b|\bhow many\b[^.?!]*\btools?\b|\b(what|which)\b[^.?!]*\btools?\b|\ball (of )?(the |your )?tools\b|\btools? (do you have|are there|exist|are available|can (you|onestop) use)\b/i;
+
 const TOOL_VERBS =
   /\b(convert|merge|split|compress|rotate|resize|crop|extract|remove|delete|encrypt|decrypt|watermark|sign|ocr|scan|flatten|unlock|protect|zip|unzip|archive|encode|decode|hash|format|validate|clean|deduplicate|transcode|trim)\b/i;
 
@@ -61,6 +65,13 @@ export function detectIntentRules(
   const toolish = TOOL_VERBS.test(text);
   const questionish = QUESTION_STARTERS.test(text) || text.endsWith("?");
   const generative = GENERATE_VERBS.test(text);
+
+  // "list all the pdf tools", "how many image tools do you have" — asking about OneStop's own
+  // catalogue, not asking it to run anything. An explicit action verb ("compress", "convert", …)
+  // always wins over the word "tool" showing up in the sentence.
+  if (!toolish && CATALOGUE_RE.test(text)) {
+    return { ...base, kind: "catalogue", confidence: 0.9, needsFiles: false };
+  }
 
   // "What does the contract say about termination?" — a question *about* an uploaded file is RAG,
   // not a tool chain, even when it mentions a PDF.
@@ -99,6 +110,7 @@ const KINDS: AssistantIntentKind[] = [
   "question",
   "generate",
   "chat",
+  "catalogue",
   "unsupported",
 ];
 
@@ -110,6 +122,7 @@ const INTENT_SYSTEM = [
   '  "question"    — answer a question about the content of an uploaded file',
   '  "generate"    — produce or rework text with the model alone (write, rewrite, translate, summarise)',
   '  "chat"        — plain conversation: greetings, small talk, general questions with nothing to run',
+  '  "catalogue"   — asking what OneStop\'s own tools are (counts, "list the pdf tools", "what tools do you have")',
   '  "unsupported" — OneStop cannot do this at all (3D modelling, sending email, browsing the web…)',
   "confidence is 0 to 1. Never add prose, never add other keys.",
 ].join("\n");
@@ -120,16 +133,33 @@ const INTENT_SYSTEM = [
  */
 export async function detectIntent(
   request: string,
-  options: { hasFiles?: boolean; credentials?: AiCredentials; signal?: AbortSignal } = {},
+  options: {
+    hasFiles?: boolean;
+    /** Recent turns of the same chat, oldest first - lets the model tell "what did I just ask"
+     *  apart from a genuine question about an attached file, instead of guessing from one line. */
+    history?: ChatMessage[];
+    credentials?: AiCredentials;
+    signal?: AbortSignal;
+  } = {},
 ): Promise<AssistantIntent> {
   const rules = detectIntentRules(request, { hasFiles: options.hasFiles ?? false });
   if (rules.confidence >= 0.7 || rules.request === "") return rules;
 
+  const recap = (options.history ?? [])
+    .slice(-6)
+    .map((m) => `${m.role}: ${m.content.slice(0, 300)}`)
+    .join("\n");
   const messages: ChatMessage[] = [
     { role: "system", content: INTENT_SYSTEM },
     {
       role: "user",
-      content: `Files attached: ${options.hasFiles ? "yes" : "no"}\nRequest: ${request.trim().slice(0, 2000)}`,
+      content: [
+        recap ? `Recent conversation (for context only):\n${recap}\n` : null,
+        `Files attached: ${options.hasFiles ? "yes" : "no"}`,
+        `Request: ${request.trim().slice(0, 2000)}`,
+      ]
+        .filter(Boolean)
+        .join("\n"),
     },
   ];
   try {

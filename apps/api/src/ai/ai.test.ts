@@ -85,6 +85,17 @@ describe("intent detection", () => {
     expect(detectIntentRules("Draft an email asking for an invoice").kind).toBe("generate");
   });
 
+  it("routes 'list/how many/what tools' questions to the registry catalogue, not the model", () => {
+    expect(detectIntentRules("can you list me all the pdf tools?").kind).toBe("catalogue");
+    expect(detectIntentRules("how many image tools do you have").kind).toBe("catalogue");
+    expect(detectIntentRules("what tools are there for QR codes").kind).toBe("catalogue");
+    expect(detectIntentRules("show me all the tools").kind).toBe("catalogue");
+    // An actual action verb always wins over the word "tool" showing up in the sentence.
+    expect(
+      detectIntentRules("what tool should I use to compress this pdf", { hasFiles: true }).kind,
+    ).toBe("tool-chain");
+  });
+
   it("marks genuinely out-of-scope requests as unsupported", () => {
     expect(detectIntentRules("generate a 3D model of a house").kind).toBe("unsupported");
     expect(detectIntentRules("send an email to my supplier").kind).toBe("unsupported");

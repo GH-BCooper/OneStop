@@ -58,6 +58,7 @@ const PLAN: AssistantPlan = {
   message: null,
   rejected: [],
   recommendations: null,
+  catalogue: null,
   runtime: null,
 };
 
@@ -85,6 +86,40 @@ const UNSUPPORTED: AssistantPlan = {
         purpose: "Professional parametric CAD.",
         limitation: "Subscription.",
         pricing: "paid",
+      },
+    ],
+  },
+  catalogue: null,
+  runtime: null,
+};
+
+const CATALOGUE: AssistantPlan = {
+  ok: true,
+  intent: {
+    kind: "catalogue",
+    request: "list all the pdf tools",
+    confidence: 0.9,
+    needsFiles: false,
+    source: "rules",
+  },
+  plan: null,
+  message: "OneStop has 2 PDF tools:",
+  rejected: [],
+  recommendations: null,
+  catalogue: {
+    scope: "pdf",
+    totalTools: 2,
+    groups: [
+      {
+        id: "pdf",
+        name: "PDF",
+        icon: "📄",
+        href: "/tools/pdf",
+        count: 2,
+        tools: [
+          { id: "merge-pdf", name: "Merge PDF", href: "/tools/pdf/merge-pdf" },
+          { id: "split-pdf", name: "Split PDF", href: "/tools/pdf/split-pdf" },
+        ],
       },
     ],
   },
@@ -177,6 +212,7 @@ describe("the assistant workspace", () => {
         "Out of credits. Visit https://console.groq.com/settings/billing to increase your credits usage.",
       rejected: [],
       recommendations: null,
+      catalogue: null,
       runtime: null,
     };
     fetchMock.mockImplementation((url: string) =>
@@ -255,6 +291,7 @@ describe("the assistant workspace", () => {
       message: "Hi! I'm the OneStop Assistant. Ask me to convert, merge or edit a file any time.",
       rejected: [],
       recommendations: null,
+      catalogue: null,
       runtime: null,
     };
     fetchMock.mockImplementation((url: string) =>
@@ -276,6 +313,33 @@ describe("the assistant workspace", () => {
     // A chat reply is not a refusal: no "cannot do that" framing and no recommendations panel.
     expect(screen.queryByTestId("external-recommendations")).toBeNull();
     expect(screen.queryByText(/cannot do that/i)).toBeNull();
+  });
+
+  it("lists OneStop's own tools with clickable links to each one", async () => {
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(
+        String(url).includes("/status")
+          ? respond({ ok: true, status: LOCAL_STATUS })
+          : respond({ ok: true, plan: CATALOGUE }),
+      ),
+    );
+    render(<AssistantView />);
+    fireEvent.change(screen.getByTestId("assistant-request"), {
+      target: { value: "can you list me all the pdf tools?" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+
+    const panel = await screen.findByTestId("tool-catalogue");
+    expect(panel.textContent).toContain("PDF tools — 2");
+    expect(screen.getByRole("link", { name: "Merge PDF" }).getAttribute("href")).toBe(
+      "/tools/pdf/merge-pdf",
+    );
+    expect(screen.getByRole("link", { name: "Split PDF" }).getAttribute("href")).toBe(
+      "/tools/pdf/split-pdf",
+    );
+    expect(screen.getByRole("link", { name: "Open category" }).getAttribute("href")).toBe(
+      "/tools/pdf",
+    );
   });
 });
 
