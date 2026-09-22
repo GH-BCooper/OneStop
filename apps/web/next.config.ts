@@ -31,6 +31,11 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Root CLAUDE.md is the single agent guide; stop Next from generating per-app copies.
   agentRules: false,
+  // Next defaults this worker pool to (host CPUs - 1). Render's build host reports far more
+  // CPUs than the container actually has RAM for, so with ~230 tool pages each pulling in
+  // NextAuth/Prisma plus heavy libs (sharp, pdfjs, tesseract, canvas), the default pool size
+  // OOM-kills the build. Cap it so static generation runs a few pages at a time instead.
+  experimental: { cpus: 2 },
   transpilePackages: ["@onestop/ui", "@onestop/types", "@onestop/tool-registry", "@onestop/api"],
   // Native/worker-based PDF libraries must stay outside the bundle: @napi-rs/canvas loads a
   // platform .node binary and pdf.js resolves its fonts/CMaps relative to node_modules.
