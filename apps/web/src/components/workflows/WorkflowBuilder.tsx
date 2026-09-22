@@ -94,6 +94,10 @@ export function WorkflowBuilder({ workflow }: WorkflowBuilderProps) {
   };
 
   const save = async () => {
+    if (notice) {
+      router.push("/workflows");
+      return;
+    }
     if (!validation.valid) {
       setError(validation.issues[0]?.message ?? "This workflow cannot be saved yet.");
       return;
