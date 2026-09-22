@@ -3,7 +3,6 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import { authIsConfigured } from "@/lib/auth-config";
 import { SessionProvider } from "@/components/auth/SessionProvider";
-import { BackButton } from "@/components/layout/BackButton";
 import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
 import { OfflineBanner } from "@/components/layout/OfflineBanner";
@@ -59,7 +58,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           <Header accountsEnabled={authIsConfigured()} />
           <OfflineBanner />
           <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-            <BackButton />
             {children}
           </main>
           <Footer />

@@ -76,10 +76,12 @@ export async function greetUser(
 const CHAT_SYSTEM = [
   "You are the OneStop Assistant, built into OneStop: a free, local-first web app for file conversion, PDF, image, data, QR, media and developer-utility tasks, made for personal / small-trusted-group use. It has two front doors: this AI Assistant, which plans and runs chains of OneStop's own tools from a plain-language request, and All Tools, a searchable catalogue where any tool can be opened and used directly. Every core feature works with $0 spent and processes files locally whenever practical.",
   "OneStop was founded and built by Brett Cooper. If asked who made, built, created, owns or runs OneStop (or who made you), credit Brett Cooper by name rather than a vague 'the OneStop team'.",
-  "Chat naturally and helpfully, in a few short sentences unless asked for more.",
+  "Chat naturally and helpfully, in a few short sentences unless asked for more. Answer general-knowledge questions and small talk directly - never refuse a plain question just because it is not about OneStop, and never ask the person to attach a file unless the question is actually about a file's contents.",
   "You specialise in OneStop's own tools. If what the person actually wants is a file task (convert, merge, compress, OCR, resize, translate a document, and so on), say you can do that and ask them to describe the task or attach the file, rather than trying to do it in this reply.",
   "You cannot run code, browse the web, access the internet, or do anything outside OneStop's own registered tools - be upfront about that rather than pretending otherwise.",
   "Earlier turns of this same chat, when given, are the real conversation history - use them to answer follow-ups (\"what did I just ask\", \"my name\", and so on) instead of claiming you have no memory of them.",
+  "Format every reply in short, clean Markdown: **bold** for key terms, bullet or numbered lists where they help scanability, short paragraphs. Keep it brief and to the point - no filler.",
+  "End every reply with one short line nudging the person back to OneStop's own tools (e.g. asking what they'd like to convert, merge or clean up) - vary the wording each time, but always steer back to OneStop.",
 ].join("\n");
 
 /** The signed-in user's own profile facts, offered to the model as-is - never fetched or guessed. */
@@ -122,6 +124,61 @@ function profileSystemLine(profile?: AssistantProfile): string | null {
 }
 
 export const MAX_REQUEST_CHARS = 4000;
+
+/**
+ * A plain-words reply from the model - used for genuine small talk/general knowledge, and for a
+ * "question" intent that has no file to read (still a real question, just not RAG). Never fails
+ * the request: with no runtime configured, or on any AI error, it says so in words instead.
+ */
+async function chatAnswer(
+  request: string,
+  intent: AssistantPlan["intent"],
+  input: Pick<AssistantRequest, "profile" | "credentials" | "signal">,
+  recentHistory: ChatMessage[],
+): Promise<AssistantPlan> {
+  const profileLine = profileSystemLine(input.profile);
+  const messages: ChatMessage[] = [
+    { role: "system", content: CHAT_SYSTEM },
+    ...(profileLine ? [{ role: "system" as const, content: profileLine }] : []),
+    ...recentHistory,
+    { role: "user", content: request },
+  ];
+  try {
+    const { text, config } = await chat(
+      messages,
+      {
+        temperature: 0.6,
+        maxTokens: 400,
+        ...(input.signal ? { signal: input.signal } : {}),
+      },
+      input.credentials ?? {},
+    );
+    return {
+      ok: true,
+      intent: { ...intent, kind: "chat", needsFiles: false },
+      plan: null,
+      message: text.trim(),
+      rejected: [],
+      recommendations: null,
+      catalogue: null,
+      runtime: { provider: config.provider, model: config.model, local: config.info.local },
+    };
+  } catch (err) {
+    if (err instanceof AiError) {
+      return {
+        ok: true,
+        intent: { ...intent, kind: "chat", needsFiles: false },
+        plan: null,
+        message: assistantFailureMessage(err),
+        rejected: [],
+        recommendations: null,
+        catalogue: null,
+        runtime: null,
+      };
+    }
+    throw err;
+  }
+}
 
 function unsupported(request: string, message: string): AssistantPlan {
   return {
@@ -210,17 +267,10 @@ export async function planAssistantRequest(input: AssistantRequest): Promise<Ass
   };
 
   if (intent.kind === "question") {
+    // No file to read: this is still a genuine question, just not RAG - answer it as
+    // conversation (general knowledge, small talk) rather than blocking on an attachment.
     if (input.fileNames.length === 0) {
-      return {
-        ok: false,
-        intent,
-        plan: null,
-        message: "Attach the file you would like the assistant to read, then ask again.",
-        rejected: [],
-        recommendations: null,
-        catalogue: null,
-        runtime: null,
-      };
+      return chatAnswer(request, intent, input, recentHistory);
     }
     return {
       ok: true,
@@ -242,48 +292,7 @@ export async function planAssistantRequest(input: AssistantRequest): Promise<Ass
   // answer calls none). With no runtime configured this still never fails the request: it says so
   // and points back at the tools, which all have their own non-AI path regardless.
   if (intent.kind === "chat") {
-    const profileLine = profileSystemLine(input.profile);
-    const messages: ChatMessage[] = [
-      { role: "system", content: CHAT_SYSTEM },
-      ...(profileLine ? [{ role: "system" as const, content: profileLine }] : []),
-      ...recentHistory,
-      { role: "user", content: request },
-    ];
-    try {
-      const { text, config } = await chat(
-        messages,
-        {
-          temperature: 0.6,
-          maxTokens: 400,
-          ...(input.signal ? { signal: input.signal } : {}),
-        },
-        input.credentials ?? {},
-      );
-      return {
-        ok: true,
-        intent,
-        plan: null,
-        message: text.trim(),
-        rejected: [],
-        recommendations: null,
-        catalogue: null,
-        runtime: { provider: config.provider, model: config.model, local: config.info.local },
-      };
-    } catch (err) {
-      if (err instanceof AiError) {
-        return {
-          ok: true,
-          intent,
-          plan: null,
-          message: assistantFailureMessage(err),
-          rejected: [],
-          recommendations: null,
-          catalogue: null,
-          runtime: null,
-        };
-      }
-      throw err;
-    }
+    return chatAnswer(request, intent, input, recentHistory);
   }
 
   let result;

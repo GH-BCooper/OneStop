@@ -13,11 +13,22 @@ import type { AiStatus, AssistantPlan, WorkflowRunResult } from "@onestop/types"
 import { Badge, Button, buttonClasses, Card } from "@onestop/ui";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Fragment, useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { checkFiles, formatBytes } from "@/components/tools/UploadZone";
+import {
+  createThread,
+  fallbackTitle,
+  getThread,
+  newThreadId,
+  renameThread,
+  saveThreadTurns,
+  type StoredTurn,
+} from "@/lib/assistant-threads";
 import { useFavorites } from "@/lib/use-favorites";
 import { activeAiProvider, aiHeaders } from "@/lib/preferences";
 import { fetchWorkflows, readLocalWorkflows, WORKFLOWS_CHANGED } from "@/lib/workflows";
+import { Markdown } from "./Markdown";
 import { Recommendations } from "./Recommendations";
 import { ToolCatalogue } from "./ToolCatalogue";
 
@@ -50,15 +61,50 @@ interface RunResponse {
 
 type TurnStatus = "planning" | "planned" | "running" | "done" | "failed";
 
+interface FileMeta {
+  name: string;
+  size: number;
+}
+
 interface Turn {
   id: string;
   request: string;
+  /** The live `File` objects — only present for turns created this session (needed to run them). */
   files: File[];
+  /** Name/size for display, always present — this is what survives a reload. */
+  fileMeta: FileMeta[];
   status: TurnStatus;
   plan?: AssistantPlan;
   run?: WorkflowRunResult;
   note?: string | null;
   error?: string;
+}
+
+function toStored(turn: Turn): StoredTurn {
+  return {
+    id: turn.id,
+    request: turn.request,
+    files: turn.fileMeta,
+    status: turn.status,
+    ...(turn.plan ? { plan: turn.plan } : {}),
+    ...(turn.run ? { run: turn.run } : {}),
+    ...(turn.note !== undefined ? { note: turn.note } : {}),
+    ...(turn.error !== undefined ? { error: turn.error } : {}),
+  };
+}
+
+function fromStored(turn: StoredTurn): Turn {
+  return {
+    id: turn.id,
+    request: turn.request,
+    files: [],
+    fileMeta: turn.files,
+    status: turn.status,
+    ...(turn.plan ? { plan: turn.plan } : {}),
+    ...(turn.run ? { run: turn.run } : {}),
+    ...(turn.note !== undefined ? { note: turn.note } : {}),
+    ...(turn.error !== undefined ? { error: turn.error } : {}),
+  };
 }
 
 const statusTone = { success: "success", failed: "danger", skipped: "neutral" } as const;
@@ -254,9 +300,7 @@ function AssistantTurn({
     if (plan.intent.kind === "chat") {
       return (
         <Bubble from="assistant">
-          <p className="whitespace-pre-line">
-            <Linkified text={plan.message ?? ""} />
-          </p>
+          <Markdown text={plan.message ?? ""} />
         </Bubble>
       );
     }
@@ -358,7 +402,8 @@ function AssistantTurn({
   return null;
 }
 
-export function AssistantView() {
+export function AssistantView({ threadId = null }: { threadId?: string | null }) {
+  const router = useRouter();
   const [request, setRequest] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [status, setStatus] = useState<AiStatus | null>(null);
@@ -368,6 +413,27 @@ export function AssistantView() {
   const [dragging, setDragging] = useState(false);
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // The active thread id. A ref, not state: `send()` and `updateTurn()` run inside async callbacks
+  // and setState updaters and need the id that is current *right now*, not one captured when the
+  // closure was created.
+  const currentIdRef = useRef<string | null>(threadId);
+  // Set by `send()` for the one render where it creates a brand-new thread and pushes its URL
+  // itself — the prop change that follows is an echo of that, not a switch to hydrate from storage.
+  const skipNextHydrateRef = useRef(false);
+
+  // Every other change of `threadId` — a sidebar click, "New chat", the browser's own back/forward
+  // button, or a direct/refreshed load of `/assistant/<id>` — reloads that thread's turns from
+  // storage. This also covers the initial mount, so a refresh on a thread's URL restores its chat.
+  useEffect(() => {
+    const incoming = threadId ?? null;
+    currentIdRef.current = incoming;
+    if (skipNextHydrateRef.current) {
+      skipNextHydrateRef.current = false;
+      return;
+    }
+    setTurns(incoming ? (getThread(incoming)?.turns.map(fromStored) ?? []) : []);
+  }, [threadId]);
 
   const provider = typeof window === "undefined" ? null : activeAiProvider();
   // Saved AI keys are namespaced to the signed-in account, so the status/greeting calls below wait
@@ -484,7 +550,11 @@ export function AssistantView() {
   };
 
   const updateTurn = (id: string, patch: Partial<Turn>) => {
-    setTurns((all) => all.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    setTurns((all) => {
+      const next = all.map((t) => (t.id === id ? { ...t, ...patch } : t));
+      if (currentIdRef.current) saveThreadTurns(currentIdRef.current, next.map(toStored));
+      return next;
+    });
   };
 
   const send = async (override?: string) => {
@@ -504,7 +574,35 @@ export function AssistantView() {
         { role: "user" as const, content: t.request },
         { role: "assistant" as const, content: t.plan!.message! },
       ]);
-    const turn: Turn = { id, request: text, files, status: "planning" };
+    const fileMeta = files.map((f) => ({ name: f.name, size: f.size }));
+    const turn: Turn = { id, request: text, files, fileMeta, status: "planning" };
+
+    // First message of a fresh conversation: mint the thread now, give it a URL of its own (so the
+    // browser's back button walks back through chats, per the redesign), and title it — first with
+    // a plain truncation, then upgraded in the background if the AI can do better.
+    const isNewThread = currentIdRef.current === null;
+    const activeId = currentIdRef.current ?? newThreadId();
+    if (isNewThread) {
+      currentIdRef.current = activeId;
+      skipNextHydrateRef.current = true;
+      createThread(activeId, fallbackTitle(text), toStored(turn));
+      router.push(`/assistant/${activeId}`);
+      fetch("/api/assistant/title", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...aiHeaders() },
+        body: JSON.stringify({ request: text, provider }),
+      })
+        .then((r) => r.json())
+        .then((body: { title?: string }) => {
+          if (body.title) renameThread(activeId, body.title);
+        })
+        .catch(() => {
+          // A title is cosmetic — the truncated fallback already saved above is fine on its own.
+        });
+    } else {
+      saveThreadTurns(activeId, [...turns, turn].map(toStored));
+    }
+
     setTurns((all) => [...all, turn]);
     setRequest("");
     setFiles([]);
@@ -712,9 +810,9 @@ export function AssistantView() {
           <div key={turn.id} className="flex flex-col gap-3">
             <Bubble from="user">
               <p className="whitespace-pre-line">{turn.request}</p>
-              {turn.files.length > 0 && (
+              {turn.fileMeta.length > 0 && (
                 <ul className="mt-1 text-xs opacity-80">
-                  {turn.files.map((f) => (
+                  {turn.fileMeta.map((f) => (
                     <li key={f.name}>
                       📎 {f.name} · {formatBytes(f.size)}
                     </li>
@@ -725,7 +823,13 @@ export function AssistantView() {
             <AssistantTurn
               turn={turn}
               onRun={() => void runTurn(turn.id)}
-              onDiscard={() => setTurns((all) => all.filter((t) => t.id !== turn.id))}
+              onDiscard={() => {
+                setTurns((all) => {
+                  const next = all.filter((t) => t.id !== turn.id);
+                  if (currentIdRef.current) saveThreadTurns(currentIdRef.current, next.map(toStored));
+                  return next;
+                });
+              }}
             />
           </div>
         ))}
