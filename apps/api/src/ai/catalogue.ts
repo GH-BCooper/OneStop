@@ -46,12 +46,11 @@ export function buildCatalogueAnswer(request: string): ToolCatalogueAnswer {
   return { scope: selected.length > 0 ? scope : "all", totalTools, groups };
 }
 
-/** The plain-words summary line the assistant says before the clickable listing. */
+/** The plain-words line the assistant says before the clickable card listing. */
 export function catalogueMessage(answer: ToolCatalogueAnswer): string {
   if (answer.groups.length === 1) {
     const group = answer.groups[0]!;
     return `OneStop has ${group.count} ${group.name} tool${group.count === 1 ? "" : "s"}:`;
   }
-  const lines = answer.groups.map((g) => `${g.name}: ${g.count}`).join("\n");
-  return `OneStop has ${answer.totalTools} tools across ${answer.groups.length} categories.\n${lines}`;
+  return "I can help you convert files, work with PDFs, images, audio, video, data, QR codes, and more — just ask and I'll do it. Here's the toolset I currently have:";
 }

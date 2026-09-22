@@ -126,6 +126,47 @@ const CATALOGUE: AssistantPlan = {
   runtime: null,
 };
 
+const ALL_CATALOGUE: AssistantPlan = {
+  ok: true,
+  intent: {
+    kind: "catalogue",
+    request: "what can you do",
+    confidence: 0.9,
+    needsFiles: false,
+    source: "rules",
+  },
+  plan: null,
+  message: "I can help you convert files, work with PDFs, images, and more — here's the toolset:",
+  rejected: [],
+  recommendations: null,
+  catalogue: {
+    scope: "all",
+    totalTools: 3,
+    groups: [
+      {
+        id: "pdf",
+        name: "PDF",
+        icon: "📄",
+        href: "/tools/pdf",
+        count: 2,
+        tools: [
+          { id: "merge-pdf", name: "Merge PDF", href: "/tools/pdf/merge-pdf" },
+          { id: "split-pdf", name: "Split PDF", href: "/tools/pdf/split-pdf" },
+        ],
+      },
+      {
+        id: "images",
+        name: "Images",
+        icon: "🖼️",
+        href: "/tools/images",
+        count: 1,
+        tools: [{ id: "resize-image", name: "Resize Image", href: "/tools/images/resize-image" }],
+      },
+    ],
+  },
+  runtime: null,
+};
+
 function respond(body: unknown, ok = true) {
   return { ok, status: ok ? 200 : 422, json: async () => body };
 }
@@ -330,7 +371,8 @@ describe("the assistant workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: /send/i }));
 
     const panel = await screen.findByTestId("tool-catalogue");
-    expect(panel.textContent).toContain("PDF tools — 2");
+    expect(panel.textContent).toContain("PDF");
+    expect(panel.textContent).toContain("2");
     expect(screen.getByRole("link", { name: "Merge PDF" }).getAttribute("href")).toBe(
       "/tools/pdf/merge-pdf",
     );
@@ -339,6 +381,32 @@ describe("the assistant workspace", () => {
     );
     expect(screen.getByRole("link", { name: "Open category" }).getAttribute("href")).toBe(
       "/tools/pdf",
+    );
+  });
+
+  it("shows the full catalogue as one card per category, collapsed until expanded", async () => {
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(
+        String(url).includes("/status")
+          ? respond({ ok: true, status: LOCAL_STATUS })
+          : respond({ ok: true, plan: ALL_CATALOGUE }),
+      ),
+    );
+    render(<AssistantView />);
+    fireEvent.change(screen.getByTestId("assistant-request"), {
+      target: { value: "what can you do" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+
+    await screen.findByTestId("tool-catalogue");
+    expect(screen.getByTestId("tool-catalogue-group-pdf")).toBeTruthy();
+    expect(screen.getByTestId("tool-catalogue-group-images")).toBeTruthy();
+    // Collapsed by default: the tool links inside are not in the DOM yet.
+    expect(screen.queryByRole("link", { name: "Merge PDF" })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show 2 tools" }));
+    expect(screen.getByRole("link", { name: "Merge PDF" }).getAttribute("href")).toBe(
+      "/tools/pdf/merge-pdf",
     );
   });
 });

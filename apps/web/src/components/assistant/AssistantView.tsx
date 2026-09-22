@@ -10,7 +10,7 @@
 // instead of "OneStop cannot do that".
 import { getTool, toolHref } from "@onestop/tool-registry";
 import type { AiStatus, AssistantPlan, WorkflowRunResult } from "@onestop/types";
-import { Badge, Button, buttonClasses } from "@onestop/ui";
+import { Badge, Button, buttonClasses, Card } from "@onestop/ui";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useRef, useState, type DragEvent } from "react";
@@ -198,7 +198,7 @@ function AssistantTurn({
     const run = turn.run;
     return (
       <Bubble from="assistant">
-        <div className="flex flex-col gap-3" data-testid="assistant-result">
+        <Card className="flex flex-col gap-3" data-testid="assistant-result">
           <div className="flex items-center gap-2">
             <Badge tone={run.ok ? "success" : "danger"}>{run.ok ? "Finished" : "Stopped"}</Badge>
             <span className="text-xs text-fg-muted">{Math.round(run.durationMs / 100) / 10}s</span>
@@ -240,7 +240,7 @@ function AssistantTurn({
               </ul>
             </div>
           )}
-        </div>
+        </Card>
       </Bubble>
     );
   }
@@ -288,7 +288,7 @@ function AssistantTurn({
 
     return (
       <Bubble from="assistant">
-        <div className="flex flex-col gap-3" data-testid="assistant-plan">
+        <Card className="flex flex-col gap-3" data-testid="assistant-plan">
           <div className="flex flex-wrap items-center gap-2">
             <Badge tone="neutral">{plan.intent.kind.replace("-", " ")}</Badge>
             {plan.runtime && (
@@ -346,7 +346,7 @@ function AssistantTurn({
               Discard
             </Button>
           </div>
-        </div>
+        </Card>
       </Bubble>
     );
   }
