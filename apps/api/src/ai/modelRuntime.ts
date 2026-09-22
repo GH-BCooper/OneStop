@@ -15,7 +15,7 @@
 import type { AiProviderCheck, AiProviderId, AiStatus } from "@onestop/types";
 import {
   AI_PROVIDERS,
-  AI_PROVIDER_IDS,
+  HOSTED_ORDER,
   availableConfigs,
   configFor,
   isAiProviderId,
@@ -24,7 +24,7 @@ import {
 } from "./providers.ts";
 
 export type AiErrorCode =
-  "AI_UNAVAILABLE" | "AI_RATE_LIMIT" | "AI_AUTH" | "AI_TIMEOUT" | "AI_FAILED";
+  "AI_UNAVAILABLE" | "AI_RATE_LIMIT" | "AI_AUTH" | "AI_TIMEOUT" | "AI_MODEL" | "AI_FAILED";
 
 export class AiError extends Error {
   constructor(
@@ -144,7 +144,7 @@ async function httpError(config: AiRuntimeConfig, response: Response): Promise<A
   }
   if (response.status === 404 && config.provider === "ollama") {
     return new AiError(
-      "AI_UNAVAILABLE",
+      "AI_MODEL",
       `Ollama does not have the model "${config.model}". Run "ollama pull ${config.model}" and try again.`,
       body,
     );
@@ -155,6 +155,16 @@ async function httpError(config: AiRuntimeConfig, response: Response): Promise<A
       `${label} is having trouble right now. Try again shortly.`,
       body,
     );
+  }
+  // A free tier retires models without notice; 404/400 "no such model" is about the model, not
+  // the key, so the caller can simply try the next model in the chain.
+  if (
+    (response.status === 404 || response.status === 400) &&
+    /model.{0,40}(not found|does not exist|no longer available|not supported|decommissioned)|not found.{0,20}model/i.test(
+      body,
+    )
+  ) {
+    return new AiError("AI_MODEL", `${label} does not have the model "${config.model}".`, body);
   }
   return new AiError("AI_FAILED", `${label} could not complete that request.`, body);
 }
@@ -385,7 +395,8 @@ export async function chat(
   const configs = [...all.filter((c) => !isExhausted(c)), ...all.filter((c) => isExhausted(c))];
 
   const failures: { config: AiRuntimeConfig; error: AiError }[] = [];
-  for (const config of configs) {
+  for (const base of configs) {
+    let config = base;
     if (config.provider === "ollama") {
       // A server that is not there is skipped up front - no waiting on a connection that will
       // never open (the answer is cached for a few seconds, so this is not a port scan).
@@ -397,15 +408,37 @@ export async function chat(
         });
         continue;
       }
+      // Only offer models this Ollama has actually pulled; if none of ours are there, use
+      // whatever it does have rather than failing over a name.
+      if (probe.models.length > 0) {
+        const pulled = (name: string) =>
+          probe.models.some((m) => m === name || m.split(":")[0] === name);
+        const usable = config.models.filter(pulled);
+        config = { ...config, models: usable.length > 0 ? usable : probe.models.slice(0, 3) };
+      }
     }
-    try {
-      return { text: await chatWith(config, messages, options), config };
-    } catch (err) {
-      const error = err instanceof AiError ? err : new AiError("AI_FAILED", String(err), err);
-      if (options.signal?.aborted) throw error;
-      if (error.code === "AI_RATE_LIMIT") markExhausted(config);
-      failures.push({ config, error });
+    // Each provider gets its whole model chain before the next provider is tried: a retired or
+    // momentarily overloaded model is a model problem, not a provider problem.
+    let last: { config: AiRuntimeConfig; error: AiError } | null = null;
+    for (const model of config.models.length > 0 ? config.models : [config.model]) {
+      const attempt: AiRuntimeConfig = { ...config, model };
+      try {
+        return { text: await chatWith(attempt, messages, options), config: attempt };
+      } catch (err) {
+        const error = err instanceof AiError ? err : new AiError("AI_FAILED", String(err), err);
+        if (options.signal?.aborted) throw error;
+        last = { config: attempt, error };
+        // These say nothing about the other models, so move the whole provider on.
+        if (error.code === "AI_AUTH" || error.code === "AI_UNAVAILABLE") break;
+        if (error.code === "AI_RATE_LIMIT") {
+          markExhausted(attempt);
+          continue;
+        }
+        if (error.code === "AI_MODEL" || error.code === "AI_FAILED") continue;
+        break; // AI_TIMEOUT: another model of the same provider will not be faster.
+      }
     }
+    if (last) failures.push(last);
   }
 
   const of = (code: AiErrorCode) => failures.filter((f) => f.error.code === code);
@@ -417,7 +450,7 @@ export async function chat(
       limited[0]!.error.detail,
     );
   }
-  for (const code of ["AI_AUTH", "AI_TIMEOUT", "AI_FAILED"] as const) {
+  for (const code of ["AI_AUTH", "AI_TIMEOUT", "AI_FAILED", "AI_MODEL"] as const) {
     const found = of(code)[0];
     if (found) throw found.error;
   }
@@ -511,15 +544,19 @@ export async function checkProvider(
     if (!probe.ok) {
       return { provider: "ollama", ok: false, message: `Ollama is not running at ${config.host}.` };
     }
-    const hasModel =
-      probe.models.length === 0 ||
-      probe.models.some((m) => m === config.model || m.split(":")[0] === config.model);
+    // Any pulled model will do — `chat()` picks the best of ours that is there, or failing that
+    // whatever the machine already has.
+    const pulled = (name: string) =>
+      probe.models.some((m) => m === name || m.split(":")[0] === name);
+    const preferred = config.models.find(pulled);
+    const usable =
+      preferred ?? probe.models[0] ?? (probe.models.length === 0 ? config.model : null);
     return {
       provider: "ollama",
-      ok: hasModel,
-      message: hasModel
-        ? `Ollama is running at ${config.host} with ${config.model}.`
-        : `Ollama is running, but the model "${config.model}" is not pulled yet. Run "ollama pull ${config.model}".`,
+      ok: usable !== null,
+      message: usable
+        ? `Ollama is running at ${config.host} with ${usable}.`
+        : `Ollama is running, but no model is pulled yet. Run "ollama pull ${config.model}".`,
     };
   }
 
@@ -609,7 +646,7 @@ export async function getAiStatus(
   // Requests are spread across the runtimes at random, but the status has to read the same every
   // time it is asked: the visitor's pick first, then the fixed order (local before hosted).
   const rank = (i: number) =>
-    configs[i]!.provider === preferred ? -1 : AI_PROVIDER_IDS.indexOf(configs[i]!.provider);
+    configs[i]!.provider === preferred ? -1 : HOSTED_ORDER.indexOf(configs[i]!.provider);
   const usableIndexes = configs
     .map((_, i) => i)
     .filter((i) => results[i]!.ok)

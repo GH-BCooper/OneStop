@@ -398,15 +398,28 @@ export function AssistantView() {
     return () => controller.abort();
   }, [sessionReady, userId]);
 
-  // The home page's "Ask OneStop AI" carries whatever was typed in its search box.
+  // The home page's "Ask OneStop AI" carries whatever was typed in its search box. It is a
+  // message the user already pressed send on, so it is sent — not left sitting in the composer.
+  // The query string is dropped afterwards so a refresh does not ask the same thing twice.
+  const [pending, setPending] = useState<string | null>(null);
   useEffect(() => {
     try {
       const q = new URLSearchParams(window.location.search).get("q");
-      if (q && q.trim()) setRequest(q.trim().slice(0, 4000));
+      if (!q || q.trim() === "") return;
+      setPending(q.trim().slice(0, 4000));
+      window.history.replaceState(null, "", window.location.pathname);
     } catch {
       // No query string is the normal case.
     }
   }, []);
+
+  useEffect(() => {
+    if (pending === null || !sessionReady) return;
+    setPending(null);
+    void send(pending);
+    // `send` is deliberately not a dependency: it is re-created every render, and clearing
+    // `pending` above is what keeps this to exactly one send.
+  }, [pending, sessionReady]);
 
   useEffect(() => {
     transcriptEnd.current?.scrollIntoView?.({ behavior: "smooth", block: "end" });
@@ -434,14 +447,15 @@ export function AssistantView() {
     setTurns((all) => all.map((t) => (t.id === id ? { ...t, ...patch } : t)));
   };
 
-  const send = async () => {
-    if (request.trim() === "") {
+  const send = async (override?: string) => {
+    const text = (override ?? request).trim();
+    if (text === "") {
       setComposerError("Describe what you would like done, or just say hello.");
       return;
     }
     setComposerError(null);
     const id = crypto.randomUUID();
-    const turn: Turn = { id, request: request.trim(), files, status: "planning" };
+    const turn: Turn = { id, request: text, files, status: "planning" };
     setTurns((all) => [...all, turn]);
     setRequest("");
     setFiles([]);

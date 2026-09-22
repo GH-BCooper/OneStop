@@ -339,28 +339,81 @@ describe("the model runtime", () => {
       return Promise.reject(new Error("ECONNREFUSED"));
     }) as unknown as typeof fetch);
 
-    // The visitor's own three keys: whichever order they are tried in, the one that works answers.
+    // OneStop's own service holds all three keys: the two that fail hand the request on, and the
+    // one that works answers - every time, not just on a lucky ordering.
+    vi.stubEnv("GROQ_API_KEY", "g");
+    vi.stubEnv("OPENROUTER_API_KEY", "o");
+    vi.stubEnv("GOOGLE_AI_API_KEY", "k");
     for (let i = 0; i < 6; i++) {
       const { text, config } = await chat(
         [{ role: "user", content: "hi" }],
         {},
-        { mode: "own", provider: "groq", keys: { groq: "g", openrouter: "o", google: "k" } },
+        { mode: "hosted" },
       );
       expect(text).toBe("Answered by Gemini.");
       expect(config.provider).toBe("google");
     }
   });
 
-  it("says 'Out of credits' with every link when all of them are used up", async () => {
+  it("tries the next model of the same provider when one is retired or overloaded", async () => {
     restoreFetch?.();
-    restoreFetch = setAiFetch((() =>
-      Promise.resolve(new Response("{}", { status: 429 }))) as unknown as typeof fetch);
+    const tried: string[] = [];
+    restoreFetch = setAiFetch(((url: string, init: RequestInit) => {
+      const model = JSON.parse(String(init.body)).model as string;
+      tried.push(model);
+      // Groq retired its first-choice model; the second one answers.
+      if (tried.length === 1) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ error: { message: `The model \`${model}\` does not exist` } }),
+            { status: 404 },
+          ),
+        );
+      }
+      return Promise.resolve(
+        jsonResponse({ choices: [{ message: { content: "Second model answered." } }] }),
+      );
+    }) as unknown as typeof fetch);
+
+    vi.stubEnv("GROQ_API_KEY", "g");
+    const { text, config } = await chat(
+      [{ role: "user", content: "hi" }],
+      {},
+      { mode: "own", provider: "groq", keys: { groq: "g" } },
+    );
+    expect(text).toBe("Second model answered.");
+    expect(tried.length).toBe(2);
+    expect(config.model).toBe(tried[1]);
+  });
+
+  it("stays on the provider the visitor picked, even when another of their keys would work", async () => {
+    restoreFetch?.();
+    restoreFetch = setAiFetch(((url: string) => {
+      if (String(url).includes("api.groq.com")) {
+        return Promise.resolve(new Response("limit", { status: 429 }));
+      }
+      return Promise.resolve(
+        jsonResponse({ candidates: [{ content: { parts: [{ text: "Answered by Gemini." }] } }] }),
+      );
+    }) as unknown as typeof fetch);
+
     await expect(
       chat(
         [{ role: "user", content: "hi" }],
         {},
-        { mode: "own", provider: "groq", keys: { groq: "g", openrouter: "o" } },
+        { mode: "own", provider: "groq", keys: { groq: "g", google: "k" } },
       ),
+    ).rejects.toMatchObject({ code: "AI_RATE_LIMIT" });
+  });
+
+  it("says 'Out of credits' with every link when all of them are used up", async () => {
+    restoreFetch?.();
+    restoreFetch = setAiFetch((() =>
+      Promise.resolve(new Response("{}", { status: 429 }))) as unknown as typeof fetch);
+    vi.stubEnv("GROQ_API_KEY", "g");
+    vi.stubEnv("OPENROUTER_API_KEY", "o");
+    await expect(
+      chat([{ role: "user", content: "hi" }], {}, { mode: "hosted" }),
     ).rejects.toMatchObject({
       code: "AI_RATE_LIMIT",
       message: expect.stringMatching(

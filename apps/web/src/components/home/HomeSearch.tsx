@@ -4,22 +4,26 @@ import { Button } from "@onestop/ui";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
-// The two ways in from the home page. "Ask OneStop AI" sits beside the box and hands whatever was
-// typed to the assistant; "Search tools" sits underneath and looks the same words up in the
-// catalogue (Enter in the box does that too).
+// The two ways in from the home page. The box is a message to the assistant: Enter, or "Ask
+// OneStop AI" beside it, sends it straight to the AI Assistant, which starts working on it rather
+// than leaving it as a draft. "Search tools" underneath looks the same words up in the catalogue.
 export function HomeSearch() {
   const router = useRouter();
   const [query, setQuery] = useState("");
 
-  const onSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    const q = query.trim();
-    router.push(q ? `/tools?q=${encodeURIComponent(q)}` : "/tools");
-  };
-
   const askAssistant = () => {
     const q = query.trim();
     router.push(q ? `/assistant?q=${encodeURIComponent(q)}` : "/assistant");
+  };
+
+  const onSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    askAssistant();
+  };
+
+  const searchTools = () => {
+    const q = query.trim();
+    router.push(q ? `/tools?q=${encodeURIComponent(q)}` : "/tools");
   };
 
   return (
@@ -41,12 +45,12 @@ export function HomeSearch() {
           placeholder="e.g. make a pdf from images, remove background, convert csv to json"
           className="h-14 w-full min-w-0 rounded-lg border border-border bg-surface px-4 text-base text-fg shadow-sm placeholder:text-fg-muted focus-visible:outline-2 focus-visible:outline-ring sm:flex-1"
         />
-        <Button type="button" size="lg" variant="primary" className="h-14" onClick={askAssistant}>
+        <Button type="submit" size="lg" variant="primary" className="h-14">
           <span aria-hidden="true">✨</span>
           Ask OneStop AI
         </Button>
       </form>
-      <Button type="submit" form="home-search-form" size="lg" variant="secondary">
+      <Button type="button" size="lg" variant="secondary" onClick={searchTools}>
         Search tools
       </Button>
     </div>

@@ -40,6 +40,27 @@ const THEMES: { id: ThemePreference; label: string }[] = [
 const fieldClass =
   "h-10 w-full min-w-0 rounded-md border border-border bg-surface px-3 text-sm text-fg focus-visible:outline-2 focus-visible:outline-ring";
 
+/** Show/hide glyph for the API key field — an eye, struck through once the key is visible. */
+function EyeIcon({ off }: { off: boolean }) {
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width="18"
+      height="18"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z" />
+      <circle cx="12" cy="12" r="2.6" />
+      {off && <path d="m3.5 3.5 17 17" />}
+    </svg>
+  );
+}
+
 /** An on/off switch, styled like a native toggle rather than a checkbox. */
 function Switch({
   checked,
@@ -80,6 +101,7 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
   const [preferredAI, setPreferredAI] = useState<string>("");
   const [prefs, setPrefs] = useState<LocalPreferences>(DEFAULT_PREFERENCES);
   const [aiKey, setAiKey] = useState("");
+  const [showAiKey, setShowAiKey] = useState(false);
   const [aiStatus, setAiStatus] = useState<{ ok: boolean; message: string } | null>(null);
   const [checkingAi, setCheckingAi] = useState(false);
   // What OneStop's own service can do right now, straight from the server (null while asking).
@@ -173,6 +195,7 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
     setPreferredAI(next);
     // The key for this provider comes back by itself if it was entered before.
     setAiKey(readAiKey(next || null));
+    setShowAiKey(false);
     setAiStatus(null);
     writePreferredAI(next || null);
     // Only the *choice* syncs to the account. The key never leaves this browser.
@@ -431,17 +454,30 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
                 <label htmlFor="settings-ai-key" className="text-sm font-medium">
                   Your {selectedMode.label.replace(/\s*\(.*\)$/, "")} API key
                 </label>
-                <input
-                  id="settings-ai-key"
-                  type="password"
-                  autoComplete="off"
-                  spellCheck={false}
-                  className={fieldClass}
-                  value={aiKey}
-                  disabled={!ready}
-                  placeholder="Paste your own free key"
-                  onChange={(e) => changeAiKey(e.target.value)}
-                />
+                <div className="relative">
+                  <input
+                    id="settings-ai-key"
+                    type={showAiKey ? "text" : "password"}
+                    autoComplete="off"
+                    spellCheck={false}
+                    className={`${fieldClass} pr-11`}
+                    value={aiKey}
+                    disabled={!ready}
+                    placeholder="Paste your own free key"
+                    onChange={(e) => changeAiKey(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    data-testid="toggle-ai-key"
+                    aria-label={showAiKey ? "Hide API key" : "Show API key"}
+                    aria-pressed={showAiKey}
+                    title={showAiKey ? "Hide API key" : "Show API key"}
+                    onClick={() => setShowAiKey((v) => !v)}
+                    className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-md text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring"
+                  >
+                    <EyeIcon off={showAiKey} />
+                  </button>
+                </div>
                 <p className="text-xs text-fg-muted">
                   Stored in this browser only — never sent to your OneStop account and never shared.
                   Get a free key at{" "}
@@ -481,8 +517,8 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
             )}
 
             <p className="text-xs text-fg-muted">
-              Keys you have saved for the other providers are used as backups: if your preferred one
-              runs out of credits, OneStop moves on to the next.
+              Only the runtime you pick here is used. Switch to “OneStop AI service” above if you
+              would rather have OneStop choose an available service for you.
             </p>
           </>
         )}

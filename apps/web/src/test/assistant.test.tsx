@@ -149,6 +149,25 @@ describe("the assistant workspace", () => {
     expect(screen.queryByTestId("assistant-notice")).toBeNull();
   });
 
+  it("sends what the home page's box carried, rather than leaving it as a draft", async () => {
+    window.history.replaceState(null, "", "/assistant?q=merge%20my%20pdfs");
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(
+        String(url).includes("/status") || String(url).includes("/greeting")
+          ? respond({ ok: true, status: LOCAL_STATUS })
+          : respond({ ok: true, plan: PLAN }),
+      ),
+    );
+    render(<AssistantView />);
+    await screen.findByTestId("assistant-plan");
+    // It went out as a message, the composer is empty again, and a refresh will not repeat it.
+    expect(document.body.textContent).toContain("merge my pdfs");
+    expect((screen.getByTestId("assistant-request") as HTMLTextAreaElement).value).toBe("");
+    expect(window.location.search).toBe("");
+    const planned = fetchMock.mock.calls.find(([url]) => String(url).includes("/plan"));
+    expect(JSON.parse(String(planned?.[1]?.body)).request).toBe("merge my pdfs");
+  });
+
   it("turns the address in an out-of-credits reply into a link", async () => {
     const OUT_OF_CREDITS: AssistantPlan = {
       ok: true,
@@ -310,6 +329,27 @@ describe("the Settings AI card", () => {
     for (const [, init] of fetchMock.mock.calls) {
       expect(JSON.stringify(init ?? {})).not.toContain("gsk_my_own_key");
     }
+  });
+
+  it("can reveal the API key, and hides it again for the next provider", async () => {
+    settingsFetch();
+    writeAiKey("groq", "gsk_saved_earlier");
+    render(<SettingsView accountsEnabled={false} />);
+    fireEvent.click(await screen.findByRole("radio", { name: /your own ai service provider/i }));
+    fireEvent.click(
+      (await screen.findByTestId("ai-runtime-groq")).querySelector("input") as HTMLInputElement,
+    );
+
+    const key = () => screen.getByLabelText(/^your .* api key$/i) as HTMLInputElement;
+    expect(key().type).toBe("password");
+    fireEvent.click(screen.getByTestId("toggle-ai-key"));
+    expect(key().type).toBe("text");
+
+    // Switching provider must not leave the next key on screen in the clear.
+    fireEvent.click(
+      screen.getByTestId("ai-runtime-openrouter").querySelector("input") as HTMLInputElement,
+    );
+    await waitFor(() => expect(key().type).toBe("password"));
   });
 
   it("fills the key back in when the provider already has one saved", async () => {

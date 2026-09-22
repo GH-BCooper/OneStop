@@ -25,6 +25,7 @@ export const AI_PROVIDERS: Record<AiProviderId, AiProviderInfo> = {
     disclosure: LOCAL_DISCLOSURE,
     setupUrl: "https://ollama.com/download",
     defaultModel: "llama3.2",
+    fallbackModels: ["llama3.2", "llama3.1", "qwen2.5", "mistral"],
     cost: "free",
   },
   groq: {
@@ -34,7 +35,13 @@ export const AI_PROVIDERS: Record<AiProviderId, AiProviderInfo> = {
     needsKey: true,
     disclosure: hostedDisclosure("Groq"),
     setupUrl: "https://console.groq.com/keys",
-    defaultModel: "llama-3.3-70b-versatile",
+    defaultModel: "openai/gpt-oss-120b",
+    fallbackModels: [
+      "openai/gpt-oss-120b",
+      "openai/gpt-oss-20b",
+      "qwen/qwen3.8-27b",
+      "llama-3.3-70b-versatile",
+    ],
     cost: "free",
     creditsUrl: "https://console.groq.com/settings/billing",
   },
@@ -45,7 +52,14 @@ export const AI_PROVIDERS: Record<AiProviderId, AiProviderInfo> = {
     needsKey: true,
     disclosure: hostedDisclosure("OpenRouter"),
     setupUrl: "https://openrouter.ai/keys",
-    defaultModel: "google/gemma-4-31b-it:free",
+    defaultModel: "z-ai/glm-5.2:free",
+    fallbackModels: [
+      "z-ai/glm-5.2:free",
+      "qwen/qwen3.8-27b:free",
+      "google/gemma-4-31b-it:free",
+      "google/gemma-4-26b-a4b-it:free",
+      "nvidia/nemotron-3-super-120b-a12b:free",
+    ],
     cost: "free",
     creditsUrl: "https://openrouter.ai/settings/credits",
   },
@@ -56,7 +70,13 @@ export const AI_PROVIDERS: Record<AiProviderId, AiProviderInfo> = {
     needsKey: true,
     disclosure: hostedDisclosure("Google"),
     setupUrl: "https://aistudio.google.com/app/apikey",
-    defaultModel: "gemini-flash-latest",
+    defaultModel: "gemini-3.5-flash",
+    fallbackModels: [
+      "gemini-3.5-flash",
+      "gemini-flash-latest",
+      "gemini-3.5-flash-lite",
+      "gemini-flash-lite-latest",
+    ],
     cost: "free",
     creditsUrl: "https://aistudio.google.com/usage",
   },
@@ -93,6 +113,11 @@ export interface AiRuntimeConfig {
   provider: AiProviderId;
   info: AiProviderInfo;
   model: string;
+  /**
+   * The models to try for this provider, best first, starting with `model`. Empty beyond the
+   * first entry when the caller pinned a model explicitly — their choice is not second-guessed.
+   */
+  models: string[];
   /** Ollama's base URL; unused by the hosted providers. */
   host: string;
   apiKey: string | null;
@@ -160,32 +185,38 @@ export function configFor(
         ? supplied
         : (supplied ?? envKey(provider));
   if (info.needsKey && !key) return null;
-  const model =
+  // A model the caller pinned (per request, or in the environment) is used on its own: only the
+  // built-in default gets the fallback chain behind it.
+  const pinned =
     (credentials.provider === provider && typeof credentials.model === "string"
       ? credentials.model.trim()
-      : "") ||
-    envModel(provider) ||
-    info.defaultModel;
+      : "") || envModel(provider);
+  const model = pinned || info.defaultModel;
+  const models = pinned
+    ? [pinned]
+    : [...new Set([info.defaultModel, ...(info.fallbackModels ?? [])])];
   const host =
     (credentials.provider === provider && typeof credentials.host === "string"
       ? credentials.host.trim().replace(/\/+$/, "")
       : "") || ollamaHost();
-  return { provider, info, model, host, apiKey: key };
-}
-
-function shuffled<T>(items: T[]): T[] {
-  const out = [...items];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j]!, out[i]!];
-  }
-  return out;
+  return { provider, info, model, models, host, apiKey: key };
 }
 
 /**
- * Providers that could be used right now, in the order to try them: the one the visitor picked
- * first, then the rest at random - so when several are set up the load is spread across them and
- * one running out of credits is simply skipped for the next.
+ * The order OneStop's own service tries its runtimes in: local first (free, private, no quota),
+ * then the hosted free tiers most-reliable first. It is deliberately fixed rather than random —
+ * "whichever is available, and the next one when that runs out" has to be predictable enough to
+ * explain, and a runtime that is out of credits is moved to the back by the runtime itself.
+ */
+export const HOSTED_ORDER: AiProviderId[] = ["ollama", "groq", "google", "openrouter"];
+
+/**
+ * Providers that could be used right now, in the order to try them.
+ *
+ * With their own provider picked, that provider is the only one used — the visitor chose it, and
+ * silently answering from a different service would make the choice meaningless. Otherwise
+ * (OneStop's own service) the fixed order above applies, so one provider being down or out of
+ * credits simply hands the request to the next.
  */
 export function availableConfigs(credentials: AiCredentials = {}): AiRuntimeConfig[] {
   const preferred =
@@ -194,7 +225,16 @@ export function availableConfigs(credentials: AiCredentials = {}): AiRuntimeConf
       : isAiProviderId(credentials.provider)
         ? credentials.provider
         : null;
-  const rest = shuffled(AI_PROVIDER_IDS.filter((id) => id !== preferred));
+  if (credentials.mode === "own") {
+    // No provider picked yet: fall back to whichever of their own keys works.
+    const order = preferred
+      ? [preferred]
+      : HOSTED_ORDER.filter((id) => AI_PROVIDERS[id].needsKey || id === "ollama");
+    return order
+      .map((id) => configFor(id, credentials))
+      .filter((c): c is AiRuntimeConfig => c !== null);
+  }
+  const rest = HOSTED_ORDER.filter((id) => id !== preferred);
   const order: AiProviderId[] = preferred ? [preferred, ...rest] : rest;
   return order
     .map((id) => configFor(id, credentials))

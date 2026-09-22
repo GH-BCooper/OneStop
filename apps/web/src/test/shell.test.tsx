@@ -186,10 +186,13 @@ describe("home page", () => {
     ).toBeTruthy();
   });
 
-  it("search submits to /tools with the query", () => {
+  it("sends what was typed straight to the assistant, and still offers a tools search", () => {
     render(<Dashboard name="Brett Cooper" />);
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "merge pdf" } });
     fireEvent.submit(screen.getByRole("search"));
+    expect(navigation.push).toHaveBeenCalledWith("/assistant?q=merge%20pdf");
+
+    fireEvent.click(screen.getByRole("button", { name: /search tools/i }));
     expect(navigation.push).toHaveBeenCalledWith("/tools?q=merge%20pdf");
   });
 });

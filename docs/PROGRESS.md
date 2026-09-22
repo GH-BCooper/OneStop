@@ -177,8 +177,8 @@ both the deployed and the local app (same code).
    not a credential and already syncs per-account through `UserSettings` in Postgres.
 3. **Email change now requires two OTP codes, not a free edit.** New Prisma model
    `EmailChangeRequest` (migration `20260922120000_email_change_and_delete_otp`). Starting a change
-   (`POST /api/account/email`) emails a 6-digit code to the *current* address; entering it
-   (`POST /api/account/email/verify-current`) emails a second code to the *new* address; only
+   (`POST /api/account/email`) emails a 6-digit code to the _current_ address; entering it
+   (`POST /api/account/email/verify-current`) emails a second code to the _new_ address; only
    entering that (`POST /api/account/email/verify-new`) moves the account's email. Both codes are
    HMAC-bound to the account id and step, never stored in clear, expire in 10 minutes, allow 5 wrong
    guesses and a 30-second resend gap — the same shape as the existing sign-up OTP
@@ -826,13 +826,46 @@ Master plan §27 "The product should be" - every clause:
   asked, which CLAUDE.md §2.1 says must be shown in the UI. It is kept where the choice is made: Settings
   shows the "Heads up" disclosure for OneStop's service and for each hosted provider. Confirm that is
   enough.
-- **Open (2026-09-22):** "pick randomly" was implemented as: OneStop's service picks any available
-  provider at random; with your own provider, your chosen runtime goes first and the others you have
-  keys for are random backups. A provider that is out of credits is moved to the back for a minute.
+- **Resolved (2026-09-22):** the random provider pick is gone. OneStop's own service now tries its
+  runtimes in a fixed order - Ollama, Groq, Google, OpenRouter - and moves to the next one whenever
+  a runtime is missing, rate-limited or failing; a runtime that is out of credits is pushed to the
+  back for a minute as before. Picking your own provider now means _that provider only_: no silent
+  fallback onto another of your keys. The random order made every request land somewhere different
+  and made "why is it always OpenRouter?" impossible to answer.
+- **Open (2026-09-22):** "Replace the buttons" is now read as: the home box is a message to the
+  assistant. Enter (or "Ask OneStop AI") sends it straight to the AI Assistant, which starts
+  planning immediately rather than leaving a draft in the composer; "Search tools" underneath still
+  searches the catalogue.
 - _(none open)_. **Resolved (03):** the phase-02 category question, as described in the Decisions Log. Two judgement calls were made the conservative way and are worth a glance: JSON/XML Formatter & Validator are filed under **Excel, CSV & Data** (phase 08 owns them; **resolved (12)** - phase 12 does not repeat them, it adds only the HTML/CSS/JS formatters), and "User-Agent Viewer" (12.20, shows your own browser) is kept as a separate tool from "User-Agent Lookup" (13.6, parses any UA string). **Resolved (02):** the master plan and the feature list are now in the repo as `docs/OneStop_MasterDoc.md` and `docs/OneStop_Features.md`. Phase 02 was checked against them: routes match master §3.1, Home matches §5, nav order matches Features §18 ("§18" in `02-ui-shell.md` means the Features doc, not master §18, which covers hosting). Home category cards now use master §4's 8 categories, with counts taken from the Features list.
 - **Open (post-V1 redesign):** should a signed-out visitor ever be blocked from _directly_ opening a tool page (not just from seeing it in the nav)? The current implementation keeps direct guest tool access working everywhere, per master plan §9, and only simplifies the nav/home page for a signed-out visitor. If the owner actually wants tool pages themselves gated behind sign-in, that is a real product decision (and a bigger, riskier change - it touches the rate limiter, history, and every tool page's tests) that needs an explicit yes rather than a redesign-session guess.
 
 ---
+
+## Maintenance log
+
+### 2026-09-22 — AI runtimes: fixed model chains, fixed provider order, direct send from Home
+
+Every hosted runtime's default model had been retired by its provider, so `/api/assistant/status`
+said "available" (the key checks still passed) while every actual completion failed. That is why
+the assistant appeared broken while the Settings page looked healthy.
+
+- **Model fallback chains.** `AiProviderInfo` gained `fallbackModels`, and `chat()` now walks a
+  provider's whole chain before moving to the next provider. A retired (`404`/`400` "no such
+  model", now its own `AI_MODEL` code), overloaded or model-level rate-limited model hands over to
+  the next model of the same provider; a rejected key or an unreachable host still moves the whole
+  provider on. Current defaults: Groq `openai/gpt-oss-120b`, Google `gemini-3.5-flash`, OpenRouter
+  `z-ai/glm-5.2:free`. Setting `GROQ_MODEL`/`OPENROUTER_MODEL`/`GOOGLE_AI_MODEL`/`OLLAMA_MODEL`
+  still pins one model and deliberately disables the chain.
+- **Ollama uses what is pulled.** The liveness probe already lists the machine's models; `chat()`
+  now picks the best of ours that is actually pulled, or whatever is pulled if none of ours is, and
+  the Settings check reports that model instead of complaining about a name.
+- **Fixed provider order** (see Open Questions) and **own-provider means only that provider**.
+- **Home box sends.** `?q=` on `/assistant` is now sent as a real message instead of pre-filling the
+  composer, and the query string is dropped so a refresh does not repeat it.
+- **Settings:** a show/hide (eye) control on the API key field.
+
+Verified live against Groq, Google and OpenRouter with real keys, and against a local Ollama, in
+both hosted and own-provider modes.
 
 ## Next Up
 

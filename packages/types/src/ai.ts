@@ -18,6 +18,11 @@ export interface AiProviderInfo {
   /** Where to get a free key / install the runtime. */
   setupUrl: string;
   defaultModel: string;
+  /**
+   * Models to try for this provider, best first. A free tier retires and rate-limits models
+   * without warning, so one dead model must never mean "this provider does not work".
+   */
+  fallbackModels?: string[];
   /** Free tier, or a paid account. Every provider here is free; the field keeps that explicit. */
   cost: "free" | "paid";
   /** Where to raise a quota or add credits once the free allowance is used up. Not for local runtimes. */
