@@ -6,7 +6,12 @@
 //   * Nothing is ever executed: files are written with mode 0o600 and only ever read back.
 //   * Deletion is guaranteed three ways — the pipeline deletes inputs as soon as it is done,
 //     a sweeper deletes anything past its expiry even if the job failed or the tab was closed,
-//     and a store created on a fresh process purges leftovers from a previous one.
+//     and a store created on a fresh process purges anything actually expired.
+//   * Each file's metadata is mirrored to a `<id>.meta.json` sidecar next to its bytes, so a
+//     result that was still inside its retention window survives a process restart (a dev-server
+//     reload, a redeploy, a crash) instead of turning into a silent 404 for a download link the
+//     user already has open — a fresh process rehydrates its index from these sidecars rather than
+//     discarding still-valid files it merely doesn't remember yet.
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -80,15 +85,43 @@ export function createTempStore(options: CreateTempStoreOptions = {}): TempStore
     return path.join(dir, id);
   };
 
-  /** Creates the directory once and clears anything a previous process left behind. */
+  const metaPathFor = (id: string): string => `${pathFor(id)}.meta.json`;
+
+  /**
+   * Creates the directory once and rebuilds the index from sidecars a previous process left
+   * behind: anything still inside its retention window is adopted, anything expired (or whose
+   * bytes/sidecar went missing) is swept away.
+   */
   const ensureDir = (): Promise<void> => {
     ready ??= (async () => {
       await fs.mkdir(dir, { recursive: true, mode: 0o700 });
-      const leftovers = await fs.readdir(dir).catch(() => [] as string[]);
+      const entries = await fs.readdir(dir).catch(() => [] as string[]);
+      const ids = new Set(entries.filter((entry) => isTempFileId(entry)));
+      const metaIds = new Set(
+        entries
+          .filter((entry) => entry.endsWith(".meta.json"))
+          .map((entry) => entry.slice(0, -".meta.json".length)),
+      );
       await Promise.all(
-        leftovers
-          .filter((entry) => isTempFileId(entry))
-          .map((entry) => fs.rm(path.join(dir, entry), { force: true }).catch(() => undefined)),
+        [...ids, ...metaIds]
+          .filter((id, index, all) => all.indexOf(id) === index)
+          .map(async (id) => {
+            if (!isTempFileId(id) || !ids.has(id) || !metaIds.has(id)) {
+              // An orphaned byte file or a sidecar with nothing to describe: neither is usable.
+              await fs.rm(pathFor(id), { force: true }).catch(() => undefined);
+              await fs.rm(metaPathFor(id), { force: true }).catch(() => undefined);
+              return;
+            }
+            try {
+              const raw = await fs.readFile(metaPathFor(id), "utf8");
+              const record = JSON.parse(raw) as TempFile;
+              if (record.expiresAt <= now()) throw new Error("expired");
+              files.set(id, record);
+            } catch {
+              await fs.rm(pathFor(id), { force: true }).catch(() => undefined);
+              await fs.rm(metaPathFor(id), { force: true }).catch(() => undefined);
+            }
+          }),
       );
     })();
     return ready;
@@ -96,9 +129,10 @@ export function createTempStore(options: CreateTempStoreOptions = {}): TempStore
 
   const removeFile = async (id: string): Promise<boolean> => {
     const existed = files.delete(id);
-    await fs.rm(path.join(dir, id), { force: true }).catch((err: unknown) => {
+    await fs.rm(pathFor(id), { force: true }).catch((err: unknown) => {
       console.error(`[temp-store] could not delete ${id}`, err);
     });
+    await fs.rm(metaPathFor(id), { force: true }).catch(() => undefined);
     return existed;
   };
 
@@ -126,12 +160,23 @@ export function createTempStore(options: CreateTempStoreOptions = {}): TempStore
         ...(input.jobId === undefined ? {} : { jobId: input.jobId }),
       };
       await fs.writeFile(pathFor(id), input.bytes, { mode: 0o600, flag: "wx" });
+      await fs.writeFile(metaPathFor(id), JSON.stringify(record), { mode: 0o600 });
       files.set(id, record);
       return record;
     },
 
     async get(id) {
-      const record = files.get(id);
+      await ensureDir();
+      let record = files.get(id);
+      if (!record && isTempFileId(id)) {
+        // Not in this instance's index — check disk before giving up, so a result that another
+        // instance (or an earlier incarnation of this one) just wrote is still found.
+        record = await fs
+          .readFile(metaPathFor(id), "utf8")
+          .then((raw) => JSON.parse(raw) as TempFile)
+          .catch(() => undefined);
+        if (record) files.set(id, record);
+      }
       if (!record) return undefined;
       if (record.expiresAt <= now()) {
         await removeFile(id);

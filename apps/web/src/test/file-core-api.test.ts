@@ -171,7 +171,9 @@ describe("POST /api/tools/run", () => {
     expect(result.body.ok).toBe(true);
     expect(result.body.files![0]!.name).toBe("passwd.txt.metadata.json");
     // Nothing was written outside the store's own directory, and names are never paths.
-    for (const entry of await fs.readdir(dir)) expect(entry).toMatch(/^[0-9a-f-]{36}$/);
+    for (const entry of await fs.readdir(dir)) {
+      expect(entry).toMatch(/^[0-9a-f-]{36}(\.meta\.json)?$/);
+    }
   });
 
   it("rejects an unknown tool, a missing tool id and unreadable options", async () => {

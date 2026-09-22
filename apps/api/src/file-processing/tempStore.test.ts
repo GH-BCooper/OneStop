@@ -115,16 +115,34 @@ describe("temp store", () => {
     expect(await temp.get(long.id)).toBeDefined();
   });
 
-  it("purges files a previous process left behind", async () => {
+  it("adopts a previous process's still-valid files instead of orphaning their downloads", async () => {
     const dir = await makeDir();
     const first = store({ tempDir: dir, ttlMs: 60_000 });
     const record = await first.put({ name: "a.txt", bytes: bytes("x") });
     expect(await exists(path.join(dir, record.id))).toBe(true);
 
-    // A fresh store in the same directory stands in for a restarted server.
+    // A fresh store in the same directory stands in for a restarted server — the file is still
+    // inside its retention window, so a download link issued before the restart must keep working.
     const second = store({ tempDir: dir, ttlMs: 60_000 });
-    await second.put({ name: "b.txt", bytes: bytes("y") });
+    expect(await second.get(record.id)).toEqual(record);
+    expect(new TextDecoder().decode(await second.read(record.id))).toBe("x");
+    expect(await exists(path.join(dir, record.id))).toBe(true);
+  });
+
+  it("purges a previous process's expired files on restart, and any orphaned bytes", async () => {
+    const dir = await makeDir();
+    let clock = 0;
+    const first = store({ tempDir: dir, ttlMs: 1_000, now: () => clock });
+    const record = await first.put({ name: "a.txt", bytes: bytes("x") });
+    // Bytes with no sidecar (e.g. an interrupted write) must never be servable.
+    await fs.writeFile(path.join(dir, "11111111-1111-1111-1111-111111111111"), "orphan");
+
+    clock = 5_000;
+    const second = store({ tempDir: dir, ttlMs: 1_000, now: () => clock });
+    expect(await second.get(record.id)).toBeUndefined();
     expect(await exists(path.join(dir, record.id))).toBe(false);
+    expect(await exists(`${path.join(dir, record.id)}.meta.json`)).toBe(false);
+    expect(await exists(path.join(dir, "11111111-1111-1111-1111-111111111111"))).toBe(false);
   });
 
   it("deletes everything it knows about when disposed", async () => {

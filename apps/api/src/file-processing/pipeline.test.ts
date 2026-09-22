@@ -32,8 +32,10 @@ afterEach(async () => {
 
 const deps = () => ({ jobs, temp, config });
 
+/** The stored files' own bytes, ignoring the temp store's `.meta.json` sidecars. */
 async function filesOnDisk(): Promise<string[]> {
-  return fs.readdir(dir).catch(() => []);
+  const entries = await fs.readdir(dir).catch(() => [] as string[]);
+  return entries.filter((entry) => !entry.endsWith(".meta.json"));
 }
 
 describe("runPipeline — happy path", () => {
