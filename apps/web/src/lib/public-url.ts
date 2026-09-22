@@ -9,6 +9,9 @@
 // a `localhost` value in APP_URL/NEXTAUTH_URL (copied from a local `.env`) is treated as "not set"
 // whenever the platform tells us the real address (Render sets RENDER_EXTERNAL_URL itself).
 
+/** Any string map - `process.env`, or a plain object in a test (Next's `ProcessEnv` insists on NODE_ENV). */
+type EnvMap = Record<string, string | undefined>;
+
 function clean(value: string | undefined): string | null {
   const trimmed = value?.trim().replace(/\/+$/, "");
   if (!trimmed) return null;
@@ -28,7 +31,7 @@ export function isLocalUrl(url: string): boolean {
   }
 }
 
-export function publicBaseUrl(request?: Request, env: NodeJS.ProcessEnv = process.env): string {
+export function publicBaseUrl(request?: Request, env: EnvMap = process.env): string {
   const configured = [env.APP_URL, env.NEXTAUTH_URL, env.AUTH_URL]
     .map(clean)
     .filter((u): u is string => u !== null);
@@ -52,7 +55,7 @@ export function publicBaseUrl(request?: Request, env: NodeJS.ProcessEnv = proces
  * on a host that has a real one. Without this Auth.js builds its redirects from the internal
  * address (sign-out landing on `localhost:10000`, OAuth callbacks that no provider accepts).
  */
-export function applyPublicAuthUrl(env: NodeJS.ProcessEnv = process.env): void {
+export function applyPublicAuthUrl(env: EnvMap = process.env): void {
   const current = clean(env.AUTH_URL) ?? clean(env.NEXTAUTH_URL);
   const best = publicBaseUrl(undefined, env);
   if ((!current || isLocalUrl(current)) && !isLocalUrl(best)) env.AUTH_URL = best;

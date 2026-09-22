@@ -37,21 +37,21 @@ describe("publicBaseUrl", () => {
   });
 
   it("points Auth.js at the real address only when the configured one is missing or local", () => {
-    const local: NodeJS.ProcessEnv = {
+    const local: Record<string, string | undefined> = {
       NEXTAUTH_URL: "http://localhost:10000",
       RENDER_EXTERNAL_URL: RENDER,
     };
     applyPublicAuthUrl(local);
     expect(local.AUTH_URL).toBe(RENDER);
 
-    const configured: NodeJS.ProcessEnv = {
+    const configured: Record<string, string | undefined> = {
       AUTH_URL: "https://app.example.com",
       RENDER_EXTERNAL_URL: RENDER,
     };
     applyPublicAuthUrl(configured);
     expect(configured.AUTH_URL).toBe("https://app.example.com");
 
-    const dev: NodeJS.ProcessEnv = { NEXTAUTH_URL: "http://localhost:3000" };
+    const dev: Record<string, string | undefined> = { NEXTAUTH_URL: "http://localhost:3000" };
     applyPublicAuthUrl(dev);
     expect(dev.AUTH_URL).toBeUndefined();
   });
