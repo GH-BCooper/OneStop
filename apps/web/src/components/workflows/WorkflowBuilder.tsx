@@ -30,13 +30,15 @@ import { WorkflowRunner } from "./WorkflowRunner";
 export interface WorkflowBuilderProps {
   /** An existing workflow to edit, or undefined for a new one. */
   workflow?: Workflow;
+  /** Show only the run card — no step editing — for the "Use" flow from the workflow list. */
+  useOnly?: boolean;
 }
 
 function issuesForStep(issues: WorkflowIssue[], index: number): WorkflowIssue[] {
   return issues.filter((i) => i.stepIndex === index);
 }
 
-export function WorkflowBuilder({ workflow }: WorkflowBuilderProps) {
+export function WorkflowBuilder({ workflow, useOnly = false }: WorkflowBuilderProps) {
   const router = useRouter();
   const { data: session } = useSession();
   const signedIn = Boolean(session?.user);
@@ -142,6 +144,36 @@ export function WorkflowBuilder({ workflow }: WorkflowBuilderProps) {
       setSaving(false);
     }
   };
+
+  if (useOnly) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Card className="flex flex-col gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-lg font-semibold">{name || "Workflow"}</h2>
+            <Badge tone="neutral">
+              {steps.length} step{steps.length === 1 ? "" : "s"}
+            </Badge>
+          </div>
+          {description ? <p className="text-sm text-fg-muted">{description}</p> : null}
+          {workflow ? (
+            <Link href={`/workflows/${workflow.id}`} className="text-sm text-fg-muted underline">
+              Edit this workflow
+            </Link>
+          ) : null}
+        </Card>
+        {runnable ? (
+          <WorkflowRunner
+            steps={steps}
+            name={name.trim() || "Workflow"}
+            workflowId={workflow?.scope === "account" ? workflow.id : null}
+          />
+        ) : (
+          <p className="text-sm text-danger">This workflow has an issue and cannot be run.</p>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">

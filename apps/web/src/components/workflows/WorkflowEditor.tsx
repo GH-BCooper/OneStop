@@ -16,9 +16,11 @@ import { WorkflowBuilder } from "./WorkflowBuilder";
 
 export interface WorkflowEditorProps {
   id: string;
+  /** Show only the run card — no step editing — for the "Use" flow from the workflow list. */
+  useOnly?: boolean;
 }
 
-export function WorkflowEditor({ id }: WorkflowEditorProps) {
+export function WorkflowEditor({ id, useOnly = false }: WorkflowEditorProps) {
   const { data: session, status: sessionStatus } = useSession();
   const signedIn = Boolean(session?.user);
   const [workflow, setWorkflow] = useState<Workflow | null>(null);
@@ -62,5 +64,5 @@ export function WorkflowEditor({ id }: WorkflowEditorProps) {
     );
   }
 
-  return <WorkflowBuilder workflow={workflow} />;
+  return <WorkflowBuilder workflow={workflow} useOnly={useOnly} />;
 }

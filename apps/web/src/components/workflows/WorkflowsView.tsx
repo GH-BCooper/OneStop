@@ -158,6 +158,12 @@ export function WorkflowsView({ accountsEnabled }: WorkflowsViewProps) {
                 </div>
                 <div className="flex gap-2">
                   <Link
+                    href={`/workflows/${workflow.id}?use=1`}
+                    className={buttonClasses("primary", "sm")}
+                  >
+                    Use
+                  </Link>
+                  <Link
                     href={`/workflows/${workflow.id}`}
                     className={buttonClasses("secondary", "sm")}
                   >
