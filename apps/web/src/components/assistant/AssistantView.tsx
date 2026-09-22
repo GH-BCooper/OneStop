@@ -11,6 +11,7 @@
 import { getTool, toolHref } from "@onestop/tool-registry";
 import type { AiStatus, AssistantPlan, WorkflowRunResult } from "@onestop/types";
 import { Badge, Button, buttonClasses } from "@onestop/ui";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { Fragment, useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { checkFiles, formatBytes } from "@/components/tools/UploadZone";
@@ -352,6 +353,12 @@ export function AssistantView() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const provider = typeof window === "undefined" ? null : activeAiProvider();
+  // Saved AI keys are namespaced to the signed-in account, so the status/greeting calls below wait
+  // for the session to settle before reading them - otherwise a fast first paint could briefly use
+  // the guest scope's (empty) keys for a signed-in "own provider" user.
+  const { data: session, status: sessionStatus } = useSession();
+  const sessionReady = sessionStatus !== "loading";
+  const userId = session?.user?.id ?? null;
 
   const loadStatus = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -367,13 +374,15 @@ export function AssistantView() {
   }, []);
 
   useEffect(() => {
+    if (!sessionReady) return;
     const controller = new AbortController();
     void loadStatus(controller.signal);
     return () => controller.abort();
-  }, [loadStatus]);
+  }, [loadStatus, sessionReady, userId]);
 
   // One hello per visit to the empty screen - fetched once, not re-fetched as turns come and go.
   useEffect(() => {
+    if (!sessionReady) return;
     const controller = new AbortController();
     fetch("/api/assistant/greeting", {
       headers: aiHeaders(),
@@ -387,7 +396,7 @@ export function AssistantView() {
         // No greeting is a cosmetic loss, never a blocker - the composer works either way.
       });
     return () => controller.abort();
-  }, []);
+  }, [sessionReady, userId]);
 
   // The home page's "Ask OneStop AI" carries whatever was typed in its search box.
   useEffect(() => {

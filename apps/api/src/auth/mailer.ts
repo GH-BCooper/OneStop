@@ -161,6 +161,79 @@ export function signupCodeEmail(
   return { subject, text, html };
 }
 
+/** A short numeric code, presented the same way for every "prove you can read this mailbox" email. */
+function codeEmail(
+  intro: string,
+  code: string,
+  expiresAt: Date,
+  subjectSuffix: string,
+  footer: string,
+): { subject: string; text: string; html: string } {
+  const minutes = Math.max(1, Math.round((expiresAt.getTime() - Date.now()) / 60_000));
+  const subject = `${code} is your OneStop ${subjectSuffix} code`;
+  const text = [
+    intro,
+    "",
+    `Your verification code is: ${code}`,
+    "",
+    `Type it into OneStop to continue (it expires in ${minutes} minutes).`,
+    "",
+    footer,
+  ].join("\n");
+  const html = [
+    `<div style="${MAIL_STYLE}">`,
+    `<p>${escapeHtml(intro)}</p>`,
+    `<p>Your verification code is:</p>`,
+    `<p style="font-size:32px;font-weight:700;letter-spacing:8px;margin:8px 0">${escapeHtml(code)}</p>`,
+    `<p>Type it into OneStop to continue (it expires in ${minutes} minutes).</p>`,
+    `<p style="color:#666">${escapeHtml(footer)}</p>`,
+    `</div>`,
+  ].join("\n");
+  return { subject, text, html };
+}
+
+/** Sent to the *current* address of an account asking to change its email. */
+export function emailChangeCurrentEmail(
+  code: string,
+  expiresAt: Date,
+): { subject: string; text: string; html: string } {
+  return codeEmail(
+    "Someone asked to change the email address on this OneStop account.",
+    code,
+    expiresAt,
+    "email change",
+    "If that wasn't you, you can ignore this email - nothing has changed yet, and no code was sent to any new address.",
+  );
+}
+
+/** Sent to the *new* address, once the current one has been confirmed. */
+export function emailChangeNewEmail(
+  code: string,
+  expiresAt: Date,
+): { subject: string; text: string; html: string } {
+  return codeEmail(
+    "Confirm this address to finish moving a OneStop account to it.",
+    code,
+    expiresAt,
+    "email change",
+    "If you didn't expect this, you can ignore it - your email address will not be changed to this one.",
+  );
+}
+
+/** Sent to confirm an account deletion. */
+export function accountDeleteEmail(
+  code: string,
+  expiresAt: Date,
+): { subject: string; text: string; html: string } {
+  return codeEmail(
+    "Someone asked to permanently delete this OneStop account.",
+    code,
+    expiresAt,
+    "account deletion",
+    "If that wasn't you, you can ignore this email - your account has not been deleted.",
+  );
+}
+
 function escapeHtml(value: string): string {
   return value.replace(
     /[&<>"']/g,

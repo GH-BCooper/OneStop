@@ -19,6 +19,7 @@ model User {
   email         String    @unique
   name          String?
   avatar        String?
+  birthday      DateTime?
   passwordHash  String?
   emailVerified DateTime?
   createdAt     DateTime  @default(now())
@@ -31,6 +32,8 @@ model User {
   passwordResetTokens PasswordResetToken[]
   favorites           Favorite[]
   qrLinks             QrLink[]
+  emailChangeRequest  EmailChangeRequest?
+  accountDeleteOtp    AccountDeleteOtp?
 
   @@map("users")
 }
@@ -109,6 +112,41 @@ model SignupOtp {
   createdAt    DateTime @default(now())
 
   @@map("signup_otps")
+}
+
+/// A pending email change (17-... account settings). Changing the address proves control of both
+/// the old mailbox (so an attacker who merely stole a session cannot silently move the account to
+/// an address they own) and the new one (so a typo can never lock the account out). The email only
+/// changes once both codes have been entered; either code is an HMAC, never stored in clear.
+model EmailChangeRequest {
+  id                String    @id @default(uuid())
+  userId            String    @unique
+  newEmail          String
+  currentCodeHash   String
+  currentVerifiedAt DateTime?
+  newCodeHash       String?
+  attempts          Int       @default(0)
+  expiresAt         DateTime
+  createdAt         DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_change_requests")
+}
+
+/// A pending account deletion. One click is not enough to destroy an account, so deleting requires
+/// the same emailed-code proof of mailbox ownership as changing the email.
+model AccountDeleteOtp {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  codeHash  String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("account_delete_otps")
 }
 
 /// master plan §16. `userId` is null for guest jobs.

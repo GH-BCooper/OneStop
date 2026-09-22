@@ -34,6 +34,8 @@ const { POST: requestReset } = await import("@/app/api/auth/reset/route");
 const resetConfirm = await import("@/app/api/auth/reset/confirm/route");
 const account = await import("@/app/api/account/route");
 const { POST: changePasswordRoute } = await import("@/app/api/account/password/route");
+const { POST: requestDelete } = await import("@/app/api/account/delete/route");
+const { POST: confirmDelete } = await import("@/app/api/account/delete/confirm/route");
 
 interface Envelope {
   ok?: boolean;
@@ -285,7 +287,11 @@ describeDb("auth routes (Postgres)", () => {
     const guest = await json(await account.GET());
     expect(guest.status).toBe(401);
     expect(guest.body.error?.code).toBe("AUTH_REQUIRED");
-    expect((await json(await account.DELETE())).status).toBe(401);
+    expect((await json(await requestDelete())).status).toBe(401);
+    expect(
+      (await json(await post(confirmDelete, "/api/account/delete/confirm", { code: "000000" })))
+        .status,
+    ).toBe(401);
     expect((await json(await post(changePasswordRoute, "/api/account/password", {}))).status).toBe(
       401,
     );
@@ -336,7 +342,22 @@ describeDb("auth routes (Postgres)", () => {
       verifyCredentials("sam@example.com", "a-brand-new-password", prisma),
     ).resolves.toBeTruthy();
 
-    expect((await json(await account.DELETE())).status).toBe(200);
+    // Deleting requires proving mailbox ownership first - one click is never enough.
+    const deleteStart = await json(await requestDelete());
+    expect(deleteStart.status).toBe(200);
+    const deleteCode = emailedCode();
+    expect(deleteCode).toMatch(/^\d{6}$/);
+
+    const wrongCode = await json(
+      await post(confirmDelete, "/api/account/delete/confirm", { code: "000000" }),
+    );
+    expect(wrongCode.status).toBe(400);
+    expect(await prisma.user.count()).toBe(1);
+
+    const deleted = await json(
+      await post(confirmDelete, "/api/account/delete/confirm", { code: deleteCode }),
+    );
+    expect(deleted.status).toBe(200);
     expect(await prisma.user.count()).toBe(0);
   });
 });

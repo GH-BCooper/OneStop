@@ -204,6 +204,172 @@ function AvatarEditor({
   );
 }
 
+/** "1990-05-14T00:00:00.000Z"-shaped or plain "1990-05-14" input, both accepted; only the date used. */
+function toDateInputValue(value: string | null): string {
+  return value ? value.slice(0, 10) : "";
+}
+
+function EmailChangeSection({
+  email,
+  onChanged,
+}: {
+  email: string;
+  onChanged: (next: string) => void;
+}) {
+  const [step, setStep] = useState<"idle" | "enter" | "verify-current" | "verify-new">("idle");
+  const [newEmail, setNewEmail] = useState("");
+  const [code, setCode] = useState("");
+  const [pending, setPending] = useState(false);
+  const [status, setStatus] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
+
+  const reset = () => {
+    setStep("idle");
+    setNewEmail("");
+    setCode("");
+    setStatus(null);
+  };
+
+  const cancel = async () => {
+    setPending(true);
+    await send("/api/account/email", "DELETE");
+    setPending(false);
+    reset();
+  };
+
+  const sendToCurrent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPending(true);
+    setStatus(null);
+    const result = await send("/api/account/email", "POST", JSON.stringify({ newEmail }));
+    setPending(false);
+    if (!result.ok) {
+      setStatus({ tone: "error", text: result.message });
+      return;
+    }
+    setStatus({ tone: "ok", text: (result.data.message as string) ?? "Code sent." });
+    setCode("");
+    setStep("verify-current");
+  };
+
+  const verifyCurrent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPending(true);
+    setStatus(null);
+    const result = await send(
+      "/api/account/email/verify-current",
+      "POST",
+      JSON.stringify({ code }),
+    );
+    setPending(false);
+    if (!result.ok) {
+      setStatus({ tone: "error", text: result.message });
+      return;
+    }
+    setStatus({ tone: "ok", text: (result.data.message as string) ?? "Code sent." });
+    setCode("");
+    setStep("verify-new");
+  };
+
+  const verifyNew = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPending(true);
+    setStatus(null);
+    const result = await send("/api/account/email/verify-new", "POST", JSON.stringify({ code }));
+    setPending(false);
+    if (!result.ok) {
+      setStatus({ tone: "error", text: result.message });
+      return;
+    }
+    onChanged((result.data.user as PublicUser).email);
+    reset();
+    setStatus({ tone: "ok", text: "Your email address has been changed." });
+  };
+
+  if (step === "idle") {
+    return (
+      <div className="flex flex-col gap-2">
+        <Input label="Email" name="email" value={email} readOnly disabled />
+        <div>
+          <Button type="button" variant="secondary" size="sm" onClick={() => setStep("enter")}>
+            Change email
+          </Button>
+        </div>
+        {status && <Status tone={status.tone}>{status.text}</Status>}
+      </div>
+    );
+  }
+
+  if (step === "enter") {
+    return (
+      <form className="flex flex-col gap-3" onSubmit={sendToCurrent} noValidate>
+        <Input
+          label="New email address"
+          name="newEmail"
+          type="email"
+          autoComplete="email"
+          required
+          value={newEmail}
+          disabled={pending}
+          onChange={(e) => setNewEmail(e.target.value)}
+        />
+        <p className="text-sm text-fg-muted">
+          We'll first send a code to your current address ({email}) to confirm it's you.
+        </p>
+        <div className="flex gap-2">
+          <Button type="submit" size="sm" disabled={pending || newEmail.trim() === ""}>
+            {pending ? "Sending…" : "Send code"}
+          </Button>
+          <Button type="button" variant="ghost" size="sm" onClick={reset} disabled={pending}>
+            Cancel
+          </Button>
+        </div>
+        {status && <Status tone={status.tone}>{status.text}</Status>}
+      </form>
+    );
+  }
+
+  const isCurrentStep = step === "verify-current";
+  return (
+    <form
+      className="flex flex-col gap-3"
+      onSubmit={isCurrentStep ? verifyCurrent : verifyNew}
+      noValidate
+    >
+      <p className="text-sm text-fg-muted">
+        {isCurrentStep
+          ? `Enter the 6-digit code sent to ${email}.`
+          : `Enter the 6-digit code sent to ${newEmail}.`}
+      </p>
+      <Input
+        label="Verification code"
+        name="code"
+        inputMode="numeric"
+        autoComplete="one-time-code"
+        maxLength={6}
+        required
+        value={code}
+        disabled={pending}
+        onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+      />
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" disabled={pending || code.length !== 6}>
+          {pending ? "Verifying…" : "Verify"}
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => void cancel()}
+          disabled={pending}
+        >
+          Cancel
+        </Button>
+      </div>
+      {status && <Status tone={status.tone}>{status.text}</Status>}
+    </form>
+  );
+}
+
 function PersonalSettings({ user, settings, jobCount }: AccountViewProps) {
   const router = useRouter();
   const { update: updateSession, status: sessionStatus } = useSession();
@@ -218,6 +384,8 @@ function PersonalSettings({ user, settings, jobCount }: AccountViewProps) {
     await sessionRef.current.updateSession(data);
   };
   const [name, setName] = useState(user.name ?? "");
+  const [birthday, setBirthday] = useState(toDateInputValue(user.birthday));
+  const [email, setEmail] = useState(user.email);
   const [avatar, setAvatar] = useState(user.avatar);
   const [profile, setProfile] = useState<{ tone: "ok" | "error"; text: string } | null>(null);
   const [profilePending, setProfilePending] = useState(false);
@@ -236,8 +404,12 @@ function PersonalSettings({ user, settings, jobCount }: AccountViewProps) {
   } | null>(null);
   const [passwordPending, setPasswordPending] = useState(false);
 
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<"idle" | "confirm" | "code">("idle");
+  const [deleteCode, setDeleteCode] = useState("");
   const [deletePending, setDeletePending] = useState(false);
+  const [deleteStatus, setDeleteStatus] = useState<{ tone: "ok" | "error"; text: string } | null>(
+    null,
+  );
 
   const mismatch =
     passwords.confirm !== "" && passwords.confirm !== passwords.newPassword
@@ -248,7 +420,11 @@ function PersonalSettings({ user, settings, jobCount }: AccountViewProps) {
     e.preventDefault();
     setProfile(null);
     setProfilePending(true);
-    const result = await send("/api/account", "PATCH", JSON.stringify({ name }));
+    const result = await send(
+      "/api/account",
+      "PATCH",
+      JSON.stringify({ name, birthday: birthday || null }),
+    );
     setProfilePending(false);
     if (!result.ok) {
       setProfile({ tone: "error", text: result.message });
@@ -290,12 +466,31 @@ function PersonalSettings({ user, settings, jobCount }: AccountViewProps) {
     setPasswordStatus({ tone: "ok", text: "Your password has been changed." });
   };
 
-  const removeAccount = async () => {
+  const requestDeleteCode = async () => {
     setDeletePending(true);
-    const result = await send("/api/account", "DELETE");
+    setDeleteStatus(null);
+    const result = await send("/api/account/delete", "POST");
     setDeletePending(false);
     if (!result.ok) {
-      setProfile({ tone: "error", text: result.message });
+      setDeleteStatus({ tone: "error", text: result.message });
+      return;
+    }
+    setDeleteCode("");
+    setDeleteStatus({ tone: "ok", text: (result.data.message as string) ?? "Code sent." });
+    setDeleteStep("code");
+  };
+
+  const confirmDeleteAccount = async () => {
+    setDeletePending(true);
+    setDeleteStatus(null);
+    const result = await send(
+      "/api/account/delete/confirm",
+      "POST",
+      JSON.stringify({ code: deleteCode }),
+    );
+    setDeletePending(false);
+    if (!result.ok) {
+      setDeleteStatus({ tone: "error", text: result.message });
       return;
     }
     await signOutToLanding();
@@ -303,7 +498,10 @@ function PersonalSettings({ user, settings, jobCount }: AccountViewProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <Section title="Profile" description="Your email address is the key to the account.">
+      <Section
+        title="Profile"
+        description="Your name, birthday and picture, as OneStop shows them."
+      >
         <AvatarEditor
           avatar={avatar}
           name={user.name ?? user.email}
@@ -327,7 +525,19 @@ function PersonalSettings({ user, settings, jobCount }: AccountViewProps) {
               setProfile(null);
             }}
           />
-          <Input label="Email" name="email" value={user.email} readOnly disabled />
+          <Input
+            label="Birthday"
+            name="birthday"
+            type="date"
+            autoComplete="bday"
+            max={toDateInputValue(new Date().toISOString())}
+            value={birthday}
+            disabled={profilePending}
+            onChange={(e) => {
+              setBirthday(e.target.value);
+              setProfile(null);
+            }}
+          />
           <div>
             <Button type="submit" disabled={profilePending}>
               {profilePending ? "Saving…" : "Save profile"}
@@ -335,6 +545,19 @@ function PersonalSettings({ user, settings, jobCount }: AccountViewProps) {
           </div>
           {profile && <Status tone={profile.tone}>{profile.text}</Status>}
         </form>
+      </Section>
+
+      <Section
+        title="Email address"
+        description="Changing it takes two codes: one to prove you still control this address, one to prove you control the new one."
+      >
+        <EmailChangeSection
+          email={email}
+          onChanged={(next) => {
+            setEmail(next);
+            router.refresh();
+          }}
+        />
       </Section>
 
       <Section
@@ -397,32 +620,88 @@ function PersonalSettings({ user, settings, jobCount }: AccountViewProps) {
         </p>
       </Section>
 
-      <Section title="Delete account" description="This cannot be undone.">
-        {confirmDelete ? (
+      <Section
+        title="Delete account"
+        description="This cannot be undone. A confirmation code is emailed to you first."
+      >
+        {deleteStep === "idle" && (
+          <div>
+            <Button variant="secondary" onClick={() => setDeleteStep("confirm")}>
+              Delete account
+            </Button>
+          </div>
+        )}
+        {deleteStep === "confirm" && (
           <div className="flex flex-col gap-3">
             <Status tone="error">
               Deleting removes your profile, settings and saved workflows. Tool runs stay in the
-              history table without a name attached.
+              history table without a name attached. We'll email {email} a code to confirm.
             </Status>
             <div className="flex gap-2">
               <Button
                 variant="danger"
-                onClick={() => void removeAccount()}
+                onClick={() => void requestDeleteCode()}
                 disabled={deletePending}
               >
-                {deletePending ? "Deleting…" : "Yes, delete my account"}
+                {deletePending ? "Sending code…" : "Send confirmation code"}
               </Button>
-              <Button variant="secondary" onClick={() => setConfirmDelete(false)}>
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setDeleteStep("idle");
+                  setDeleteStatus(null);
+                }}
+              >
                 Cancel
               </Button>
             </div>
+            {deleteStatus && <Status tone={deleteStatus.tone}>{deleteStatus.text}</Status>}
           </div>
-        ) : (
-          <div>
-            <Button variant="secondary" onClick={() => setConfirmDelete(true)}>
-              Delete account
-            </Button>
-          </div>
+        )}
+        {deleteStep === "code" && (
+          <form
+            className="flex flex-col gap-3"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void confirmDeleteAccount();
+            }}
+            noValidate
+          >
+            <p className="text-sm text-fg-muted">
+              Enter the 6-digit code sent to {email} to permanently delete this account.
+            </p>
+            <Input
+              label="Confirmation code"
+              name="deleteCode"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              required
+              value={deleteCode}
+              disabled={deletePending}
+              onChange={(e) => setDeleteCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            />
+            <div className="flex gap-2">
+              <Button
+                type="submit"
+                variant="danger"
+                disabled={deletePending || deleteCode.length !== 6}
+              >
+                {deletePending ? "Deleting…" : "Permanently delete my account"}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setDeleteStep("idle");
+                  setDeleteStatus(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+            {deleteStatus && <Status tone={deleteStatus.tone}>{deleteStatus.text}</Status>}
+          </form>
         )}
       </Section>
     </div>

@@ -10,6 +10,8 @@ export interface PublicUser {
   email: string;
   name: string | null;
   avatar: string | null;
+  /** ISO date (`YYYY-MM-DD`), or null when not set. Never a full timestamp - only the date matters. */
+  birthday: string | null;
   createdAt: string;
   /** True when the account can sign in with a password (false for Google-only accounts). */
   hasPassword: boolean;

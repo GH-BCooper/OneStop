@@ -2,26 +2,19 @@
 //
 // Every function here is a plain async function over Prisma: the Next.js routes and the Auth.js
 // callbacks call these, never Prisma directly.
+import type { PublicUser } from "@onestop/types";
 import { requirePrisma, type PrismaClient } from "../db/client.ts";
 import { normalizeEmail, validateEmail, validateName } from "./emails.ts";
 import { hashPassword, validatePasswordStrength, verifyPassword } from "./passwords.ts";
 
-/** What the app is allowed to know about a user. Never includes the password hash. */
-export interface PublicUser {
-  id: string;
-  email: string;
-  name: string | null;
-  avatar: string | null;
-  createdAt: string;
-  /** True when the account can sign in with a password (false for Google-only accounts). */
-  hasPassword: boolean;
-}
+export type { PublicUser } from "@onestop/types";
 
 type UserRow = {
   id: string;
   email: string;
   name: string | null;
   avatar: string | null;
+  birthday: Date | null;
   passwordHash: string | null;
   createdAt: Date;
 };
@@ -32,9 +25,22 @@ export function toPublicUser(row: UserRow): PublicUser {
     email: row.email,
     name: row.name,
     avatar: row.avatar,
+    birthday: row.birthday ? row.birthday.toISOString().slice(0, 10) : null,
     createdAt: row.createdAt.toISOString(),
     hasPassword: row.passwordHash !== null,
   };
+}
+
+const BIRTHDAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Validates a `YYYY-MM-DD` birthday: a real calendar date, not in the future. */
+export function validateBirthday(value: string): string | undefined {
+  if (!BIRTHDAY_RE.test(value)) return "Enter the date as YYYY-MM-DD.";
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return "Enter a valid date.";
+  if (date.getTime() > Date.now()) return "That date is in the future.";
+  if (date.getUTCFullYear() < 1900) return "Enter a valid date.";
+  return undefined;
 }
 
 export class AuthError extends Error {
@@ -125,18 +131,23 @@ export async function findUserByEmail(
 }
 
 /**
- * Updates the display name and/or the avatar. The email is the account key, so it is not editable
- * here. `avatar` is either a data URL the caller has already validated and resized (see
- * `avatar.ts`) or `null` to remove it - never a raw upload.
+ * Updates the display name, avatar and/or birthday. The email is the account key, so it is not
+ * editable here - see `email-change.ts`. `avatar` is either a data URL the caller has already
+ * validated and resized (see `avatar.ts`) or `null` to remove it - never a raw upload. `birthday`
+ * is a `YYYY-MM-DD` string or `null` to clear it.
  */
 export async function updateProfile(
   userId: string,
-  patch: { name?: string; avatar?: string | null },
+  patch: { name?: string; avatar?: string | null; birthday?: string | null },
   prisma: PrismaClient = requirePrisma(),
 ): Promise<PublicUser> {
   if (patch.name !== undefined) {
     const problem = validateName(patch.name);
     if (problem) throw new AuthError("INVALID_INPUT", problem, "name");
+  }
+  if (patch.birthday !== undefined && patch.birthday !== null) {
+    const problem = validateBirthday(patch.birthday);
+    if (problem) throw new AuthError("INVALID_INPUT", problem, "birthday");
   }
   const row = (await prisma.user
     .update({
@@ -144,6 +155,9 @@ export async function updateProfile(
       data: {
         ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
         ...(patch.avatar !== undefined ? { avatar: patch.avatar } : {}),
+        ...(patch.birthday !== undefined
+          ? { birthday: patch.birthday ? new Date(`${patch.birthday}T00:00:00.000Z`) : null }
+          : {}),
       },
     })
     .catch(() => null)) as UserRow | null;

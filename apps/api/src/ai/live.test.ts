@@ -49,13 +49,21 @@ async function runTool(
   expect(tool, `${id} is not in the registry`).toBeTruthy();
   const executor = getExecutor(tool!);
   const bytes = new TextEncoder().encode(text);
-  return executor(inputOf("live.txt", bytes), options, ctx(bytes));
+  // Pinned to Ollama: a dev machine may also have hosted keys configured (for other tests, or
+  // manual checks), and this file's whole point is a real round trip against the *local* runtime -
+  // never a hosted one, and never left to the provider shuffle's luck of the draw.
+  return executor(inputOf("live.txt", bytes), { aiProvider: "ollama", ...options }, ctx(bytes));
 }
+
+// Pinned to Ollama for the same reason as `runTool` above: a dev machine's `.env` may also carry
+// working hosted keys, and `availableConfigs` would otherwise be free to shuffle one of those to
+// the front, which is a real provider this file is not supposed to talk to.
+const OLLAMA_ONLY = { provider: "ollama" as const };
 
 describeLive("live Ollama runtime", () => {
   it("reports itself available and local in the status the UI shows", async () => {
     resetAiProbes();
-    const status = await getAiStatus();
+    const status = await getAiStatus(OLLAMA_ONLY);
     expect(status.available).toBe(true);
     expect(status.provider).toBe("ollama");
     expect(status.local).toBe(true);
@@ -69,6 +77,7 @@ describeLive("live Ollama runtime", () => {
         { role: "user", content: "What is the capital of France?" },
       ],
       { temperature: 0, maxTokens: 24 },
+      OLLAMA_ONLY,
     );
     expect(config.provider).toBe("ollama");
     expect(config.info.local).toBe(true);

@@ -7,3 +7,6 @@ export * from "./reset-tokens.ts";
 export * from "./mailer.ts";
 export * from "./settings.ts";
 export * from "./signup-otp.ts";
+export * from "./otp.ts";
+export * from "./email-change.ts";
+export * from "./account-delete.ts";

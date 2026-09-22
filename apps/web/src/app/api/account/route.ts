@@ -1,10 +1,11 @@
 // The signed-in user's own profile (13-auth-database.md).
 //
 //   GET    /api/account - profile + settings + a small job count
-//   PATCH  /api/account - change the display name or the stored preferences
-//   DELETE /api/account - delete the account (guest jobs stay, unlinked)
+//   PATCH  /api/account - change the display name, birthday or the stored preferences
+//
+// Deleting the account and changing its email are their own routes (`/api/account/delete`,
+// `/api/account/email`) - both need an emailed code, which does not fit this route's shape.
 import {
-  deleteAccount,
   findUserById,
   getJobStore,
   getPrisma,
@@ -48,8 +49,17 @@ export async function PATCH(request: Request): Promise<Response> {
   if (!userId) return fail(401, "AUTH_REQUIRED", SIGN_IN_REQUIRED);
   try {
     const user =
-      typeof body.name === "string"
-        ? await updateProfile(userId, { name: body.name }, prisma)
+      typeof body.name === "string" || "birthday" in body
+        ? await updateProfile(
+            userId,
+            {
+              ...(typeof body.name === "string" ? { name: body.name } : {}),
+              ...("birthday" in body
+                ? { birthday: typeof body.birthday === "string" ? body.birthday : null }
+                : {}),
+            },
+            prisma,
+          )
         : await findUserById(userId, prisma);
     const settings =
       typeof body.theme === "string" || "preferredAI" in body
@@ -65,19 +75,6 @@ export async function PATCH(request: Request): Promise<Response> {
           )
         : await getUserSettings(userId, prisma);
     return ok({ user, settings });
-  } catch (err) {
-    return toErrorResponse(err, "api/account");
-  }
-}
-
-export async function DELETE(): Promise<Response> {
-  const prisma = getPrisma();
-  if (!prisma) return fail(503, "DATABASE_UNAVAILABLE", NO_DATABASE_MESSAGE);
-  const userId = await currentUserId();
-  if (!userId) return fail(401, "AUTH_REQUIRED", SIGN_IN_REQUIRED);
-  try {
-    await deleteAccount(userId, prisma);
-    return ok({ message: "Your account has been deleted." });
   } catch (err) {
     return toErrorResponse(err, "api/account");
   }

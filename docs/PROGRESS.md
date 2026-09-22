@@ -143,6 +143,80 @@ server yet". See `docs/DEPLOYMENT.md` §5.1.
 
 ---
 
+## Post-V1: third owner pass (2026-09-22)
+
+The owner reported the AI Assistant still not answering on Render even with `GROQ_API_KEY`,
+`OPENROUTER_API_KEY` and `GOOGLE_AI_API_KEY` set, plus four account-security/UX asks. All fixed, in
+both the deployed and the local app (same code).
+
+1. **Root cause of the assistant being "out of service" with real keys configured:** two of the
+   three hosted providers' hardcoded `defaultModel`s had gone stale since this was last built —
+   OpenRouter's free `meta-llama/llama-3.3-70b-instruct:free` no longer exists in OpenRouter's
+   catalogue (confirmed live against `GET /api/v1/models`), and Google's `gemini-2.0-flash` has
+   been shut down (confirmed against Google's own docs). Every chat call to either provider failed
+   with a plain "could not complete that request" / 404, which the assistant's chat path collapses
+   into the one generic out-of-service line (by design — see item 10 of the previous pass) so the
+   real cause never reached the UI or the logs distinctly. Groq's `llama-3.3-70b-versatile` was
+   still fine. Fixed in `apps/api/src/ai/providers.ts`: OpenRouter now defaults to
+   `google/gemma-4-31b-it:free` (confirmed live: supports `response_format`, which the intent
+   detector and planner rely on for JSON mode); Google now defaults to `gemini-flash-latest`, a
+   rolling alias Google documents specifically so this class of bug stops recurring — a hardcoded
+   dated model id will go stale again, an alias will not. Verified against the real Groq and
+   Gemini live runtimes in `apps/api/src/ai/live.test.ts` (see item 4 below) and, for OpenRouter,
+   against the live model-catalogue endpoint (no OpenRouter key was available to run a live chat
+   call against it here — worth a follow-up live check with a real key).
+2. **API keys were shared across accounts on the same browser.** `onestop-ai-keys` in `localStorage`
+   was one flat, unscoped key — signing out and into a different account on the same browser handed
+   the new account the previous one's saved keys. Fixed in `lib/preferences.ts`: keys are now stored
+   under `onestop-ai-keys:<userId>` (`onestop-ai-keys:guest` when signed out), switched by a new
+   `setAiKeyScope()` that a small always-mounted `AiKeyScopeSync` component
+   (`components/auth/SessionProvider.tsx`) calls whenever the session's user id changes. A one-time,
+   best-effort migration moves the old flat value onto whichever scope is active the first time it
+   is read post-upgrade (the common single-account-per-browser case), then deletes it, so it can
+   never be read twice. `preferredAI` (which provider, not the key itself) was left unscoped: it is
+   not a credential and already syncs per-account through `UserSettings` in Postgres.
+3. **Email change now requires two OTP codes, not a free edit.** New Prisma model
+   `EmailChangeRequest` (migration `20260922120000_email_change_and_delete_otp`). Starting a change
+   (`POST /api/account/email`) emails a 6-digit code to the *current* address; entering it
+   (`POST /api/account/email/verify-current`) emails a second code to the *new* address; only
+   entering that (`POST /api/account/email/verify-new`) moves the account's email. Both codes are
+   HMAC-bound to the account id and step, never stored in clear, expire in 10 minutes, allow 5 wrong
+   guesses and a 30-second resend gap — the same shape as the existing sign-up OTP
+   (`apps/api/src/auth/signup-otp.ts`), factored out into a shared `apps/api/src/auth/otp.ts` so all
+   three OTP flows (sign-up, email change, account deletion) hash codes the same way.
+4. **Account deletion now requires an emailed OTP.** New Prisma model `AccountDeleteOtp`, same
+   migration as above. `DELETE /api/account` (the old one-click endpoint) is gone; deleting is now
+   `POST /api/account/delete` (emails the code) then `POST /api/account/delete/confirm` (checks it,
+   then actually deletes). `apps/web/src/test/auth-api.test.ts` was updated to exercise the new
+   two-step flow instead of the old single call.
+5. **Birthday field.** Added `birthday DateTime?` to `User` (same migration), a `YYYY-MM-DD` field
+   in `PublicUser` (`packages/types/src/db.ts`), and `validateBirthday` in `auth/users.ts` (a real
+   calendar date, not in the future). It lives in the Profile form next to Name and only changes
+   when "Save profile" is submitted, same as Name always has.
+6. **Test fallout, found and fixed while verifying #1 live:** `ai/live.test.ts` calls `chat()` and
+   `getAiStatus()` with no credentials, intending to test only a locally running Ollama — but on a
+   dev machine whose `.env` also carries real Groq/OpenRouter/Gemini keys (this one does), the
+   provider shuffle in `availableConfigs()` is free to try a hosted provider first. Before this
+   session that was invisible because the stale hosted model ids in #1 made those calls fail
+   anyway, silently falling through to Ollama; fixing #1 made the hosted providers genuinely work,
+   which surfaced the test's hidden nondeterminism. Pinned every call in that file to
+   `{ provider: "ollama" }` so it tests what its own header comment says it tests, independent of
+   whatever else happens to be configured locally.
+
+No migration needed a live database to write by hand — `prisma generate` was run against the schema
+to refresh the generated client's types, but there is no local Postgres running in this environment
+to also apply it; `scripts/maybe-migrate.mjs` (already wired into `npm run build`) applies it on the
+next Render deploy the same way the two migrations before it were applied.
+
+**Open follow-up, not blocking:** the OpenRouter model-id fix (#1) was verified against the live
+model catalogue and its declared parameter support, but not against a live chat completion (no
+OpenRouter key was available in this environment). Worth a quick live check with a real key before
+calling that leg fully proven — if `google/gemma-4-31b-it:free` also goes stale later, the fix is
+the same: re-check `GET https://openrouter.ai/api/v1/models` for a current `:free` model that lists
+`response_format` in `supported_parameters`.
+
+---
+
 ## Decisions Log
 
 (Append one line per real architectural decision — e.g. which Postgres host, which AI runtime default, whether LibreOffice is required or optional locally, etc. Newest at the bottom.)

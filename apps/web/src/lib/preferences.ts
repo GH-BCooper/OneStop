@@ -70,12 +70,42 @@ export function aiMode(id: string | null): (typeof AI_MODES)[number] | undefined
  * It is never sent to `/api/settings` and never written to Postgres — a key is a credential, and
  * CLAUDE.md §2 keeps secrets out of the repo and out of shared storage. It travels only as the
  * `x-onestop-ai-key` header on the request that needs it, and the server forgets it immediately.
+ *
+ * Keys are namespaced per signed-in account (`setAiKeyScope`), so switching accounts on the same
+ * browser never hands one person's saved key to another. A guest (or before the session loads)
+ * uses the "guest" bucket.
  */
-export const AI_KEYS_STORAGE_KEY = "onestop-ai-keys";
+const AI_KEYS_LEGACY_KEY = "onestop-ai-keys";
+
+let aiKeyScope = "guest";
+
+/** Called once the signed-in account (or lack of one) is known — see `AiKeyScopeSync`. */
+export function setAiKeyScope(userId: string | null): void {
+  aiKeyScope = userId && userId.trim() !== "" ? userId.trim() : "guest";
+}
+
+function scopedKey(base: string): string {
+  return `${base}:${aiKeyScope}`;
+}
+
+/** Moves a pre-scoping value onto the current scope's key, once, then removes the shared copy. */
+function migrateLegacy(legacyKey: string, scopedStorageKey: string): void {
+  try {
+    if (localStorage.getItem(scopedStorageKey) !== null) return;
+    const legacy = localStorage.getItem(legacyKey);
+    if (legacy === null) return;
+    localStorage.setItem(scopedStorageKey, legacy);
+    localStorage.removeItem(legacyKey);
+  } catch {
+    // Storage can be blocked; migration is a nicety, not a requirement.
+  }
+}
 
 function readKeyMap(): Record<string, string> {
   try {
-    const raw = localStorage.getItem(AI_KEYS_STORAGE_KEY);
+    const storageKey = scopedKey(AI_KEYS_LEGACY_KEY);
+    migrateLegacy(AI_KEYS_LEGACY_KEY, storageKey);
+    const raw = localStorage.getItem(storageKey);
     const parsed: unknown = raw ? JSON.parse(raw) : {};
     return parsed && typeof parsed === "object" && !Array.isArray(parsed)
       ? (parsed as Record<string, string>)
@@ -99,11 +129,20 @@ export function writeAiKey(provider: string, key: string | null): void {
     const map = readKeyMap();
     if (key && key.trim() !== "") map[provider] = key.trim();
     else delete map[provider];
-    localStorage.setItem(AI_KEYS_STORAGE_KEY, JSON.stringify(map));
+    localStorage.setItem(scopedKey(AI_KEYS_LEGACY_KEY), JSON.stringify(map));
   } catch {
     // Blocked storage means the key simply is not remembered; the runtime choice still works.
   }
   notify();
+}
+
+/** Wipes every saved key for the current scope — used when an account signs out. */
+export function clearAiKeys(): void {
+  try {
+    localStorage.removeItem(scopedKey(AI_KEYS_LEGACY_KEY));
+  } catch {
+    // Nothing to clean up if storage is blocked.
+  }
 }
 
 /** Which AI the visitor chose: OneStop's own hosted service (the default) or their own provider. */

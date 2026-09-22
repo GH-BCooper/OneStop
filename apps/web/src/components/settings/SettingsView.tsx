@@ -99,11 +99,17 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
     setTheme(readThemePreference());
     const stored = readPreferredAI() ?? "";
     setPreferredAI(stored);
-    setAiKey(readAiKey(stored || null));
     setPrefs(readLocalPreferences());
-    setSavedKeys(readAllAiKeys());
     setReady(true);
   }, []);
+
+  // Saved keys are namespaced to the signed-in account (see `setAiKeyScope`), so they are only
+  // read once the session has settled — reading before then would see the previous scope.
+  useEffect(() => {
+    if (status === "loading") return;
+    setAiKey(readAiKey(readPreferredAI() || null));
+    setSavedKeys(readAllAiKeys());
+  }, [status, session?.user?.id]);
 
   useEffect(() => {
     if (status === "loading" || !signedIn) return;
