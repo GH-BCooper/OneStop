@@ -1,0 +1,6 @@
+{
+  "tailwindCSS.experimental.configFile": {
+    "apps/web/src/app/globals.css": ["apps/web/src/**", "packages/ui/src/**"]
+  },
+  "tailwindCSS.classFunctions": ["cn"]
+}

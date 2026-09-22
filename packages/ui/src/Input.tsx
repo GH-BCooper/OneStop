@@ -46,7 +46,9 @@ export function Input({
           {...props}
         />
         {endAdornment && (
-          <div className="absolute right-1 flex items-center">{endAdornment}</div>
+          <div className="absolute right-1 top-1/2 flex -translate-y-1/2 items-center">
+            {endAdornment}
+          </div>
         )}
       </div>
       {error ? (
