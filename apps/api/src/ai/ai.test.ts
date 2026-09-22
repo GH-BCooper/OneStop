@@ -55,6 +55,27 @@ function groqFetch(content: string): typeof fetch {
   }) as unknown as typeof fetch;
 }
 
+/**
+ * A Groq-shaped fetch that records every request body it receives (`capture.calls`) and answers
+ * the intent-classification call (recognised by `INTENT_SYSTEM`'s own wording) with a fixed
+ * "chat" verdict, so a test can assert on what the *conversation* call was actually sent.
+ */
+function capturingGroqFetch(
+  replyText: string,
+  capture: { calls: Array<{ messages: { role: string; content: string }[] }> },
+): typeof fetch {
+  return (async (url: string, init?: RequestInit) => {
+    if (!String(url).includes("api.groq.com")) return Promise.reject(new Error("ECONNREFUSED"));
+    const body = JSON.parse(String(init?.body ?? "{}")) as {
+      messages: { role: string; content: string }[];
+    };
+    capture.calls.push(body);
+    const isIntentCall = body.messages.some((m) => m.content.includes("You classify a request"));
+    const content = isIntentCall ? JSON.stringify({ kind: "chat", confidence: 0.95 }) : replyText;
+    return jsonResponse({ choices: [{ message: { content } }] });
+  }) as unknown as typeof fetch;
+}
+
 let restoreFetch: (() => void) | null = null;
 
 beforeEach(() => {
@@ -749,4 +770,66 @@ describe("master plan §7.1, end to end", () => {
     const archive = await temp.read(finalFile.id);
     expect(decode(archive.slice(0, 2))).toBe("PK");
   }, 300_000);
+});
+
+describe("chat memory and the signed-in user's own profile", () => {
+  it("carries prior turns of the thread and the user's own name/email into the model prompt", async () => {
+    const capture: { calls: Array<{ messages: { role: string; content: string }[] }> } = {
+      calls: [],
+    };
+    restoreFetch?.();
+    restoreFetch = setAiFetch(capturingGroqFetch("Your name is Brett.", capture));
+
+    const result = await planAssistantRequest({
+      request: "what was the above question I just asked",
+      fileNames: [],
+      history: [
+        { role: "user", content: "what is my name?" },
+        { role: "assistant", content: "I don't have that on file." },
+      ],
+      profile: { name: "Brett", email: "brett@example.com", birthday: null },
+      credentials: { provider: "groq", apiKey: "gsk_test_key" },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.intent.kind).toBe("chat");
+    expect(result.message).toBe("Your name is Brett.");
+
+    // The intent classifier saw the recap, not just the one ambiguous line — this is what stops
+    // a bare follow-up like "what was the above question" from being misread as a file question.
+    const intentCall = capture.calls.find((c) =>
+      c.messages.some((m) => m.content.includes("You classify a request")),
+    )!;
+    expect(intentCall.messages[1]!.content).toContain("Recent conversation");
+    expect(intentCall.messages[1]!.content).toContain("what is my name?");
+
+    // The actual reply call got the real conversation history and the user's own profile facts —
+    // never fabricated, never another user's.
+    const chatCall = capture.calls.find((c) =>
+      c.messages.some((m) => m.content.includes("Chat naturally")),
+    )!;
+    expect(chatCall.messages).toContainEqual({ role: "user", content: "what is my name?" });
+    expect(chatCall.messages).toContainEqual({
+      role: "assistant",
+      content: "I don't have that on file.",
+    });
+    const profileLine = chatCall.messages.find(
+      (m) => m.content.includes("Brett") && m.content.includes("brett@example.com"),
+    );
+    expect(profileLine).toBeTruthy();
+  });
+
+  it("works with no history and no profile, exactly as before", async () => {
+    restoreFetch?.();
+    restoreFetch = setAiFetch(groqFetch("Hi there!"));
+
+    const result = await planAssistantRequest({
+      request: "hello there, how are you today",
+      fileNames: [],
+      credentials: { provider: "groq", apiKey: "gsk_test_key" },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.message).toBe("Hi there!");
+  });
 });
