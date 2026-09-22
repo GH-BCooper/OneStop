@@ -60,6 +60,103 @@ function stillAvailable(expiresAt: string): boolean {
   return Number.isFinite(at) && at > Date.now();
 }
 
+/** One run's card: tool name, inputs/status, summary or error, and its download links. */
+function HistoryEntryCard({
+  entry,
+  onRemove,
+}: {
+  entry: HistoryEntry;
+  onRemove: (entry: HistoryEntry) => void;
+}) {
+  const tool = getTool(entry.toolId);
+  const downloads = entry.outputs.filter((f) => stillAvailable(f.expiresAt));
+  return (
+    <Card className="flex flex-col gap-2" data-history-entry={entry.id}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="font-medium">
+            {entry.workflow && <span className="text-fg-muted">Step {entry.workflow.stepIndex + 1}: </span>}
+            {tool ? (
+              <Link href={toolHref(tool)} className="hover:text-primary">
+                {tool.name}
+              </Link>
+            ) : (
+              toolName(entry.toolId)
+            )}
+          </p>
+          <p className="text-xs text-fg-muted">
+            {formatWhen(entry.createdAt)}
+            {entry.inputs.length > 0 && ` · ${entry.inputs.join(", ")}`}
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <Badge tone={statusTone[entry.status] ?? "neutral"}>{entry.status}</Badge>
+          {entry.scope === "device" && <Badge>This device</Badge>}
+        </div>
+      </div>
+
+      {entry.summary && <p className="text-sm">{entry.summary}</p>}
+      {entry.error && <p className="text-sm text-danger">{entry.error}</p>}
+
+      <div className="flex flex-wrap items-center gap-2">
+        {downloads.map((file) => (
+          <a
+            key={file.id}
+            href={`/api/files/${file.id}`}
+            download={file.name}
+            className={buttonClasses("secondary", "sm")}
+          >
+            Download {file.name}
+          </a>
+        ))}
+        {entry.outputs.length > 0 && downloads.length === 0 && (
+          <span className="text-xs text-fg-muted">
+            The result files have been deleted from the server — run the tool again to get them
+            back.
+          </span>
+        )}
+        {tool && (
+          <Link href={toolHref(tool)} className={buttonClasses("ghost", "sm")}>
+            Run again
+          </Link>
+        )}
+        <Button size="sm" variant="ghost" onClick={() => onRemove(entry)}>
+          Remove
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+interface HistoryGroup {
+  key: string;
+  workflow: HistoryEntry["workflow"];
+  entries: HistoryEntry[];
+}
+
+/**
+ * Collapses consecutive workflow steps under one heading, so a chain you ran shows up as the
+ * workflow it was rather than as indistinguishable one-off tool runs.
+ */
+function groupHistoryEntries(entries: HistoryEntry[]): HistoryGroup[] {
+  const groups: HistoryGroup[] = [];
+  const byKey = new Map<string, HistoryGroup>();
+  for (const entry of entries) {
+    const key = entry.workflow ? `workflow:${entry.workflow.runId}` : `single:${entry.id}`;
+    let group = byKey.get(key);
+    if (!group) {
+      group = { key, workflow: entry.workflow, entries: [] };
+      byKey.set(key, group);
+      groups.push(group);
+    }
+    group.entries.push(entry);
+  }
+  for (const group of groups) {
+    if (group.workflow) group.entries.sort((a, b) => (a.workflow?.stepIndex ?? 0) - (b.workflow?.stepIndex ?? 0));
+  }
+  return groups;
+}
+
 export interface HistoryViewProps {
   initial: HistoryParams;
   /** True when this instance has accounts at all; false hides the sign-in prompts. */
@@ -351,67 +448,34 @@ export function HistoryView({ initial, accountsEnabled }: HistoryViewProps) {
         </Card>
       ) : (
         <ul className="flex flex-col gap-3" aria-label="Past runs">
-          {page.entries.map((entry) => {
-            const tool = getTool(entry.toolId);
-            const downloads = entry.outputs.filter((f) => stillAvailable(f.expiresAt));
-            return (
-              <li key={entry.id}>
-                <Card className="flex flex-col gap-2" data-history-entry={entry.id}>
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="font-medium">
-                        {tool ? (
-                          <Link href={toolHref(tool)} className="hover:text-primary">
-                            {tool.name}
-                          </Link>
-                        ) : (
-                          toolName(entry.toolId)
-                        )}
-                      </p>
-                      <p className="text-xs text-fg-muted">
-                        {formatWhen(entry.createdAt)}
-                        {entry.inputs.length > 0 && ` · ${entry.inputs.join(", ")}`}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <Badge tone={statusTone[entry.status] ?? "neutral"}>{entry.status}</Badge>
-                      {entry.scope === "device" && <Badge>This device</Badge>}
-                    </div>
-                  </div>
-
-                  {entry.summary && <p className="text-sm">{entry.summary}</p>}
-                  {entry.error && <p className="text-sm text-danger">{entry.error}</p>}
-
+          {groupHistoryEntries(page.entries).map((group) =>
+            group.workflow ? (
+              <li key={group.key}>
+                <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    {downloads.map((file) => (
-                      <a
-                        key={file.id}
-                        href={`/api/files/${file.id}`}
-                        download={file.name}
-                        className={buttonClasses("secondary", "sm")}
-                      >
-                        Download {file.name}
-                      </a>
-                    ))}
-                    {entry.outputs.length > 0 && downloads.length === 0 && (
-                      <span className="text-xs text-fg-muted">
-                        The result files have been deleted from the server — run the tool again to
-                        get them back.
-                      </span>
-                    )}
-                    {tool && (
-                      <Link href={toolHref(tool)} className={buttonClasses("ghost", "sm")}>
-                        Run again
-                      </Link>
-                    )}
-                    <Button size="sm" variant="ghost" onClick={() => void removeEntry(entry)}>
-                      Remove
-                    </Button>
+                    <Badge tone="primary">Workflow</Badge>
+                    <span className="font-medium">{group.workflow.name}</span>
+                    <span className="text-xs text-fg-muted">
+                      {group.workflow.stepCount} step{group.workflow.stepCount === 1 ? "" : "s"}
+                    </span>
                   </div>
-                </Card>
+                  <div className="flex flex-col gap-2">
+                    {group.entries.map((entry) => (
+                      <HistoryEntryCard
+                        key={entry.id}
+                        entry={entry}
+                        onRemove={(e) => void removeEntry(e)}
+                      />
+                    ))}
+                  </div>
+                </div>
               </li>
-            );
-          })}
+            ) : (
+              <li key={group.key}>
+                <HistoryEntryCard entry={group.entries[0]!} onRemove={(e) => void removeEntry(e)} />
+              </li>
+            ),
+          )}
         </ul>
       )}
 

@@ -116,6 +116,7 @@ export async function recordLocalRun(input: LocalHistoryInput): Promise<HistoryE
     outputs: [],
     error: input.error ?? null,
     scope: "device",
+    workflow: null,
   };
   const written = await run("readwrite", (store) => store.put(entry) as IDBRequest<IDBValidKey>);
   if (written === null) return null;

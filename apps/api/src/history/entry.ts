@@ -47,6 +47,22 @@ export function outputFiles(job: Job): HistoryFile[] {
   return result;
 }
 
+/** The workflow run this job's step belongs to, or null when it was a plain tool run. */
+export function workflowContext(job: Job): HistoryEntry["workflow"] {
+  const raw = job.inputMetadata.workflow;
+  if (!raw || typeof raw !== "object") return null;
+  const w = raw as Record<string, unknown>;
+  const runId = str(w.runId);
+  const name = str(w.name);
+  if (!runId || !name) return null;
+  return {
+    runId,
+    name,
+    stepIndex: num(w.stepIndex),
+    stepCount: num(w.stepCount),
+  };
+}
+
 /** Maps a job onto the row shape `/history` renders. */
 export function toHistoryEntry(job: Job): HistoryEntry {
   const failed = job.status === "failed";
@@ -60,5 +76,6 @@ export function toHistoryEntry(job: Job): HistoryEntry {
     outputs: outputFiles(job),
     error: failed ? str(job.outputMetadata?.message) : null,
     scope: "account",
+    workflow: workflowContext(job),
   };
 }

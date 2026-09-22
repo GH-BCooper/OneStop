@@ -135,6 +135,55 @@ describe("/history when signed in", () => {
     expect(screen.queryByRole("link", { name: /sign in to save/i })).toBeNull();
     expect(await screen.findByRole("button", { name: /import into my account/i })).toBeTruthy();
   });
+
+  it("groups a workflow's steps under one heading instead of listing them as unrelated runs", async () => {
+    signIn();
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        ok: true,
+        entries: [
+          {
+            id: "job-2",
+            toolId: "image-to-pdf",
+            status: "success",
+            createdAt: "2026-09-22T10:01:00.000Z",
+            summary: "Made a PDF",
+            inputs: ["b.png"],
+            outputs: [],
+            error: null,
+            scope: "account",
+            workflow: { runId: "run-1", name: "Scan pipeline", stepIndex: 1, stepCount: 2 },
+          },
+          {
+            id: "job-1",
+            toolId: "compress-image",
+            status: "success",
+            createdAt: "2026-09-22T10:00:00.000Z",
+            summary: "Compressed 1 file",
+            inputs: ["a.png"],
+            outputs: [],
+            error: null,
+            scope: "account",
+            workflow: { runId: "run-1", name: "Scan pipeline", stepIndex: 0, stepCount: 2 },
+          },
+        ],
+        total: 2,
+        page: 1,
+        pageSize: 20,
+        pageCount: 1,
+      }),
+    );
+
+    render(<HistoryView initial={{ category: "", page: 1 }} accountsEnabled />);
+
+    expect(await screen.findByText("Scan pipeline")).toBeTruthy();
+    expect(screen.getByText("2 steps")).toBeTruthy();
+    expect(screen.getByText("Compressed 1 file")).toBeTruthy();
+    expect(screen.getByText("Made a PDF")).toBeTruthy();
+    // Steps render in run order (0, then 1) even though the API returned them newest-first.
+    const summaries = screen.getAllByText(/Compressed 1 file|Made a PDF/).map((n) => n.textContent);
+    expect(summaries).toEqual(["Compressed 1 file", "Made a PDF"]);
+  });
 });
 
 describe("favourites", () => {

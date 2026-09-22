@@ -52,6 +52,8 @@ export interface RunPipelineInput {
   clientIp?: string | null;
   /** When set, run stages are written to the progress store for the browser to poll. */
   progressToken?: string | null;
+  /** Set by the workflow engine so this step's job records which run and step it belongs to. */
+  workflow?: { runId: string; name: string; stepIndex: number; stepCount: number } | null;
 }
 
 export interface PipelineOutcome {
@@ -205,6 +207,7 @@ export async function runPipeline(
       ...(input.text ? { textLength: input.text.length } : {}),
       // Passwords and drawn signatures are passed to the tool but never stored on the job.
       ...(Object.keys(options).length > 0 ? { options: redactOptionValues(tool.id, options) } : {}),
+      ...(input.workflow ? { workflow: input.workflow } : {}),
     },
   });
 

@@ -10,7 +10,7 @@ import type { HistoryEntry, HistoryFilter, HistoryPage, Job, JobStatus } from "@
 import { requirePrisma, type PrismaClient } from "../db/client.ts";
 import { toHistoryEntry } from "./entry.ts";
 
-export { inputNames, outputFiles, toHistoryEntry } from "./entry.ts";
+export { inputNames, outputFiles, toHistoryEntry, workflowContext } from "./entry.ts";
 
 export const DEFAULT_PAGE_SIZE = 20;
 export const MAX_PAGE_SIZE = 100;

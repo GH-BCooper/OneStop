@@ -156,6 +156,7 @@ describe("guest history filtering (the same shape the server returns)", () => {
     outputs: [],
     error: null,
     scope: "device" as const,
+    workflow: null,
     status: e.status as "success" | "failed",
   }));
 

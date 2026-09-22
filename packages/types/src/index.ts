@@ -135,6 +135,8 @@ export interface HistoryEntry {
   error: string | null;
   /** Where this entry is stored: the account (synced) or this device only. */
   scope: "account" | "device";
+  /** Set when this run was one step of a workflow, so `/history` can group and label it. */
+  workflow: { runId: string; name: string; stepIndex: number; stepCount: number } | null;
 }
 
 /** Filters `/history` understands. Everything is optional; omitted means "no filter". */

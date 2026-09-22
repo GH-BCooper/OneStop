@@ -5,6 +5,7 @@
 // a workflow step is validated, job-tracked, timed out, size-checked and history-logged exactly
 // like the same tool run from its own page. What this module adds is only the wiring between
 // steps: read the previous step's stored output back, hand it on, and report progress.
+import { randomUUID } from "node:crypto";
 import { acceptsFileName, getTool, type ToolMeta } from "@onestop/tool-registry";
 import type {
   OutputFileRef,
@@ -110,6 +111,9 @@ export async function runWorkflow(
     workflowId: input.workflowId ?? null,
     name,
   };
+  // Only multi-step chains need grouping in history — a one-step "workflow" is indistinguishable
+  // from running that tool directly, so it is logged exactly the same way.
+  const runId = steps.length > 1 ? randomUUID() : null;
 
   const validation = validateWorkflow(steps);
   if (!validation.valid) {
@@ -163,6 +167,9 @@ export async function runWorkflow(
           userId: input.userId ?? null,
           files: group,
           options: step.options ?? {},
+          ...(runId
+            ? { workflow: { runId, name, stepIndex: index, stepCount: steps.length } }
+            : {}),
         },
         pipelineDeps,
       );
