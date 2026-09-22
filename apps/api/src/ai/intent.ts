@@ -51,6 +51,12 @@ const MY_LISTS_RE =
 const TOOL_VERBS =
   /\b(convert|merge|split|compress|rotate|resize|crop|extract|remove|delete|encrypt|decrypt|watermark|sign|ocr|scan|flatten|unlock|protect|zip|unzip|archive|encode|decode|hash|format|validate|clean|deduplicate|transcode|trim)\b/i;
 
+/** "what is OneStop", "who made you", "give me a description of OneStop" — meta questions about
+ *  the app or assistant itself. These are conversation, not a file task, even with no question
+ *  word and no attached file; an explicit TOOL_VERBS match still wins (e.g. "convert this with
+ *  OneStop"). */
+const ABOUT_ONESTOP_RE = /\bonestop\b/i;
+
 export const LOW_CONFIDENCE = 0.4;
 
 /** The rule-based pass. Always returns something; `confidence` says how sure it is. */
@@ -77,6 +83,12 @@ export function detectIntentRules(
   // always wins over the word "tool" showing up in the sentence.
   if (!toolish && (CATALOGUE_RE.test(text) || MY_LISTS_RE.test(text))) {
     return { ...base, kind: "catalogue", confidence: 0.9, needsFiles: false };
+  }
+
+  // "What is OneStop", "who made you", "give me a description of OneStop" — a question about the
+  // app or assistant itself, never a file task.
+  if (!toolish && ABOUT_ONESTOP_RE.test(text)) {
+    return { ...base, kind: "chat", confidence: 0.9, needsFiles: false };
   }
 
   // "What does the contract say about termination?" — a question *about* an uploaded file is RAG,
