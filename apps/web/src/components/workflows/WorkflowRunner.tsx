@@ -12,9 +12,10 @@
 // The upload pre-check reuses the tool page's, so a file the first step cannot read is caught
 // before anything leaves the device — the server revalidates regardless.
 import { getTool, fileInputTypes, typeLabel } from "@onestop/tool-registry";
-import type { BatchRunResult, WorkflowRunResult, WorkflowStep } from "@onestop/types";
-import { Badge, Button, Card, CardTitle } from "@onestop/ui";
+import type { BatchRunResult, OutputFileRef, WorkflowRunResult, WorkflowStep } from "@onestop/types";
+import { Badge, Button, buttonClasses, Card, CardTitle } from "@onestop/ui";
 import { useState } from "react";
+import { FilePreview, previewable } from "@/components/tools/ToolStateMachine";
 import { checkFiles, formatBytes, UploadZone } from "@/components/tools/UploadZone";
 
 export interface WorkflowRunnerProps {
@@ -35,6 +36,41 @@ interface RunResponse {
 }
 
 const statusTone = { success: "success", failed: "danger", skipped: "neutral" } as const;
+
+/** One result file: a Download button, plus a View toggle for inline-previewable types. */
+function FileResultRow({ file }: { file: OutputFileRef }) {
+  const [open, setOpen] = useState(false);
+  const canPreview = previewable([file]).length > 0;
+  return (
+    <li className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <a
+          href={file.url}
+          download={file.name}
+          className={buttonClasses("primary")}
+          data-testid="result-download"
+        >
+          Download {file.name}
+        </a>
+        {canPreview ? (
+          <Button
+            variant="secondary"
+            onClick={() => setOpen((v) => !v)}
+            data-testid="preview-toggle"
+          >
+            {open ? "Hide view" : "View"}
+          </Button>
+        ) : null}
+        <span className="text-sm text-fg-muted">({formatBytes(file.size)})</span>
+      </div>
+      {open && canPreview ? (
+        <div data-testid="result-preview">
+          <FilePreview file={file} />
+        </div>
+      ) : null}
+    </li>
+  );
+}
 
 export function WorkflowRunner({ steps, name, workflowId = null }: WorkflowRunnerProps) {
   const first = getTool(steps[0]?.toolId ?? "");
@@ -180,14 +216,9 @@ export function WorkflowRunner({ steps, name, workflowId = null }: WorkflowRunne
           {run.files.length > 0 ? (
             <div className="flex flex-col gap-2">
               <p className="text-sm font-medium">Result</p>
-              <ul className="flex flex-col gap-1">
+              <ul className="flex flex-col gap-2">
                 {run.files.map((file) => (
-                  <li key={file.id}>
-                    <a className="text-sm text-primary underline" href={file.url} download>
-                      {file.name}
-                    </a>{" "}
-                    <span className="text-sm text-fg-muted">({formatBytes(file.size)})</span>
-                  </li>
+                  <FileResultRow key={file.id} file={file} />
                 ))}
               </ul>
             </div>
@@ -214,14 +245,9 @@ export function WorkflowRunner({ steps, name, workflowId = null }: WorkflowRunne
                 </div>
                 {result.error ? <p className="mt-1 text-danger">{result.error}</p> : null}
                 {result.files.length > 0 ? (
-                  <ul className="mt-1 flex flex-col gap-1">
+                  <ul className="mt-2 flex flex-col gap-2">
                     {result.files.map((file) => (
-                      <li key={file.id}>
-                        <a className="text-primary underline" href={file.url} download>
-                          {file.name}
-                        </a>{" "}
-                        <span className="text-fg-muted">({formatBytes(file.size)})</span>
-                      </li>
+                      <FileResultRow key={file.id} file={file} />
                     ))}
                   </ul>
                 ) : null}

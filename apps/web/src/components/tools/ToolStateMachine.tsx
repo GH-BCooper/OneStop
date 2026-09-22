@@ -134,7 +134,7 @@ const unavailableTitles: Record<UnavailableReason, string> = {
 };
 
 /** Result files a browser can show inline, without downloading first. At most four. */
-function previewable(files: OutputFileRef[] | undefined): OutputFileRef[] {
+export function previewable(files: OutputFileRef[] | undefined): OutputFileRef[] {
   return (files ?? [])
     .filter(
       (f) =>
@@ -146,7 +146,7 @@ function previewable(files: OutputFileRef[] | undefined): OutputFileRef[] {
     .slice(0, 4);
 }
 
-function FilePreview({ file }: { file: OutputFileRef }) {
+export function FilePreview({ file }: { file: OutputFileRef }) {
   if (file.mimeType.startsWith("image/")) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
