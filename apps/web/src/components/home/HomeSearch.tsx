@@ -40,6 +40,7 @@ export function HomeSearch() {
         <input
           id="home-search"
           type="search"
+          autoComplete="off"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="e.g. make a pdf from images, remove background, convert csv to json"
