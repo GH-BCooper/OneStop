@@ -83,24 +83,27 @@ export async function checkInternet(options: InternetCheckOptions = {}): Promise
   }
   const fetchImpl = options.fetchImpl ?? fetch;
   const targets = checkTargets();
-  let last = targets[0] ?? "";
-  for (const target of targets) {
-    last = target;
-    if (await reachable(target, fetchImpl)) {
-      const value: InternetCheck = {
-        internet: true,
-        target,
-        checkedAt: new Date(now).toISOString(),
-        detail: "The server reached the Internet.",
-        cached: false,
-      };
-      cache = { at: now, value };
-      return value;
-    }
+  // Tried in parallel, not one after another: sequentially, N slow/blocked targets can take up to
+  // N * TIMEOUT_MS to answer, which used to run past the client's own PROBE_TIMEOUT_MS and get the
+  // whole check aborted client-side - reporting "no connection" even though the server was fine.
+  const results = await Promise.all(
+    targets.map(async (target) => ({ target, ok: await reachable(target, fetchImpl) })),
+  );
+  const hit = results.find((r) => r.ok);
+  if (hit) {
+    const value: InternetCheck = {
+      internet: true,
+      target: hit.target,
+      checkedAt: new Date(now).toISOString(),
+      detail: "The server reached the Internet.",
+      cached: false,
+    };
+    cache = { at: now, value };
+    return value;
   }
   const value: InternetCheck = {
     internet: false,
-    target: last,
+    target: results[results.length - 1]?.target ?? targets[0] ?? "",
     checkedAt: new Date(now).toISOString(),
     detail: "The server could not reach the Internet. Tools that run on this device still work.",
     cached: false,

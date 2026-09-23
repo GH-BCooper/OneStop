@@ -18,7 +18,7 @@ export const PING_ENDPOINT = "/api/ping";
 export const CONNECTIVITY_ENDPOINT = "/api/connectivity";
 
 /** How long a probe waits before it counts as a failure. */
-export const PROBE_TIMEOUT_MS = 4000;
+export const PROBE_TIMEOUT_MS = 6000;
 /** How often the badge re-checks while the tab is visible. */
 export const RECHECK_INTERVAL_MS = 60_000;
 
@@ -106,6 +106,8 @@ export interface ProbeOptions {
   timeoutMs?: number;
   /** Overridable so tests need no DOM. Defaults to `navigator.onLine`. */
   navigatorOnline?: boolean;
+  /** Bypass the server's short-lived cache - the "Check again" buttons. */
+  force?: boolean;
 }
 
 /**
@@ -141,7 +143,8 @@ export async function probeConnectivity(options: ProbeOptions = {}): Promise<Con
     return { ...snapshot, reach: reachFrom(snapshot) };
   }
 
-  const probe = await fetchJson(CONNECTIVITY_ENDPOINT, fetchImpl, timeoutMs);
+  const endpoint = options.force ? `${CONNECTIVITY_ENDPOINT}?force=1` : CONNECTIVITY_ENDPOINT;
+  const probe = await fetchJson(endpoint, fetchImpl, timeoutMs);
   if (!probe.ok) {
     const snapshot = {
       navigatorOnline,

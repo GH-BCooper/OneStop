@@ -29,8 +29,8 @@ function publish(snapshot: ConnectivitySnapshot): void {
 }
 
 /** Runs a probe, collapsing concurrent callers onto one request. */
-export function refreshConnectivity(): Promise<ConnectivitySnapshot> {
-  inFlight ??= probeConnectivity()
+export function refreshConnectivity(options: { force?: boolean } = {}): Promise<ConnectivitySnapshot> {
+  inFlight ??= probeConnectivity(options)
     .then((snapshot) => {
       publish(snapshot);
       return snapshot;
@@ -100,6 +100,6 @@ export function useConnectivity(): UseConnectivity {
     };
   }, []);
 
-  const recheck = useCallback(() => refreshConnectivity(), []);
+  const recheck = useCallback(() => refreshConnectivity({ force: true }), []);
   return { ...snapshot, recheck };
 }
