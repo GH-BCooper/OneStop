@@ -142,6 +142,23 @@ async function httpError(config: AiRuntimeConfig, response: Response): Promise<A
       body,
     );
   }
+  // Google never uses 401/403 for a bad key - a rejected or under-scoped key comes back as a plain
+  // 400 "INVALID_ARGUMENT" (checkProvider() above already special-cases this for the same reason).
+  // Without this, a real chat request would misread it as a generic failure and burn through every
+  // fallback model with the same error before giving the visitor an unhelpful "out of service".
+  if (
+    response.status === 400 &&
+    config.provider === "google" &&
+    !/model.{0,40}(not found|does not exist|no longer available|not supported|decommissioned)|not found.{0,20}model/i.test(
+      body,
+    )
+  ) {
+    return new AiError(
+      "AI_AUTH",
+      `${label} rejected the API key. Check the key you entered in Settings.`,
+      body,
+    );
+  }
   if (response.status === 404 && config.provider === "ollama") {
     return new AiError(
       "AI_MODEL",

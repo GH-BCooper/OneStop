@@ -496,6 +496,30 @@ describe("the model runtime", () => {
     ).rejects.toMatchObject({ code: "AI_AUTH" });
   });
 
+  it("reads Google's plain-400 key rejection as AI_AUTH, not a generic failure", async () => {
+    restoreFetch?.();
+    const tried: string[] = [];
+    restoreFetch = setAiFetch(((url: string) => {
+      tried.push(String(url));
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({ error: { code: 400, message: "API key not valid.", status: "INVALID_ARGUMENT" } }),
+          { status: 400 },
+        ),
+      );
+    }) as unknown as typeof fetch);
+
+    await expect(
+      chat(
+        [{ role: "user", content: "hi" }],
+        {},
+        { mode: "own", provider: "google", keys: { google: "nope" } },
+      ),
+    ).rejects.toMatchObject({ code: "AI_AUTH" });
+    // Google's whole model fallback chain is skipped once the key itself is rejected.
+    expect(tried.length).toBe(1);
+  });
+
   it("throws the one catchable 'nothing is available' error when nothing answers", async () => {
     await expect(chat([{ role: "user", content: "hi" }])).rejects.toMatchObject({
       code: "AI_UNAVAILABLE",
