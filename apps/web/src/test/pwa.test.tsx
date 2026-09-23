@@ -307,9 +307,13 @@ describe("service worker", () => {
     await sw.precache();
     const cache = await caches.api.open(sw.SHELL_CACHE);
     const cached = (await cache.keys()).map((r) => new URL(r.url).pathname);
-    expect(cached).toContain("/");
+    expect(cached).toContain("/tools");
     expect(cached).toContain("/offline");
     expect(cached).not.toContain("/status");
+    // "/" is the personalized Home page (guest landing vs. signed-in dashboard) - it must never be
+    // precached, or a stale snapshot from install time would get handed to a later, different
+    // visitor whenever a navigation falls back to the cache.
+    expect(cached).not.toContain("/");
   });
 
   it("falls back to the cached page, then /offline, when a navigation fails", async () => {

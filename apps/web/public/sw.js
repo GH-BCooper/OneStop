@@ -21,17 +21,22 @@
 
 // Bump when the shell or these rules change: it renames the caches, so the next activation drops
 // the previous build's entries.
-const VERSION = "v1";
+const VERSION = "v2";
 const SHELL_CACHE = `onestop-shell-${VERSION}`;
 const ASSET_CACHE = `onestop-assets-${VERSION}`;
 const PAGE_CACHE = `onestop-pages-${VERSION}`;
 const OWNED = [SHELL_CACHE, ASSET_CACHE, PAGE_CACHE];
 
-/** The offline fallback, and the routes worth having before the first offline visit. */
+/**
+ * The offline fallback, and the routes worth having before the first offline visit. `/` is
+ * deliberately left out: it is the Home page, and it renders differently per visitor (guest
+ * marketing page vs. a signed-in dashboard with their name and recent jobs). Precaching it would
+ * freeze whichever version happened to be live at install time and hand it to every later
+ * visitor - including a different session - whenever `handleNavigate` falls back to the cache.
+ */
 const OFFLINE_URL = "/offline";
 const SHELL_URLS = [
   OFFLINE_URL,
-  "/",
   "/tools",
   "/status",
   "/manifest.json",
@@ -41,8 +46,14 @@ const SHELL_URLS = [
   "/icons/icon.svg",
 ];
 
-/** How long a navigation waits for the network before the cache answers instead. */
-const NAV_TIMEOUT_MS = 3500;
+/**
+ * How long a navigation waits for the network before the cache answers instead. Generous on
+ * purpose: a cold-started host (Render's free tier spins down when idle) or a dev server
+ * compiling a route on demand can take several seconds to answer, and that is still a real,
+ * correct response - it must not lose a race against the fallback and get replaced by a stale
+ * cached page.
+ */
+const NAV_TIMEOUT_MS = 12000;
 
 /** Master plan §22 wording, kept byte-identical to ERROR_MESSAGES.offline in @onestop/types. */
 const OFFLINE_MESSAGE = "This tool needs an Internet connection. Connect and try again.";

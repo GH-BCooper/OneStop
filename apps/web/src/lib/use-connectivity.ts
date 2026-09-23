@@ -23,9 +23,41 @@ let inFlight: Promise<ConnectivitySnapshot> | null = null;
 let timer: ReturnType<typeof setInterval> | null = null;
 let bound = false;
 
+// Fast self-healing retries while the app looks unreachable (18-pwa-offline.md). A cold-started
+// host (Render's free tier spins down when idle) or a dev server compiling a route on demand can
+// take longer to answer than the very first probe waits, which used to show "No connection" until
+// the visitor clicked "Check again" or switched tabs. Retrying quickly with backoff clears that up
+// on its own; it stops as soon as the app is reachable and falls back to the slow steady-state poll.
+const RETRY_BACKOFF_MS = [2000, 4000, 8000, 15000];
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
+let retryAttempt = 0;
+
+function clearRetry(): void {
+  if (retryTimer) clearTimeout(retryTimer);
+  retryTimer = null;
+  retryAttempt = 0;
+}
+
+function scheduleRetry(): void {
+  if (retryTimer) return;
+  const delay = RETRY_BACKOFF_MS[Math.min(retryAttempt, RETRY_BACKOFF_MS.length - 1)];
+  retryAttempt += 1;
+  retryTimer = setTimeout(() => {
+    retryTimer = null;
+    if (typeof document === "undefined" || document.visibilityState === "visible") {
+      void refreshConnectivity();
+    }
+  }, delay);
+}
+
 function publish(snapshot: ConnectivitySnapshot): void {
   current = snapshot;
   for (const listener of listeners) listener(snapshot);
+  if (snapshot.reach === "offline" || snapshot.reach === "checking") {
+    scheduleRetry();
+  } else {
+    clearRetry();
+  }
 }
 
 /** Runs a probe, collapsing concurrent callers onto one request. */
@@ -72,6 +104,7 @@ function stop(): void {
   if (timer) clearInterval(timer);
   timer = null;
   bound = false;
+  clearRetry();
 }
 
 /** Forgets everything the monitor has learned and unbinds it. Used by the test setup. */
