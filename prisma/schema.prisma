@@ -173,6 +173,9 @@ model Workflow {
   name        String
   description String?
   steps       Json     @default("[]")
+  favorite    Boolean  @default(false)
+  useCount    Int      @default(0)
+  lastUsedAt  DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

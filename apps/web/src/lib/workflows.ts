@@ -50,6 +50,12 @@ function parseWorkflow(value: unknown): Workflow | null {
     createdAt: typeof row.createdAt === "string" ? row.createdAt : now,
     updatedAt: typeof row.updatedAt === "string" ? row.updatedAt : now,
     scope: "device",
+    favorite: row.favorite === true,
+    useCount:
+      typeof row.useCount === "number" && Number.isFinite(row.useCount) && row.useCount > 0
+        ? Math.floor(row.useCount)
+        : 0,
+    lastUsedAt: typeof row.lastUsedAt === "string" ? row.lastUsedAt : null,
   };
 }
 
@@ -95,6 +101,9 @@ export function saveLocalWorkflow(input: WorkflowInput, id?: string): Workflow {
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
     scope: "device",
+    favorite: existing?.favorite ?? false,
+    useCount: existing?.useCount ?? 0,
+    lastUsedAt: existing?.lastUsedAt ?? null,
   };
   writeLocalWorkflows([workflow, ...all.filter((w) => w.id !== workflow.id)]);
   return workflow;
@@ -102,6 +111,23 @@ export function saveLocalWorkflow(input: WorkflowInput, id?: string): Workflow {
 
 export function deleteLocalWorkflow(id: string): void {
   writeLocalWorkflows(readLocalWorkflows().filter((w) => w.id !== id));
+}
+
+/** Stars or un-stars a device workflow in place — no reordering, no new `updatedAt`. */
+export function setLocalFavorite(id: string, favorite: boolean): void {
+  const all = readLocalWorkflows();
+  if (!all.some((w) => w.id === id)) return;
+  writeLocalWorkflows(all.map((w) => (w.id === id ? { ...w, favorite } : w)));
+}
+
+/** Counts one successful run of a device workflow. */
+export function recordLocalUse(id: string): void {
+  const all = readLocalWorkflows();
+  if (!all.some((w) => w.id === id)) return;
+  const now = new Date().toISOString();
+  writeLocalWorkflows(
+    all.map((w) => (w.id === id ? { ...w, useCount: w.useCount + 1, lastUsedAt: now } : w)),
+  );
 }
 
 export function getLocalWorkflow(id: string): Workflow | undefined {
@@ -140,6 +166,32 @@ function asWorkflow(value: unknown): Workflow | null {
   };
 }
 
+// ---- filters ------------------------------------------------------------------------------
+
+export type WorkflowFilter = "all" | "favorites" | "recent" | "frequent";
+
+/** A workflow has to have been run at least this many times to count as "frequently used". */
+export const FREQUENT_MIN_USES = 2;
+
+/** Narrows and orders the list for a filter: favourites A–Z-stable, recent newest-run first,
+ *  frequent most-run first (ties broken by the most recent run). "all" keeps the given order. */
+export function filterWorkflows(workflows: Workflow[], filter: WorkflowFilter): Workflow[] {
+  const byRecent = (a: Workflow, b: Workflow) =>
+    (b.lastUsedAt ?? "").localeCompare(a.lastUsedAt ?? "");
+  switch (filter) {
+    case "favorites":
+      return workflows.filter((w) => w.favorite);
+    case "recent":
+      return workflows.filter((w) => w.lastUsedAt !== null).sort(byRecent);
+    case "frequent":
+      return workflows
+        .filter((w) => w.useCount >= FREQUENT_MIN_USES)
+        .sort((a, b) => b.useCount - a.useCount || byRecent(a, b));
+    default:
+      return workflows;
+  }
+}
+
 export async function fetchWorkflows(): Promise<Workflow[]> {
   const body = await call("/api/workflows");
   return Array.isArray(body.workflows)
@@ -161,6 +213,14 @@ export async function saveRemoteWorkflow(input: WorkflowInput, id?: string): Pro
   if (!workflow) throw new Error("That could not be saved. Please try again.");
   announce();
   return workflow;
+}
+
+export async function setRemoteFavorite(id: string, favorite: boolean): Promise<void> {
+  await call(`/api/workflows/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ favorite }),
+  });
+  announce();
 }
 
 export async function deleteRemoteWorkflow(id: string): Promise<void> {

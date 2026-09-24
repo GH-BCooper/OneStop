@@ -2,6 +2,7 @@
 //
 //   GET    /api/workflows/:id - the workflow, if it is this user's
 //   PUT    /api/workflows/:id - replace its name, description and steps
+//   PATCH  /api/workflows/:id - star or un-star it ({ favorite: boolean })
 //   DELETE /api/workflows/:id - delete it
 import {
   deleteWorkflow,
@@ -9,6 +10,7 @@ import {
   getWorkflow,
   InvalidWorkflowError,
   parseWorkflowInput,
+  setWorkflowFavorite,
   updateWorkflow,
   WorkflowNotFoundError,
 } from "@onestop/api";
@@ -52,6 +54,24 @@ export async function PUT(request: Request, { params }: Params): Promise<Respons
     return ok({ workflow: await updateWorkflow(userId, id, input, prisma) });
   } catch (err) {
     if (err instanceof InvalidWorkflowError) return fail(422, err.code, err.message);
+    if (err instanceof WorkflowNotFoundError) return fail(404, err.code, GONE);
+    return toErrorResponse(err, "api/workflows/:id");
+  }
+}
+
+export async function PATCH(request: Request, { params }: Params): Promise<Response> {
+  const body = await readJson(request);
+  if (!body || typeof body.favorite !== "boolean") {
+    return fail(400, "INVALID_INPUT", "That request could not be read.");
+  }
+  const prisma = getPrisma();
+  if (!prisma) return fail(503, "DATABASE_UNAVAILABLE", NO_DATABASE_MESSAGE);
+  const userId = await currentUserId();
+  if (!userId) return fail(401, "AUTH_REQUIRED", SIGN_IN_REQUIRED);
+  try {
+    const { id } = await params;
+    return ok({ workflow: await setWorkflowFavorite(userId, id, body.favorite, prisma) });
+  } catch (err) {
     if (err instanceof WorkflowNotFoundError) return fail(404, err.code, GONE);
     return toErrorResponse(err, "api/workflows/:id");
   }

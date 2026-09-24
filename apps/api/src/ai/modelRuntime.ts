@@ -54,9 +54,13 @@ export function outOfCreditsMessage(configs: AiRuntimeConfig[]): string {
     : "Out of credits. Try again in a little while.";
 }
 
-/** The one line the assistant shows for a failed AI call, whatever the cause. */
+/**
+ * The one line the assistant shows for a failed AI call. Every code but the catch-all carries a
+ * short, user-safe, actionable message ("out of credits", "key rejected", "Ollama is not running",
+ * "took too long") - showing it beats a blanket "out of service" the user cannot act on.
+ */
 export function assistantFailureMessage(err: AiError): string {
-  return err.code === "AI_RATE_LIMIT" ? err.message : OUT_OF_SERVICE_MESSAGE;
+  return err.code === "AI_FAILED" ? OUT_OF_SERVICE_MESSAGE : err.message;
 }
 
 export function rateLimitMessage(provider: string, retryAfterSeconds?: number): string {

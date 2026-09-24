@@ -25,6 +25,8 @@ export {
   normaliseName,
   parseSteps,
   parseWorkflowInput,
+  recordWorkflowUse,
+  setWorkflowFavorite,
   toWorkflow,
   updateWorkflow,
 } from "./model.ts";

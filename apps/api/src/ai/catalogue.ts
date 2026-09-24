@@ -8,6 +8,51 @@ import type { ToolCatalogueAnswer, ToolCatalogueGroup } from "@onestop/types";
 export interface WorkflowSummary {
   id: string;
   name: string;
+  /** Starred by the user. */
+  favorite?: boolean;
+  /** Successful runs so far. */
+  useCount?: number;
+  /** ISO time of the last successful run. */
+  lastUsedAt?: string | null;
+}
+
+/** Which slice of the saved workflows a request is about. */
+export type WorkflowView = "all" | "favorites" | "recent" | "frequent";
+
+/** A workflow must have been run at least this often to count as "frequently used". */
+export const FREQUENT_MIN_USES = 2;
+const MAX_WORKFLOW_ANSWERS = 10;
+
+export function workflowView(request: string): WorkflowView {
+  if (/\bfavou?rites?\b|\bstarred\b/i.test(request)) return "favorites";
+  if (/\bfrequent(ly)?\b|\bmost\b[^.?!]*\b(used|run|often)\b|\boften\b|\bpopular\b|\b(use|run)\b[^.?!]*\bmost\b/i.test(request)) return "frequent";
+  if (/\brecent(ly)?\b|\blast (used|run)\b|\blately\b/i.test(request)) return "recent";
+  return "all";
+}
+
+const VIEW_TITLES: Record<WorkflowView, string> = {
+  all: "Workflows",
+  favorites: "Favourite workflows",
+  recent: "Recently used workflows",
+  frequent: "Frequently used workflows",
+};
+
+function selectWorkflows(all: WorkflowSummary[], view: WorkflowView): WorkflowSummary[] {
+  const byRecent = (a: WorkflowSummary, b: WorkflowSummary) =>
+    (b.lastUsedAt ?? "").localeCompare(a.lastUsedAt ?? "");
+  switch (view) {
+    case "favorites":
+      return all.filter((w) => w.favorite === true);
+    case "recent":
+      return all.filter((w) => Boolean(w.lastUsedAt)).sort(byRecent).slice(0, MAX_WORKFLOW_ANSWERS);
+    case "frequent":
+      return all
+        .filter((w) => (w.useCount ?? 0) >= FREQUENT_MIN_USES)
+        .sort((a, b) => (b.useCount ?? 0) - (a.useCount ?? 0) || byRecent(a, b))
+        .slice(0, MAX_WORKFLOW_ANSWERS);
+    default:
+      return all;
+  }
 }
 
 /** Extra, per-user data the registry itself does not have — round-tripped from the client exactly
@@ -50,13 +95,25 @@ export function buildCatalogueAnswer(request: string, extras: CatalogueExtras = 
   // still never touches the model or a database (CLAUDE.md §2). Each entry links straight to the
   // workflow's "use" view, ready to run on new files with one click.
   if (scope === "workflows") {
-    const workflows = extras.workflows ?? [];
-    const tools = workflows.map((w) => ({ id: w.id, name: w.name, href: `/workflows/${w.id}?use=1` }));
+    const view = workflowView(request);
+    const workflows = selectWorkflows(extras.workflows ?? [], view);
+    const tools = workflows.map((w) => ({
+      id: w.id,
+      name: view === "frequent" ? `${w.name} (run ${w.useCount ?? 0}×)` : w.name,
+      href: `/workflows/${w.id}?use=1`,
+    }));
     return {
       scope,
       totalTools: tools.length,
       groups: [
-        { id: "workflows", name: "Workflows", icon: "🧩", href: "/workflows", count: tools.length, tools },
+        {
+          id: view === "all" ? "workflows" : `workflows-${view}`,
+          name: VIEW_TITLES[view],
+          icon: "🧩",
+          href: "/workflows",
+          count: tools.length,
+          tools,
+        },
       ],
     };
   }
@@ -104,6 +161,21 @@ export function buildCatalogueAnswer(request: string, extras: CatalogueExtras = 
 export function catalogueMessage(answer: ToolCatalogueAnswer): string {
   if (answer.scope === "workflows") {
     const count = answer.totalTools;
+    const plural = count === 1 ? "" : "s";
+    switch (answer.groups[0]?.id) {
+      case "workflows-favorites":
+        return count === 0
+          ? "You haven't starred any workflows yet — tap the star on the Workflows page to add one."
+          : `You have ${count} favourite workflow${plural} — tap one to open it and run it:`;
+      case "workflows-recent":
+        return count === 0
+          ? "You haven't run any saved workflows yet. Ones you run will show up here."
+          : `Here ${count === 1 ? "is your recently used workflow" : `are your ${count} most recently used workflows`}, newest first:`;
+      case "workflows-frequent":
+        return count === 0
+          ? "No saved workflow has been run more than once yet, so none counts as frequently used."
+          : `Your most used workflow is ${answer.groups[0]!.tools[0]!.name}. Here ${count === 1 ? "is the one" : "are the ones"} you run most, most-run first:`;
+    }
     return count === 0
       ? "You don't have any saved workflows yet — build one on the Workflows page and it'll show up here."
       : `You have ${count} saved workflow${count === 1 ? "" : "s"} — tap one to open it and run it on new files:`;

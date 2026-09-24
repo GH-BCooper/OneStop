@@ -905,3 +905,40 @@ describe("chat memory and the signed-in user's own profile", () => {
     expect(result.message).toBe("Hi there!");
   });
 });
+
+describe("the catalogue: favourite, recent and frequently used workflows", () => {
+  const workflows = [
+    { id: "a", name: "Alpha", favorite: true, useCount: 5, lastUsedAt: "2026-09-20T10:00:00.000Z" },
+    { id: "b", name: "Beta", favorite: false, useCount: 1, lastUsedAt: "2026-09-23T10:00:00.000Z" },
+    { id: "c", name: "Gamma", favorite: true, useCount: 3, lastUsedAt: "2026-09-21T10:00:00.000Z" },
+    { id: "d", name: "Delta", favorite: false, useCount: 0, lastUsedAt: null },
+  ];
+  const ask = (request: string) => planAssistantRequest({ request, fileNames: [], workflows });
+
+  it("lists only the starred workflows for 'my favourite workflows'", async () => {
+    const planned = await ask("what are my favourite workflows");
+    expect(planned.catalogue?.groups[0]?.tools.map((t) => t.id)).toEqual(["a", "c"]);
+    expect(planned.message).toContain("2 favourite workflows");
+  });
+
+  it("orders frequently used workflows by run count and hides one-off runs", async () => {
+    const planned = await ask("which workflows do I use most");
+    expect(planned.catalogue?.groups[0]?.tools.map((t) => t.id)).toEqual(["a", "c"]);
+    expect(planned.message).toContain("Alpha");
+  });
+
+  it("orders recently used workflows newest first and skips never-run ones", async () => {
+    const planned = await ask("show my recently used workflows");
+    expect(planned.catalogue?.groups[0]?.tools.map((t) => t.id)).toEqual(["b", "c", "a"]);
+  });
+
+  it("says so when nothing matches", async () => {
+    const planned = await planAssistantRequest({
+      request: "list my favourite workflows",
+      fileNames: [],
+      workflows: [{ id: "x", name: "X" }],
+    });
+    expect(planned.catalogue?.groups[0]?.count).toBe(0);
+    expect(planned.message).toContain("haven't starred any workflows");
+  });
+});

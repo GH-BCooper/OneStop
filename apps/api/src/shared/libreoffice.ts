@@ -143,6 +143,10 @@ export async function convertWithLibreOffice(
     await new Promise<void>((resolve, reject) => {
       const child = spawn(binary, args, {
         shell: false,
+        // Without these, soffice asks the OS default printer for page metrics before laying out a
+        // document. On Windows an offline network printer turns that into a modal "Waiting for
+        // printer connection" dialog that blocks the conversion until someone clicks Cancel.
+        env: { ...process.env, SAL_DISABLE_DEFAULTPRINTER: "1", SAL_DISABLE_PRINTERLIST: "1" },
         stdio: ["ignore", "pipe", "pipe"],
         windowsHide: true,
       });

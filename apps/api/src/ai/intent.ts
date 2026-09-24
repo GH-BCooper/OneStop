@@ -46,7 +46,7 @@ const CATALOGUE_RE =
  *  saved-workflow / starred-tool lists, not the registry, but still a plain listing rather than
  *  something to run (see `catalogue.ts`). */
 const MY_LISTS_RE =
-  /\b(my|the)\b[^.?!]*\bworkflows?\b|\bworkflows?\b[^.?!]*\b(do i have|have i saved|are there)\b|\bfavou?rites?\b/i;
+  /\b(my|the)\b[^.?!]*\bworkflows?\b|\bworkflows?\b[^.?!]*\b(do i have|have i saved|are there|do i (use|run)|did i (use|run)|have i (used|run))\b|\b(favou?rite|starred|frequently used|most used|recently used|often used)\b[^.?!]*\bworkflows?\b|\bfavou?rites?\b/i;
 
 const TOOL_VERBS =
   /\b(convert|merge|split|compress|rotate|resize|crop|extract|remove|delete|encrypt|decrypt|watermark|sign|ocr|scan|flatten|unlock|protect|zip|unzip|archive|encode|decode|hash|format|validate|clean|deduplicate|transcode|trim)\b/i;

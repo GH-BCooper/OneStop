@@ -225,19 +225,19 @@ export function availableConfigs(credentials: AiCredentials = {}): AiRuntimeConf
       : isAiProviderId(credentials.provider)
         ? credentials.provider
         : null;
+  // A provider the visitor picked is the ONLY one used, in every mode but OneStop's own service -
+  // never a silent switch to another runtime.
+  if (preferred) {
+    const only = configFor(preferred, credentials);
+    return only ? [only] : [];
+  }
   if (credentials.mode === "own") {
     // No provider picked yet: fall back to whichever of their own keys works.
-    const order = preferred
-      ? [preferred]
-      : HOSTED_ORDER.filter((id) => AI_PROVIDERS[id].needsKey || id === "ollama");
-    return order
-      .map((id) => configFor(id, credentials))
-      .filter((c): c is AiRuntimeConfig => c !== null);
+    return HOSTED_ORDER.map((id) => configFor(id, credentials)).filter(
+      (c): c is AiRuntimeConfig => c !== null,
+    );
   }
-  const rest = HOSTED_ORDER.filter((id) => id !== preferred);
-  const order: AiProviderId[] = preferred ? [preferred, ...rest] : rest;
-  return order
-    .map((id) => configFor(id, credentials))
+  return HOSTED_ORDER.map((id) => configFor(id, credentials))
     .filter((c): c is AiRuntimeConfig => c !== null);
 }
 

@@ -10,6 +10,15 @@
 // instead of "OneStop cannot do that".
 import { getTool, toolHref } from "@onestop/tool-registry";
 import type { AiStatus, AssistantPlan, WorkflowRunResult } from "@onestop/types";
+
+// What the client tells the assistant about each saved workflow (see the plan route).
+interface WorkflowSummary {
+  id: string;
+  name: string;
+  favorite: boolean;
+  useCount: number;
+  lastUsedAt: string | null;
+}
 import { Badge, Button, buttonClasses, Card } from "@onestop/ui";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
@@ -167,6 +176,9 @@ function Linkified({ text }: { text: string }) {
     </>
   );
 }
+
+/** A little over the server's own per-call AI budget (120s), so the server's reason wins if it can. */
+const PLAN_TIMEOUT_MS = 150_000;
 
 const PLANNING_NOTICES = [
   "Figuring out…",
@@ -446,14 +458,20 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
 
   // "list my workflows" needs the same list the Workflows page shows — account or this device —
   // kept in hand so a "catalogue" answer never has to fetch anything mid-turn.
-  const [workflowSummaries, setWorkflowSummaries] = useState<{ id: string; name: string }[]>([]);
+  const [workflowSummaries, setWorkflowSummaries] = useState<WorkflowSummary[]>([]);
   useEffect(() => {
     if (!sessionReady) return;
     let cancelled = false;
     const load = async () => {
       try {
         const list = userId ? await fetchWorkflows() : readLocalWorkflows();
-        if (!cancelled) setWorkflowSummaries(list.map((w) => ({ id: w.id, name: w.name })));
+        if (!cancelled) setWorkflowSummaries(list.map((w) => ({
+            id: w.id,
+            name: w.name,
+            favorite: w.favorite,
+            useCount: w.useCount,
+            lastUsedAt: w.lastUsedAt,
+          })));
       } catch {
         if (!cancelled) setWorkflowSummaries([]);
       }
@@ -580,6 +598,7 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
     // First message of a fresh conversation: mint the thread now, give it a URL of its own (so the
     // browser's back button walks back through chats, per the redesign), and title it — first with
     // a plain truncation, then upgraded in the background if the AI can do better.
+    let startTitle: () => void = () => {};
     const isNewThread = currentIdRef.current === null;
     const activeId = currentIdRef.current ?? newThreadId();
     if (isNewThread) {
@@ -587,18 +606,23 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
       skipNextHydrateRef.current = true;
       createThread(activeId, fallbackTitle(text), toStored(turn));
       router.push(`/assistant/${activeId}`);
-      fetch("/api/assistant/title", {
-        method: "POST",
-        headers: { "content-type": "application/json", ...aiHeaders() },
-        body: JSON.stringify({ request: text, provider }),
-      })
-        .then((r) => r.json())
-        .then((body: { title?: string }) => {
-          if (body.title) renameThread(activeId, body.title);
+      // Started only once the answer is in (see below): a local model on a CPU handles one request
+      // at a time, and a cosmetic title must never make the real answer wait behind it.
+      startTitle = () => {
+        fetch("/api/assistant/title", {
+          method: "POST",
+          headers: { "content-type": "application/json", ...aiHeaders() },
+          body: JSON.stringify({ request: text, provider }),
+          signal: AbortSignal.timeout(30_000),
         })
-        .catch(() => {
-          // A title is cosmetic — the truncated fallback already saved above is fine on its own.
-        });
+          .then((r) => r.json())
+          .then((body: { title?: string }) => {
+            if (body.title) renameThread(activeId, body.title);
+          })
+          .catch(() => {
+            // A title is cosmetic — the truncated fallback already saved above is fine on its own.
+          });
+      };
     } else {
       saveThreadTurns(activeId, [...turns, turn].map(toStored));
     }
@@ -619,6 +643,8 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
           workflows: workflowSummaries,
           favoriteToolIds: favorites,
         }),
+        // Never spin forever: a slow local model gets a generous but finite wait.
+        signal: AbortSignal.timeout(PLAN_TIMEOUT_MS),
       });
       const body = (await response.json()) as PlanResponse;
       if (body.plan) updateTurn(id, { status: "planned", plan: body.plan });
@@ -628,11 +654,16 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
           error: body.error?.message ?? "The assistant could not plan that. Please try again.",
         });
       }
-    } catch {
+    } catch (err) {
+      const timedOut = err instanceof DOMException && err.name === "TimeoutError";
       updateTurn(id, {
         status: "failed",
-        error: "The assistant could not be reached. Check your connection and try again.",
+        error: timedOut
+          ? "The AI is taking too long to answer. If you use Ollama, it may be slow on this computer — try a smaller model, or pick another AI service in settings."
+          : "The assistant could not be reached. Check your connection and try again.",
       });
+    } finally {
+      startTitle();
     }
   };
 

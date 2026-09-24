@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "workflows" ADD COLUMN "favorite" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN "useCount" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN "lastUsedAt" TIMESTAMP(3);

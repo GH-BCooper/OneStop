@@ -97,6 +97,9 @@ interface WorkflowRow {
   name: string;
   description: string | null;
   steps: unknown;
+  favorite: boolean;
+  useCount: number;
+  lastUsedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -111,6 +114,9 @@ export function toWorkflow(row: WorkflowRow): Workflow {
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
     scope: "account",
+    favorite: row.favorite,
+    useCount: row.useCount,
+    lastUsedAt: row.lastUsedAt ? row.lastUsedAt.toISOString() : null,
   };
 }
 
@@ -177,6 +183,31 @@ export async function updateWorkflow(
     },
   });
   return toWorkflow(row as WorkflowRow);
+}
+
+/** Stars or un-stars a workflow. Throws when it is not this user's. */
+export async function setWorkflowFavorite(
+  userId: string,
+  id: string,
+  favorite: boolean,
+  prisma: PrismaClient = requirePrisma(),
+): Promise<Workflow> {
+  const existing = await prisma.workflow.findFirst({ where: { id, userId }, select: { id: true } });
+  if (!existing) throw new WorkflowNotFoundError();
+  const row = await prisma.workflow.update({ where: { id }, data: { favorite } });
+  return toWorkflow(row as WorkflowRow);
+}
+
+/** Counts one successful run. Quietly does nothing when the workflow is not this user's. */
+export async function recordWorkflowUse(
+  userId: string,
+  id: string,
+  prisma: PrismaClient = requirePrisma(),
+): Promise<void> {
+  await prisma.workflow.updateMany({
+    where: { id, userId },
+    data: { useCount: { increment: 1 }, lastUsedAt: new Date() },
+  });
 }
 
 /** Deletes one workflow. False when it does not exist or belongs to someone else. */

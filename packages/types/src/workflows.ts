@@ -24,6 +24,12 @@ export interface Workflow {
   updatedAt: string;
   /** Where it lives: the account (synced) or this device only. Mirrors `HistoryEntry.scope`. */
   scope: "account" | "device";
+  /** Starred by the user. */
+  favorite: boolean;
+  /** How many times it has been run successfully. */
+  useCount: number;
+  /** When it was last run successfully, or null if it never has been. */
+  lastUsedAt: string | null;
 }
 
 /** What the create/update endpoints accept. */

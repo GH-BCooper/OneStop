@@ -19,6 +19,7 @@ import {
   getWorkflow,
   loadFileCoreConfig,
   parseSteps,
+  recordWorkflowUse,
   runBatch,
   runWorkflow,
   setProgress,
@@ -31,6 +32,16 @@ import { currentUserId } from "@/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+/** Counting a run is bookkeeping: it must never turn a finished run into an error. */
+async function noteUse(userId: string, workflowId: string): Promise<void> {
+  try {
+    const prisma = getPrisma();
+    if (prisma) await recordWorkflowUse(userId, workflowId, prisma);
+  } catch (err) {
+    console.error("[api/workflows/run] could not record the run", err);
+  }
+}
 
 function problem(status: number, code: string, message: string) {
   return NextResponse.json(
@@ -143,6 +154,7 @@ export async function POST(request: Request): Promise<Response> {
         },
       });
       endProgress(progressToken, result.failed === 0);
+      if (workflowId && userId && result.succeeded > 0) await noteUse(userId, workflowId);
       return NextResponse.json(
         { ok: result.failed === 0, mode: "batch", batch: result },
         { status: 200, headers: { "cache-control": "no-store" } },
@@ -157,6 +169,7 @@ export async function POST(request: Request): Promise<Response> {
       },
     });
     endProgress(progressToken, result.ok);
+    if (workflowId && userId && result.ok) await noteUse(userId, workflowId);
     return NextResponse.json(
       { ok: result.ok, mode: "chain", run: result },
       { status: result.ok ? 200 : 422, headers: { "cache-control": "no-store" } },

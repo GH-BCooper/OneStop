@@ -24,19 +24,37 @@ export const dynamic = "force-dynamic";
 const MAX_FILE_NAMES = 50;
 const MAX_HISTORY_CHARS = 4000;
 const MAX_WORKFLOWS = 100;
+
+interface WorkflowSummary {
+  id: string;
+  name: string;
+  favorite: boolean;
+  useCount: number;
+  lastUsedAt: string | null;
+}
 const MAX_FAVORITES = 300;
 
 // Round-tripped from the client exactly like `fileNames` — the assistant never fetches a user's
 // workflows/favourites itself, so a guest's device-only lists still work with no server data.
-function readWorkflowSummaries(body: Record<string, unknown>): { id: string; name: string }[] {
+function readWorkflowSummaries(body: Record<string, unknown>): WorkflowSummary[] {
   if (!Array.isArray(body.workflows)) return [];
-  const out: { id: string; name: string }[] = [];
+  const out: WorkflowSummary[] = [];
   for (const raw of body.workflows.slice(0, MAX_WORKFLOWS)) {
     if (!raw || typeof raw !== "object") continue;
     const id = (raw as { id?: unknown }).id;
     const name = (raw as { name?: unknown }).name;
     if (typeof id === "string" && id !== "" && typeof name === "string" && name !== "") {
-      out.push({ id, name: name.slice(0, 200) });
+      const { favorite, useCount, lastUsedAt } = raw as Record<string, unknown>;
+      out.push({
+        id,
+        name: name.slice(0, 200),
+        favorite: favorite === true,
+        useCount:
+          typeof useCount === "number" && Number.isFinite(useCount) && useCount > 0
+            ? Math.floor(useCount)
+            : 0,
+        lastUsedAt: typeof lastUsedAt === "string" ? lastUsedAt.slice(0, 40) : null,
+      });
     }
   }
   return out;

@@ -24,6 +24,8 @@ export interface WorkflowRunnerProps {
   name: string;
   /** Set when the chain is a saved account workflow, so the server can re-read it by id. */
   workflowId?: string | null;
+  /** Called after a run that produced results — the builder uses it to count device workflows. */
+  onSuccess?: () => void;
 }
 
 type Mode = "chain" | "batch";
@@ -73,7 +75,7 @@ function FileResultRow({ file }: { file: OutputFileRef }) {
   );
 }
 
-export function WorkflowRunner({ steps, name, workflowId = null }: WorkflowRunnerProps) {
+export function WorkflowRunner({ steps, name, workflowId = null, onSuccess }: WorkflowRunnerProps) {
   const first = getTool(steps[0]?.toolId ?? "");
   const [files, setFiles] = useState<File[]>([]);
   const [mode, setMode] = useState<Mode>("chain");
@@ -120,6 +122,7 @@ export function WorkflowRunner({ steps, name, workflowId = null }: WorkflowRunne
       const body = (await response.json()) as RunResponse;
       if (body.run) setRun(body.run);
       if (body.batch) setBatch(body.batch);
+      if (body.run?.ok || (body.batch && body.batch.succeeded > 0)) onSuccess?.();
       if (!body.run && !body.batch) {
         setError(body.error?.message ?? "The workflow could not be run. Please try again.");
       }

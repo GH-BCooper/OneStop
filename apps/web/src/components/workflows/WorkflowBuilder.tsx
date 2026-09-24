@@ -21,6 +21,7 @@ import { useMemo, useState } from "react";
 import {
   deleteLocalWorkflow,
   deleteRemoteWorkflow,
+  recordLocalUse,
   saveLocalWorkflow,
   saveRemoteWorkflow,
 } from "@/lib/workflows";
@@ -167,6 +168,9 @@ export function WorkflowBuilder({ workflow, useOnly = false }: WorkflowBuilderPr
             steps={steps}
             name={name.trim() || "Workflow"}
             workflowId={workflow?.scope === "account" ? workflow.id : null}
+            onSuccess={() => {
+              if (workflow?.scope === "device") recordLocalUse(workflow.id);
+            }}
           />
         ) : (
           <p className="text-sm text-danger">This workflow has an issue and cannot be run.</p>
@@ -287,6 +291,9 @@ export function WorkflowBuilder({ workflow, useOnly = false }: WorkflowBuilderPr
           steps={steps}
           name={name.trim() || "Workflow"}
           workflowId={workflow?.scope === "account" ? workflow.id : null}
+            onSuccess={() => {
+              if (workflow?.scope === "device") recordLocalUse(workflow.id);
+            }}
         />
       ) : null}
     </div>

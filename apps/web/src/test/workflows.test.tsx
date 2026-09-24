@@ -176,3 +176,23 @@ describe("on-device workflow storage", () => {
     expect(readLocalWorkflows()).toEqual([]);
   });
 });
+
+describe("workflow favourites and usage filters (device)", () => {
+  it("stars, counts runs and filters", async () => {
+    const lib = await import("@/lib/workflows");
+    localStorage.clear();
+    const step = { toolId: "merge-pdf" };
+    const a = lib.saveLocalWorkflow({ name: "A", steps: [step] });
+    const b = lib.saveLocalWorkflow({ name: "B", steps: [step] });
+    lib.setLocalFavorite(a.id, true);
+    lib.recordLocalUse(b.id);
+    lib.recordLocalUse(b.id);
+    const all = lib.readLocalWorkflows();
+    expect(lib.filterWorkflows(all, "favorites").map((w) => w.name)).toEqual(["A"]);
+    expect(lib.filterWorkflows(all, "recent").map((w) => w.name)).toEqual(["B"]);
+    expect(lib.filterWorkflows(all, "frequent").map((w) => w.name)).toEqual(["B"]);
+    // editing keeps the star and the counts
+    lib.saveLocalWorkflow({ name: "A2", steps: [step] }, a.id);
+    expect(lib.readLocalWorkflows().find((w) => w.id === a.id)?.favorite).toBe(true);
+  });
+});
