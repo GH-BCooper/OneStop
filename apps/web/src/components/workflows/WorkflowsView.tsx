@@ -100,11 +100,22 @@ export function WorkflowsView({ accountsEnabled }: WorkflowsViewProps) {
   };
 
   const toggleFavorite = async (workflow: Workflow) => {
+    const favorite = !workflow.favorite;
+    // Show the star straight away; put it back if the save fails.
+    const mark = (value: boolean) =>
+      setWorkflows((all) => all.map((w) => (w.id === workflow.id ? { ...w, favorite: value } : w)));
+    mark(favorite);
+    setNotice(null);
     try {
-      if (workflow.scope === "account") await setRemoteFavorite(workflow.id, !workflow.favorite);
-      else setLocalFavorite(workflow.id, !workflow.favorite);
-    } catch {
-      setNotice("That could not be saved. Please try again.");
+      if (workflow.scope === "account") await setRemoteFavorite(workflow.id, favorite);
+      else setLocalFavorite(workflow.id, favorite);
+    } catch (err) {
+      mark(workflow.favorite);
+      setNotice(
+        err instanceof Error && err.message
+          ? err.message
+          : "That could not be saved. Please try again.",
+      );
     }
   };
 
