@@ -132,6 +132,8 @@ export async function POST(request: Request): Promise<Response> {
       ...(workflows.length > 0 ? { workflows } : {}),
       ...(favoriteToolIds.length > 0 ? { favoriteToolIds } : {}),
       credentials,
+      // The Stop button aborts the fetch; this stops the model work behind it too.
+      signal: request.signal,
     });
     return ok({ plan });
   } catch (err) {

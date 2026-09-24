@@ -187,6 +187,8 @@ export async function detectIntent(
         json: true,
         temperature: 0,
         maxTokens: 120,
+        // Only a tie-breaker for the rules: never worth more than a few seconds of the user's wait.
+        budgetMs: 8_000,
         ...(options.signal ? { signal: options.signal } : {}),
       },
       options.credentials ?? {},

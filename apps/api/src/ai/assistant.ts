@@ -149,6 +149,7 @@ async function chatAnswer(
       {
         temperature: 0.6,
         maxTokens: 400,
+        budgetMs: 100_000,
         ...(input.signal ? { signal: input.signal } : {}),
       },
       input.credentials ?? {},

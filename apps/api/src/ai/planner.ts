@@ -710,6 +710,7 @@ export async function planWithModel(context: PlanContext): Promise<PlanResult> {
       json: true,
       temperature: 0,
       maxTokens: 700,
+      budgetMs: 100_000,
       ...(context.signal ? { signal: context.signal } : {}),
     },
     context.credentials ?? {},

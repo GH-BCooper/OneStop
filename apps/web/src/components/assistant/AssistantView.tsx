@@ -103,16 +103,20 @@ function toStored(turn: Turn): StoredTurn {
 }
 
 function fromStored(turn: StoredTurn): Turn {
+  // A turn saved mid-flight can never finish once the page has reloaded - showing it as still
+  // "working" would leave the composer locked forever.
+  const interrupted = turn.status === "planning" || turn.status === "running";
   return {
     id: turn.id,
     request: turn.request,
     files: [],
     fileMeta: turn.files,
-    status: turn.status,
+    status: interrupted ? "failed" : turn.status,
+    ...(interrupted ? { error: "That request was interrupted. Send it again." } : {}),
     ...(turn.plan ? { plan: turn.plan } : {}),
     ...(turn.run ? { run: turn.run } : {}),
     ...(turn.note !== undefined ? { note: turn.note } : {}),
-    ...(turn.error !== undefined ? { error: turn.error } : {}),
+    ...(!interrupted && turn.error !== undefined ? { error: turn.error } : {}),
   };
 }
 
@@ -425,6 +429,8 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
   const [dragging, setDragging] = useState(false);
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // The request currently in flight, so the Stop button can cancel it.
+  const inFlight = useRef<AbortController | null>(null);
 
   // The active thread id. A ref, not state: `send()` and `updateTurn()` run inside async callbacks
   // and setState updaters and need the id that is current *right now*, not one captured when the
@@ -575,6 +581,8 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
     });
   };
 
+  const stop = () => inFlight.current?.abort();
+
   const send = async (override?: string) => {
     const text = (override ?? request).trim();
     if (text === "") {
@@ -631,6 +639,8 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
     setRequest("");
     setFiles([]);
 
+    const controller = new AbortController();
+    inFlight.current = controller;
     try {
       const response = await fetch("/api/assistant/plan", {
         method: "POST",
@@ -644,7 +654,7 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
           favoriteToolIds: favorites,
         }),
         // Never spin forever: a slow local model gets a generous but finite wait.
-        signal: AbortSignal.timeout(PLAN_TIMEOUT_MS),
+        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(PLAN_TIMEOUT_MS)]),
       });
       const body = (await response.json()) as PlanResponse;
       if (body.plan) updateTurn(id, { status: "planned", plan: body.plan });
@@ -655,14 +665,18 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
         });
       }
     } catch (err) {
+      const stopped = controller.signal.aborted;
       const timedOut = err instanceof DOMException && err.name === "TimeoutError";
       updateTurn(id, {
         status: "failed",
-        error: timedOut
+        error: stopped
+          ? "Stopped."
+          : timedOut
           ? "The AI is taking too long to answer. If you use Ollama, it may be slow on this computer — try a smaller model, or pick another AI service in settings."
           : "The assistant could not be reached. Check your connection and try again.",
       });
     } finally {
+      if (inFlight.current === controller) inFlight.current = null;
       startTitle();
     }
   };
@@ -677,11 +691,14 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
     if (provider) form.set("provider", provider);
     for (const file of turn.files) form.append("files", file);
 
+    const controller = new AbortController();
+    inFlight.current = controller;
     try {
       const response = await fetch("/api/assistant/run", {
         method: "POST",
         headers: aiHeaders(),
         body: form,
+        signal: controller.signal,
       });
       const body = (await response.json()) as RunResponse;
       if (body.run) updateTurn(id, { status: "done", run: body.run, note: body.note ?? null });
@@ -694,8 +711,12 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
     } catch {
       updateTurn(id, {
         status: "failed",
-        error: "The plan could not be run. Check your connection and try again.",
+        error: controller.signal.aborted
+          ? "Stopped."
+          : "The plan could not be run. Check your connection and try again.",
       });
+    } finally {
+      if (inFlight.current === controller) inFlight.current = null;
     }
   };
 
@@ -780,15 +801,27 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
           }}
           onChange={(e) => setRequest(e.target.value)}
         />
-        <button
-          type="button"
-          aria-label="Send"
-          disabled={busy || request.trim() === ""}
-          onClick={() => void send()}
-          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold text-primary-fg transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <span aria-hidden="true">{busy ? "…" : "↑"}</span>
-        </button>
+        {busy ? (
+          <button
+            type="button"
+            aria-label="Stop"
+            data-testid="assistant-stop"
+            onClick={stop}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-primary-fg transition-colors hover:bg-primary-hover"
+          >
+            <span aria-hidden="true" className="block h-3.5 w-3.5 rounded-sm bg-current" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            aria-label="Send"
+            disabled={request.trim() === ""}
+            onClick={() => void send()}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold text-primary-fg transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <span aria-hidden="true">↑</span>
+          </button>
+        )}
       </div>
       {composerError && (
         <p role="alert" className="px-2 text-sm text-danger">

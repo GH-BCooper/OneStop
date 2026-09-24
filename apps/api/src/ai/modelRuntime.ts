@@ -84,7 +84,15 @@ export interface ChatOptions {
   json?: boolean;
   signal?: AbortSignal;
   timeoutMs?: number;
+  /**
+   * Total time for the whole fallback chain (every provider and model). Without it a slow local
+   * model followed by slow hosted ones can add up to many minutes with nothing to show.
+   */
+  budgetMs?: number;
 }
+
+/** When other providers are waiting, one that hangs is given this long before the next takes over. */
+const FALLBACK_SLICE_MS = 30_000;
 
 /** Default budget for one model call. Long enough for a slow local model, short enough to fail. */
 export const DEFAULT_AI_TIMEOUT_MS = (() => {
@@ -416,7 +424,11 @@ export async function chat(
   const configs = [...all.filter((c) => !isExhausted(c)), ...all.filter((c) => isExhausted(c))];
 
   const failures: { config: AiRuntimeConfig; error: AiError }[] = [];
-  for (const base of configs) {
+  const deadline = options.budgetMs ? Date.now() + options.budgetMs : null;
+  const remaining = () => (deadline === null ? Infinity : deadline - Date.now());
+  for (const [position, base] of configs.entries()) {
+    if (remaining() <= 1000) break;
+    const hasNext = position < configs.length - 1;
     let config = base;
     if (config.provider === "ollama") {
       // A server that is not there is skipped up front - no waiting on a connection that will
@@ -443,8 +455,12 @@ export async function chat(
     let last: { config: AiRuntimeConfig; error: AiError } | null = null;
     for (const model of config.models.length > 0 ? config.models : [config.model]) {
       const attempt: AiRuntimeConfig = { ...config, model };
+      const left = remaining();
+      if (left <= 1000) break;
+      const slice = hasNext ? Math.min(left, FALLBACK_SLICE_MS) : left;
+      const timeoutMs = Math.min(options.timeoutMs ?? DEFAULT_AI_TIMEOUT_MS, slice);
       try {
-        return { text: await chatWith(attempt, messages, options), config: attempt };
+        return { text: await chatWith(attempt, messages, { ...options, timeoutMs }), config: attempt };
       } catch (err) {
         const error = err instanceof AiError ? err : new AiError("AI_FAILED", String(err), err);
         if (options.signal?.aborted) throw error;
@@ -475,7 +491,15 @@ export async function chat(
     const found = of(code)[0];
     if (found) throw found.error;
   }
-  throw failures[0]?.error ?? new AiError("AI_UNAVAILABLE", NO_RUNTIME_MESSAGE);
+  throw (
+    failures[0]?.error ??
+    new AiError(
+      deadline !== null ? "AI_TIMEOUT" : "AI_UNAVAILABLE",
+      deadline !== null
+        ? "The AI took too long to answer. Try again, or pick a faster AI service in settings."
+        : NO_RUNTIME_MESSAGE,
+    )
+  );
 }
 
 // ---- status ------------------------------------------------------------------------------------
