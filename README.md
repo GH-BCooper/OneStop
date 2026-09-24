@@ -77,6 +77,13 @@ That is a working instance. Everything below is optional:
 Full instructions, including hardware guidance for local AI:
 **[`docs/LOCAL_SETUP.md`](docs/LOCAL_SETUP.md)**.
 
+### One-click start on Windows
+
+Double-click **`OneStop.exe`** in the repository folder. On the first run it installs, builds and
+creates a `.env`, and later runs rebuild only when the code has changed. It then opens
+http://localhost:3000 in your browser and stays in the system tray, where you can open, restart or
+quit OneStop. The only requirement is Node.js 22+. See **[`launcher/README.md`](launcher/README.md)**.
+
 ## Hosting it
 
 A free-tier instance over HTTPS, with the trade-offs of each host spelled out:
@@ -161,6 +168,8 @@ Auth.js v5 · Vitest + Playwright · FFmpeg, LibreOffice, yt-dlp, Ollama — all
 | `npm run lint` / `npm run typecheck` / `npm run format` | Individually                                                                                   |
 | `npm run db:deploy` / `db:migrate` / `db:studio`        | Prisma                                                                                         |
 | `npm run fetch:ffmpeg`                                  | Download a local FFmpeg build into `.tools/`                                                   |
+| `npm run build:launcher`                                | Recompile `OneStop.exe` from `launcher/OneStopLauncher.cs` (Windows)                           |
+| `npm run handover`                                      | Pack a clean `dist/OneStop.zip` to give someone (no `.env`, no `node_modules`)                 |
 
 `npm run verify` is what CI runs on every push (`.github/workflows/verify.yml`). It proves that
 every registry entry maps to a real executor and that every tool claiming `offline: true` really

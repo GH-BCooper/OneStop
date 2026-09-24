@@ -26,3 +26,5 @@ Thumbs.db
 .vitest-report.json
 # Locally downloaded FFmpeg build (scripts/fetch-ffmpeg.mjs).
 .tools/
+# OneStop.exe's log and "already installed/built" stamps (launcher/README.md).
+.onestop-launcher/

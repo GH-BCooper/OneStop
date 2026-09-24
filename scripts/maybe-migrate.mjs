@@ -14,7 +14,11 @@ if (!url) {
 }
 
 try {
-  execFileSync("npx", ["prisma", "migrate", "deploy"], { stdio: "inherit", shell: false });
+  // On Windows `npx` is `npx.cmd`, which only a shell can run; the arguments are fixed, so this is safe.
+  execFileSync("npx", ["prisma", "migrate", "deploy"], {
+    stdio: "inherit",
+    shell: process.platform === "win32",
+  });
 } catch (err) {
   console.error("[db] prisma migrate deploy failed:", err.message);
   process.exit(1);
