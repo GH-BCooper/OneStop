@@ -113,7 +113,7 @@ export const aiOcrExecutor: Executor = async (input, options, ctx) =>
         ok: true,
         output: { text: "", runtime: null },
         summary: "No text was found in that file.",
-        files: [textFile(`${parts[0]?.name ?? "ocr"}.txt`, "")],
+        files: [],
       };
     }
 

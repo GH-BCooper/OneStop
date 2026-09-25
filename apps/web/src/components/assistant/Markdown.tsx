@@ -66,6 +66,8 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 const HEADER_RE = /^(#{1,6})\s+(.*)$/;
 const BULLET_RE = /^(?:-|\*|\+)\s+(.*)$/;
 const NUMBERED_RE = /^\d+[.)]\s+(.*)$/;
+const TABLE_ROW_RE = /^\s*\|.*\|\s*$/;
+const TABLE_DIVIDER_RE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
 
 /** Renders a short Markdown reply: headings, bold/italic/code/links, and bullet/numbered lists. */
 export function Markdown({ text }: { text: string }) {
@@ -78,6 +80,70 @@ export function Markdown({ text }: { text: string }) {
     const line = lines[i]!;
     if (line.trim() === "") {
       i++;
+      continue;
+    }
+
+    // ```fenced``` code, kept verbatim in a scrollable block.
+    if (/^\s*```/.test(line)) {
+      const code: string[] = [];
+      i++;
+      while (i < lines.length && !/^\s*```/.test(lines[i]!)) {
+        code.push(lines[i]!);
+        i++;
+      }
+      i++;
+      blocks.push(
+        <pre
+          key={`b${blockKey++}`}
+          className="max-h-72 overflow-auto rounded-lg border border-border bg-surface-muted p-2.5 font-mono text-xs whitespace-pre-wrap break-all"
+        >
+          {code.join("\n")}
+        </pre>,
+      );
+      continue;
+    }
+
+    // A pipe table: header row, a --- divider row, then body rows.
+    if (TABLE_ROW_RE.test(line) && i + 1 < lines.length && TABLE_DIVIDER_RE.test(lines[i + 1]!)) {
+      const cells = (row: string) =>
+        row
+          .trim()
+          .replace(/^\||\|$/g, "")
+          .split("|")
+          .map((c) => c.trim());
+      const head = cells(line);
+      i += 2;
+      const body: string[][] = [];
+      while (i < lines.length && TABLE_ROW_RE.test(lines[i]!)) {
+        body.push(cells(lines[i]!));
+        i++;
+      }
+      blocks.push(
+        <div key={`b${blockKey++}`} className="overflow-x-auto">
+          <table className="w-full border-collapse text-left text-xs">
+            <thead>
+              <tr>
+                {head.map((h, idx) => (
+                  <th key={idx} className="border-b border-border px-2 py-1 font-semibold">
+                    {renderInline(h, `th${blockKey}-${idx}`)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {body.map((row, r) => (
+                <tr key={r}>
+                  {row.map((c, idx) => (
+                    <td key={idx} className="border-b border-border/60 px-2 py-1">
+                      {renderInline(c, `td${blockKey}-${r}-${idx}`)}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
       continue;
     }
 
@@ -131,6 +197,7 @@ export function Markdown({ text }: { text: string }) {
       i < lines.length &&
       lines[i]!.trim() !== "" &&
       !HEADER_RE.test(lines[i]!) &&
+      !/^\s*```/.test(lines[i]!) &&
       !BULLET_RE.test(lines[i]!) &&
       !NUMBERED_RE.test(lines[i]!)
     ) {

@@ -4,6 +4,7 @@
 // A thread only ever lives in localStorage. What is persisted per turn is display data (the
 // request text, file names/sizes, the plan and the run result) — never the attached `File` objects
 // themselves, so a reload can always show a conversation again but never re-runs a stale turn.
+import type { AgentTurnData } from "./agent-types";
 import type { AssistantPlan, WorkflowRunResult } from "@onestop/types";
 
 export const THREADS_KEY = "onestop-assistant-threads";
@@ -26,6 +27,8 @@ export interface StoredTurn {
   run?: WorkflowRunResult;
   note?: string | null;
   error?: string;
+  /** The agentic assistant's transcript for this turn (steps, answer, files, actions). */
+  agent?: AgentTurnData;
 }
 
 export interface AssistantThread {
@@ -64,6 +67,7 @@ function parseTurn(value: unknown): StoredTurn | null {
     ...(row.plan ? { plan: row.plan as AssistantPlan } : {}),
     ...(row.run ? { run: row.run as WorkflowRunResult } : {}),
     ...(row.note !== undefined ? { note: row.note as string | null } : {}),
+    ...(row.agent && typeof row.agent === "object" ? { agent: row.agent as AgentTurnData } : {}),
     ...(typeof row.error === "string" ? { error: row.error } : {}),
   };
 }

@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { authIsConfigured } from "@/lib/auth-config";
 import { SessionProvider } from "@/components/auth/SessionProvider";
 import { Footer } from "@/components/layout/Footer";
+import { PointerField } from "@/components/fx/PointerField";
 import { Header } from "@/components/layout/Header";
 import { OfflineBanner } from "@/components/layout/OfflineBanner";
 import { ServiceWorkerManager } from "@/components/pwa/ServiceWorkerManager";
@@ -53,6 +54,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         >
           Skip to content
         </a>
+        <PointerField />
         <SessionProvider>
           <ServiceWorkerManager />
           <Header accountsEnabled={authIsConfigured()} />

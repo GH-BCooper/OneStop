@@ -18,11 +18,12 @@ interface WorkflowSummary {
   favorite: boolean;
   useCount: number;
   lastUsedAt: string | null;
+  steps?: { toolId: string; options?: Record<string, unknown> }[];
 }
 import { Badge, Button, buttonClasses, Card } from "@onestop/ui";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { Fragment, useCallback, useEffect, useRef, useState, type DragEvent } from "react";
 import { checkFiles, formatBytes } from "@/components/tools/UploadZone";
 import {
@@ -36,7 +37,15 @@ import {
 } from "@/lib/assistant-threads";
 import { useFavorites } from "@/lib/use-favorites";
 import { activeAiProvider, aiHeaders } from "@/lib/preferences";
-import { fetchWorkflows, readLocalWorkflows, WORKFLOWS_CHANGED } from "@/lib/workflows";
+import {
+  fetchWorkflows,
+  readLocalWorkflows,
+  saveLocalWorkflow,
+  saveRemoteWorkflow,
+  WORKFLOWS_CHANGED,
+} from "@/lib/workflows";
+import { AgentTurnView, RotatingNotice, PLANNING_NOTICES } from "./AgentTurn";
+import type { AgentTurnData } from "@/lib/agent-types";
 import { Markdown } from "./Markdown";
 import { Recommendations } from "./Recommendations";
 import { ToolCatalogue } from "./ToolCatalogue";
@@ -45,14 +54,12 @@ import { ToolCatalogue } from "./ToolCatalogue";
 const ANY_FILE = { name: "the assistant", inputTypes: ["any"], supportsBatch: true };
 
 const EXAMPLES = [
-  {
-    icon: "📄",
-    text: "Convert this PDF to Excel, remove the first 2 pages, then compress the result",
-  },
-  { icon: "🔗", text: "Merge these PDFs and add page numbers" },
-  { icon: "💬", text: "What is the notice period in this contract?" },
-  { icon: "🖼️", text: "Remove the background from these photos and save them as WebP" },
-  { icon: "👋", text: "Hi! What can you help me with?" },
+  { icon: "🔗", title: "Make a QR code", text: "Make a QR code for https://example.com" },
+  { icon: "🔐", title: "Hash & encode", text: "Hash the text OneStop with SHA-256, then Base64 encode the hash" },
+  { icon: "📄", title: "Chain PDF tools", text: "Merge these PDFs, remove page 2, then compress the result" },
+  { icon: "🔁", title: "Build a workflow", text: "Create a workflow that converts a PDF to Word and compresses it, call it PDF Shrinker" },
+  { icon: "📊", title: "Clean my data", text: "Convert this CSV to JSON and tell me who the oldest person is" },
+  { icon: "🧭", title: "Find the right tool", text: "How do I resize an image? Which options do I get?" },
 ];
 
 interface PlanResponse {
@@ -87,6 +94,7 @@ interface Turn {
   run?: WorkflowRunResult;
   note?: string | null;
   error?: string;
+  agent?: AgentTurnData | undefined;
 }
 
 function toStored(turn: Turn): StoredTurn {
@@ -99,6 +107,7 @@ function toStored(turn: Turn): StoredTurn {
     ...(turn.run ? { run: turn.run } : {}),
     ...(turn.note !== undefined ? { note: turn.note } : {}),
     ...(turn.error !== undefined ? { error: turn.error } : {}),
+    ...(turn.agent ? { agent: turn.agent } : {}),
   };
 }
 
@@ -117,6 +126,7 @@ function fromStored(turn: StoredTurn): Turn {
     ...(turn.run ? { run: turn.run } : {}),
     ...(turn.note !== undefined ? { note: turn.note } : {}),
     ...(!interrupted && turn.error !== undefined ? { error: turn.error } : {}),
+    ...(turn.agent ? { agent: turn.agent } : {}),
   };
 }
 
@@ -183,16 +193,8 @@ function Linkified({ text }: { text: string }) {
 
 /** A little over the server's own per-call AI budget (120s), so the server's reason wins if it can. */
 const PLAN_TIMEOUT_MS = 150_000;
-
-const PLANNING_NOTICES = [
-  "Figuring out…",
-  "Processing…",
-  "Preparing…",
-  "Reading your request…",
-  "Lining up the right tools…",
-  "Last-minute changes…",
-  "Almost there…",
-];
+/** A whole agent turn (several model calls plus the tools): generous, but never forever. */
+const AGENT_TIMEOUT_MS = 300_000;
 
 const RUNNING_NOTICES = [
   "Running…",
@@ -203,26 +205,6 @@ const RUNNING_NOTICES = [
   "Last-minute changes…",
 ];
 
-/** A status line that changes every couple of seconds, so a slow answer never looks frozen. */
-function RotatingNotice({ messages }: { messages: string[] }) {
-  const [index, setIndex] = useState(0);
-  useEffect(() => {
-    const timer = setInterval(() => setIndex((i) => (i + 1) % messages.length), 2200);
-    return () => clearInterval(timer);
-  }, [messages]);
-  return (
-    <span
-      role="status"
-      aria-live="polite"
-      data-testid="assistant-notice"
-      className="inline-flex items-center gap-2 text-fg-muted"
-    >
-      <span aria-hidden="true" className="os-pulse-dot" />
-      {messages[index]}
-    </span>
-  );
-}
-
 function AssistantTurn({
   turn,
   onRun,
@@ -232,6 +214,14 @@ function AssistantTurn({
   onRun: () => void;
   onDiscard: () => void;
 }) {
+  if (turn.agent && turn.status !== "failed") {
+    return (
+      <Bubble from="assistant">
+        <AgentTurnView data={turn.agent} live={turn.status === "planning" || turn.status === "running"} />
+      </Bubble>
+    );
+  }
+
   if (turn.status === "planning") {
     return (
       <Bubble from="assistant">
@@ -418,13 +408,24 @@ function AssistantTurn({
   return null;
 }
 
-export function AssistantView({ threadId = null }: { threadId?: string | null }) {
-  const router = useRouter();
+export function AssistantView() {
+  // The thread comes from the URL on the client. A brand-new chat gets its URL through the
+  // History API (not a router navigation), which keeps this component mounted so the answer that
+  // is still on its way lands in the right place - a full navigation remounts it and loses it.
+  const pathname = usePathname();
+  const threadId = pathname.startsWith("/assistant/") ? (pathname.split("/")[2] ?? null) : null;
   const [request, setRequest] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [greeting, setGreeting] = useState<string | null>(null);
-  const [turns, setTurns] = useState<Turn[]>([]);
+  const [turns, setTurnsState] = useState<Turn[]>([]);
+  // Always the latest list, so async callbacks can compute the next one without a state updater
+  // (an updater must stay pure: saving a thread from inside one updated the sidebar mid-render).
+  const turnsRef = useRef<Turn[]>([]);
+  const setTurns = (next: Turn[]) => {
+    turnsRef.current = next;
+    setTurnsState(next);
+  };
   const [composerError, setComposerError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const transcriptEnd = useRef<HTMLDivElement>(null);
@@ -451,6 +452,7 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
       return;
     }
     setTurns(incoming ? (getThread(incoming)?.turns.map(fromStored) ?? []) : []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId]);
 
   const provider = typeof window === "undefined" ? null : activeAiProvider();
@@ -460,7 +462,7 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
   const { data: session, status: sessionStatus } = useSession();
   const sessionReady = sessionStatus !== "loading";
   const userId = session?.user?.id ?? null;
-  const { favorites } = useFavorites();
+  const { favorites, isFavorite, toggle: toggleFavorite } = useFavorites();
 
   // "list my workflows" needs the same list the Workflows page shows — account or this device —
   // kept in hand so a "catalogue" answer never has to fetch anything mid-turn.
@@ -477,6 +479,7 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
             favorite: w.favorite,
             useCount: w.useCount,
             lastUsedAt: w.lastUsedAt,
+            steps: w.steps,
           })));
       } catch {
         if (!cancelled) setWorkflowSummaries([]);
@@ -574,11 +577,9 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
   };
 
   const updateTurn = (id: string, patch: Partial<Turn>) => {
-    setTurns((all) => {
-      const next = all.map((t) => (t.id === id ? { ...t, ...patch } : t));
-      if (currentIdRef.current) saveThreadTurns(currentIdRef.current, next.map(toStored));
-      return next;
-    });
+    const next = turnsRef.current.map((t) => (t.id === id ? { ...t, ...patch } : t));
+    setTurns(next);
+    if (currentIdRef.current) saveThreadTurns(currentIdRef.current, next.map(toStored));
   };
 
   const stop = () => inFlight.current?.abort();
@@ -595,11 +596,16 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
     // assistant can answer a follow-up ("what did I just ask", "my name") — nothing is persisted
     // server-side, so this is the only place the history lives.
     const history = turns
-      .filter((t) => t.plan?.intent.kind === "chat" && t.plan.message)
-      .flatMap((t) => [
-        { role: "user" as const, content: t.request },
-        { role: "assistant" as const, content: t.plan!.message! },
-      ]);
+      .flatMap((t) => {
+        const answer = t.agent?.message ?? (t.plan?.intent.kind === "chat" ? t.plan.message : null);
+        return answer
+          ? [
+              { role: "user" as const, content: t.request },
+              { role: "assistant" as const, content: answer },
+            ]
+          : [];
+      })
+      .slice(-16);
     const fileMeta = files.map((f) => ({ name: f.name, size: f.size }));
     const turn: Turn = { id, request: text, files, fileMeta, status: "planning" };
 
@@ -613,7 +619,7 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
       currentIdRef.current = activeId;
       skipNextHydrateRef.current = true;
       createThread(activeId, fallbackTitle(text), toStored(turn));
-      router.push(`/assistant/${activeId}`);
+      window.history.pushState(null, "", `/assistant/${activeId}`);
       // Started only once the answer is in (see below): a local model on a CPU handles one request
       // at a time, and a cosmetic title must never make the real answer wait behind it.
       startTitle = () => {
@@ -635,34 +641,17 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
       saveThreadTurns(activeId, [...turns, turn].map(toStored));
     }
 
-    setTurns((all) => [...all, turn]);
+    setTurns([...turnsRef.current, turn]);
     setRequest("");
     setFiles([]);
 
     const controller = new AbortController();
     inFlight.current = controller;
     try {
-      const response = await fetch("/api/assistant/plan", {
-        method: "POST",
-        headers: { "content-type": "application/json", ...aiHeaders() },
-        body: JSON.stringify({
-          request: turn.request,
-          fileNames: turn.files.map((f) => f.name),
-          history,
-          provider,
-          workflows: workflowSummaries,
-          favoriteToolIds: favorites,
-        }),
-        // Never spin forever: a slow local model gets a generous but finite wait.
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(PLAN_TIMEOUT_MS)]),
-      });
-      const body = (await response.json()) as PlanResponse;
-      if (body.plan) updateTurn(id, { status: "planned", plan: body.plan });
-      else {
-        updateTurn(id, {
-          status: "failed",
-          error: body.error?.message ?? "The assistant could not plan that. Please try again.",
-        });
+      const outcome = await runAgent(turn, history, controller);
+      if (outcome === "fallback") {
+        updateTurn(id, { agent: undefined });
+        await legacyPlan(turn, history, controller);
       }
     } catch (err) {
       const stopped = controller.signal.aborted;
@@ -672,12 +661,153 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
         error: stopped
           ? "Stopped."
           : timedOut
-          ? "The AI is taking too long to answer. If you use Ollama, it may be slow on this computer — try a smaller model, or pick another AI service in settings."
-          : "The assistant could not be reached. Check your connection and try again.",
+            ? "The AI is taking too long to answer. If you use Ollama, it may be slow on this computer — try a smaller model, or pick another AI service in settings."
+            : "The assistant could not be reached. Check your connection and try again.",
       });
     } finally {
       if (inFlight.current === controller) inFlight.current = null;
       startTitle();
+    }
+  };
+
+  /** Applies what the agent asked the app itself to do: save a workflow, star a tool. */
+  const applyActions = async (actions: AgentTurnData["actions"]) => {
+    for (const action of actions) {
+      try {
+        if (action.type === "save_workflow") {
+          const input = { name: action.name, steps: action.steps };
+          if (userId) await saveRemoteWorkflow(input);
+          else saveLocalWorkflow(input);
+        } else if (action.type === "favorite" && isFavorite(action.toolId) !== action.on) {
+          toggleFavorite(action.toolId);
+        }
+      } catch (err) {
+        console.error("[assistant] could not apply an action", err);
+      }
+    }
+  };
+
+  /** One agentic turn over the NDJSON stream. "fallback" means no AI runtime: use the rule planner. */
+  const runAgent = async (
+    turn: Turn,
+    history: { role: "user" | "assistant"; content: string }[],
+    controller: AbortController,
+  ): Promise<"done" | "fallback"> => {
+    const form = new FormData();
+    form.set("message", turn.request);
+    form.set("history", JSON.stringify(history));
+    form.set("workflows", JSON.stringify(workflowSummaries));
+    form.set("favoriteToolIds", JSON.stringify(favorites));
+    if (provider) form.set("provider", provider);
+    for (const file of turn.files) form.append("files", file);
+
+    const data: AgentTurnData = {
+      steps: [],
+      message: null,
+      files: [],
+      outputs: [],
+      actions: [],
+      model: null,
+    };
+    const push = () => {
+      updateTurn(turn.id, { status: "planning", agent: { ...data, steps: [...data.steps] } });
+    };
+    push();
+
+    const response = await fetch("/api/assistant/agent", {
+      method: "POST",
+      headers: aiHeaders(),
+      body: form,
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(AGENT_TIMEOUT_MS)]),
+    });
+    // No readable stream (an old server, a proxy that buffers): the plan flow still works.
+    if (!response.body) return "fallback";
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let finished = false;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let nl = buffer.indexOf("\n");
+      while (nl >= 0) {
+        const raw = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
+        nl = buffer.indexOf("\n");
+        if (raw === "") continue;
+        let event: Record<string, unknown>;
+        try {
+          event = JSON.parse(raw) as Record<string, unknown>;
+        } catch {
+          continue;
+        }
+        if (event.type === "step") {
+          const step = event as unknown as AgentTurnData["steps"][number];
+          const i = data.steps.findIndex((x) => x.id === step.id);
+          if (i >= 0) data.steps[i] = step;
+          else data.steps.push(step);
+          push();
+        } else if (event.type === "final") {
+          finished = true;
+          const runtime = event.runtime as { model?: string } | null;
+          Object.assign(data, {
+            message: String(event.message ?? ""),
+            files: event.files ?? [],
+            outputs: event.outputs ?? [],
+            actions: event.actions ?? [],
+            model: runtime?.model ?? null,
+          });
+          updateTurn(turn.id, { status: "done", agent: { ...data, steps: [...data.steps] } });
+          void applyActions(data.actions);
+        } else if (event.type === "error") {
+          finished = true;
+          // Any AI trouble (none configured, rate limit, timeout) drops to the rule planner, which
+          // needs no model - the assistant keeps doing what it can rather than just apologising.
+          if (String(event.code).startsWith("AI_")) return "fallback";
+          updateTurn(turn.id, {
+            status: "failed",
+            error: String(event.message ?? "The assistant hit a problem."),
+          });
+        }
+      }
+    }
+    if (!finished) {
+      updateTurn(turn.id, {
+        status: "failed",
+        error: "The connection dropped before the answer finished. Please try again.",
+      });
+    }
+    return "done";
+  };
+
+  /** The original plan-then-confirm flow: works with no AI at all, via the rule planner. */
+  const legacyPlan = async (
+    turn: Turn,
+    history: { role: "user" | "assistant"; content: string }[],
+    controller: AbortController,
+  ) => {
+    updateTurn(turn.id, { status: "planning" });
+    const response = await fetch("/api/assistant/plan", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...aiHeaders() },
+      body: JSON.stringify({
+        request: turn.request,
+        fileNames: turn.files.map((f) => f.name),
+        history,
+        provider,
+        workflows: workflowSummaries,
+        favoriteToolIds: favorites,
+      }),
+      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(PLAN_TIMEOUT_MS)]),
+    });
+    const body = (await response.json()) as PlanResponse;
+    if (body.plan) updateTurn(turn.id, { status: "planned", plan: body.plan });
+    else {
+      updateTurn(turn.id, {
+        status: "failed",
+        error: body.error?.message ?? "The assistant could not plan that. Please try again.",
+      });
     }
   };
 
@@ -844,18 +974,21 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
           {greeting ?? "Where should we begin?"}
         </h2>
         <div className="w-full max-w-2xl px-4">{composer}</div>
-        <div className="flex w-full max-w-md flex-col gap-0.5 px-4">
+        <div className="grid w-full max-w-2xl grid-cols-1 gap-2 px-4 sm:grid-cols-2">
           {EXAMPLES.map((example) => (
             <button
               key={example.text}
               type="button"
-              className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm text-fg-muted transition-colors hover:bg-surface-muted hover:text-fg"
+              className="os-glow os-rise flex items-start gap-3 rounded-xl border border-border bg-surface/70 px-3 py-2.5 text-left text-sm backdrop-blur transition-[transform,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary"
               onClick={() => setRequest(example.text)}
             >
-              <span aria-hidden="true" className="text-lg">
+              <span aria-hidden="true" className="text-xl">
                 {example.icon}
               </span>
-              <span>{example.text}</span>
+              <span className="min-w-0">
+                <span className="block font-semibold">{example.title}</span>
+                <span className="block text-xs text-fg-muted">{example.text}</span>
+              </span>
             </button>
           ))}
         </div>
@@ -888,11 +1021,9 @@ export function AssistantView({ threadId = null }: { threadId?: string | null })
               turn={turn}
               onRun={() => void runTurn(turn.id)}
               onDiscard={() => {
-                setTurns((all) => {
-                  const next = all.filter((t) => t.id !== turn.id);
-                  if (currentIdRef.current) saveThreadTurns(currentIdRef.current, next.map(toStored));
-                  return next;
-                });
+                const next = turnsRef.current.filter((t) => t.id !== turn.id);
+                setTurns(next);
+                if (currentIdRef.current) saveThreadTurns(currentIdRef.current, next.map(toStored));
               }}
             />
           </div>

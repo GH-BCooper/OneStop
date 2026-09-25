@@ -52,6 +52,7 @@ export * from "./executor.ts";
 export * from "./ragContext.ts";
 export * from "./recommendations.ts";
 export * from "./assistant.ts";
+export { runAgent, type AgentEvent, type AgentClientAction, type AgentOutput, type AgentWorkflow } from "./agent.ts";
 export * from "./common.ts";
 export * from "./imageRuntime.ts";
 export * from "./textRuntime.ts";

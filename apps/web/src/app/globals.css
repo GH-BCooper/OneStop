@@ -136,3 +136,228 @@ body {
     transform: none;
   }
 }
+
+/* ---- Motion & depth (shared by the whole app) ---------------------------------------------- */
+
+/* Content sits above the pointer-reactive backdrop. */
+#main,
+header,
+footer {
+  position: relative;
+  z-index: 1;
+}
+
+@keyframes os-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.os-rise {
+  animation: os-rise 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Every page eases in instead of popping. */
+#main > * {
+  animation: os-fade-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Spotlight: a soft light that follows the pointer across a card (position set by PointerField). */
+.os-glow {
+  position: relative;
+  isolation: isolate;
+}
+.os-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  background: radial-gradient(
+    260px circle at var(--mx, 50%) var(--my, 50%),
+    color-mix(in srgb, var(--os-fg) 14%, transparent),
+    transparent 65%
+  );
+}
+.os-glow:hover::before {
+  opacity: 1;
+}
+.os-glow::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  padding: 1px;
+  background: radial-gradient(
+    200px circle at var(--mx, 50%) var(--my, 50%),
+    color-mix(in srgb, var(--os-fg) 55%, transparent),
+    transparent 70%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.os-glow:hover::after {
+  opacity: 1;
+}
+
+/* Buttons: quick press feedback and a lift on hover for the main call-to-actions. */
+button:not(:disabled):active {
+  transform: scale(0.97);
+}
+.os-btn-lift {
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.2s ease;
+}
+.os-btn-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -10px color-mix(in srgb, var(--os-fg) 55%, transparent);
+}
+
+/* Hero orbit: a real 3D scene (perspective on the stage, preserve-3d down the tree). */
+.os-orbit-stage {
+  position: relative;
+  height: 340px;
+  width: 100%;
+  max-width: 520px;
+  perspective: 1100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.os-orbit-scene {
+  position: relative;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.os-orbit-ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.os-orbit-card {
+  position: absolute;
+  left: -38px;
+  top: -30px;
+  width: 76px;
+  height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border-radius: 14px;
+  border: 1px solid var(--os-border);
+  background: color-mix(in srgb, var(--os-surface) 88%, transparent);
+  backdrop-filter: blur(6px);
+  color: var(--os-fg);
+  box-shadow: var(--os-card-shadow);
+  backface-visibility: hidden;
+}
+.os-cube {
+  position: absolute;
+  left: -56px;
+  top: -56px;
+  width: 112px;
+  height: 112px;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.os-cube-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--os-primary-fg);
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--os-fg) 40%, transparent);
+  background: var(--os-primary-sheen);
+  opacity: 0.92;
+  box-shadow: inset 0 0 24px rgba(255, 255, 255, 0.18);
+}
+.os-orbit-floor {
+  position: absolute;
+  bottom: 6px;
+  width: 300px;
+  height: 36px;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--os-fg) 22%, transparent),
+    transparent
+  );
+  filter: blur(6px);
+}
+
+/* Slow drifting light behind the hero. */
+@keyframes os-aurora {
+  0%,
+  100% {
+    transform: translate3d(-4%, -2%, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(4%, 3%, 0) scale(1.12);
+  }
+}
+.os-aurora {
+  position: absolute;
+  inset: -20% -10% auto -10%;
+  height: 80%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      40% 50% at 25% 40%,
+      color-mix(in srgb, var(--os-fg) 16%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      35% 45% at 75% 30%,
+      color-mix(in srgb, var(--os-fg) 12%, transparent),
+      transparent 70%
+    );
+  filter: blur(30px);
+  animation: os-aurora 14s ease-in-out infinite;
+}
+
+/* Chat: the composer glows while you type. */
+[data-testid="assistant-composer"]:focus-within {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--os-fg) 45%, transparent),
+    0 12px 40px -14px color-mix(in srgb, var(--os-fg) 55%, transparent);
+}
+
+@media (max-width: 640px) {
+  .os-orbit-stage {
+    height: 280px;
+    transform: scale(0.78);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .os-aurora,
+  #main > *,
+  .os-rise {
+    animation: none;
+  }
+}

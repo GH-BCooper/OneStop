@@ -5,23 +5,17 @@
 import type { Metadata } from "next";
 import { AssistantView } from "@/components/assistant/AssistantView";
 
-interface Props {
-  params: Promise<{ id?: string[] }>;
-}
-
 export const metadata: Metadata = {
   title: "AI Assistant",
   description:
     "Describe a task in plain language and OneStop will plan and run the right tools for you.",
 };
 
-export default async function AssistantPage({ params }: Props) {
-  const { id } = await params;
-  const threadId = id && id.length > 0 ? id[0] : null;
+export default function AssistantPage() {
   return (
     <>
       <h1 className="sr-only">AI Assistant</h1>
-      <AssistantView threadId={threadId} />
+      <AssistantView />
     </>
   );
 }

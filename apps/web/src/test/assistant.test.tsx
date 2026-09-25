@@ -211,9 +211,11 @@ describe("the assistant workspace", () => {
     fetchMock.mockImplementation((url: string) =>
       String(url).includes("/status")
         ? Promise.resolve(respond({ ok: true, status: LOCAL_STATUS }))
-        : new Promise((resolve) => {
-            releasePlan = resolve;
-          }),
+        : String(url).includes("/agent")
+          ? Promise.resolve(respond({ ok: false }))
+          : new Promise((resolve) => {
+              releasePlan = resolve;
+            }),
     );
     render(<AssistantView />);
     fireEvent.change(screen.getByTestId("assistant-request"), { target: { value: "hi" } });

@@ -5,6 +5,7 @@
 import { GROUPS, toolsForCatalogPage } from "@onestop/tool-registry";
 import { buttonClasses, Card, CardDescription, CardTitle } from "@onestop/ui";
 import Image from "next/image";
+import { ToolOrbit } from "@/components/fx/ToolOrbit";
 import Link from "next/link";
 
 const STEPS = [
@@ -32,12 +33,14 @@ export function Landing() {
   const toolCount = GROUPS.reduce((sum, c) => sum + toolsForCatalogPage(c.id).length, 0);
   return (
     <div className="flex flex-col gap-20 pb-8">
-      <section className="flex flex-col items-center gap-6 pt-8 text-center">
+      <section className="relative grid items-center gap-6 pt-4 lg:grid-cols-[1.15fr_1fr]">
+        <div className="os-aurora" aria-hidden="true" />
+        <div className="flex flex-col items-center gap-6 text-center lg:items-start lg:text-left">
         <Image
           src="/images/Logo.png"
           alt="OneStop"
-          width={112}
-          height={112}
+          width={88}
+          height={88}
           className="os-enter rounded-2xl"
           priority
         />
@@ -49,8 +52,8 @@ export function Landing() {
           QR codes and more — free and local-first. Sign in to run tools, keep history, favourites
           and workflows, and pick up right where you left off on any device.
         </p>
-        <div className="os-enter os-enter-3 flex flex-wrap items-center justify-center gap-3 text-lg">
-          <Link href="/auth/signup" className={buttonClasses("primary", "lg")}>
+        <div className="os-enter os-enter-3 flex flex-wrap items-center justify-center gap-3 text-lg lg:justify-start">
+          <Link href="/auth/signup" className={`${buttonClasses("primary", "lg")} os-btn-lift`}>
             Get Started
           </Link>
           <span className="text-fg-muted">
@@ -60,15 +63,20 @@ export function Landing() {
             </Link>
           </span>
         </div>
-        <dl className="os-enter os-enter-4 grid grid-cols-1 gap-4 pt-4 sm:grid-cols-3">
-          {HIGHLIGHTS.map((h) => (
-            <div key={h.label} className="max-w-xs text-center">
-              <dt className="text-base font-semibold">{h.label}</dt>
-              <dd className="text-sm text-fg-muted">{h.detail}</dd>
-            </div>
-          ))}
-        </dl>
+        </div>
+        <div className="os-enter os-enter-2 flex justify-center">
+          <ToolOrbit items={GROUPS.map((g) => ({ icon: g.icon, name: g.name }))} />
+        </div>
       </section>
+
+      <dl className="os-enter os-enter-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {HIGHLIGHTS.map((h) => (
+          <Card key={h.label} className="text-center">
+            <dt className="text-base font-semibold">{h.label}</dt>
+            <dd className="text-sm text-fg-muted">{h.detail}</dd>
+          </Card>
+        ))}
+      </dl>
 
       <section aria-labelledby="features-heading" className="flex flex-col gap-6">
         <h2 id="features-heading" className="text-center text-2xl font-semibold sm:text-3xl">
