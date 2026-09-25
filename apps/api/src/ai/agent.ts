@@ -27,13 +27,14 @@ import type { OutputFileRef } from "@onestop/types";
 import { getTempStore } from "../file-processing/tempStore.ts";
 import { runPipeline, type PipelineFileInput } from "../file-processing/pipeline.ts";
 import { parseJsonObject } from "./intent.ts";
+import { splitClauses } from "./planner.ts";
 import { AiError, chat, type ChatMessage } from "./modelRuntime.ts";
 import type { AiCredentials } from "./providers.ts";
 import type { AssistantHistory, AssistantProfile } from "./assistant.ts";
 import type { WorkflowSummary } from "./catalogue.ts";
 
-export const MAX_AGENT_TURNS = 10;
-const MAX_RESULT_CHARS = 1800;
+export const MAX_AGENT_TURNS = 14;
+const MAX_RESULT_CHARS = 1400;
 
 export type AgentClientAction =
   | { type: "navigate"; href: string; label: string }
@@ -86,7 +87,37 @@ function categoryIndex(): string {
   return [...counts].map(([c, n]) => `${c} (${n})`).join(", ");
 }
 
-function systemPrompt(input: AgentInput, attachments: string[]): string {
+/**
+ * The tools most likely to matter for this request, found before the model is even asked. It saves
+ * the model two or three "search" round trips (each one a slow, quota-eating call on a free tier)
+ * and puts the real option ids in front of it, so it does not have to guess them.
+ */
+function likelyTools(request: string, fileNames: string[]): string {
+  const clauses = [request, ...splitClauses(request)];
+  const seen = new Map<string, { tool: ToolMeta; score: number }>();
+  for (const tool of tools) {
+    if (tool.status !== "available" || tool.id === "ai-assistant") continue;
+    let best = 0;
+    for (const clause of clauses) best = Math.max(best, scoreTool(tool, clause));
+    if (best <= 0) continue;
+    // A tool that can actually read the attached file beats one that cannot.
+    if (fileNames.length > 0 && inputKind(tool) === "file" && fileNames.some((n) => acceptsFileName(tool, n))) best += 6;
+    seen.set(tool.id, { tool, score: best });
+  }
+  const top = [...seen.values()].sort((a, b) => b.score - a.score).slice(0, 8);
+  if (top.length === 0) return "";
+  return top
+    .map(({ tool }, i) => {
+      const opts = getToolOptions(tool.id)
+        .slice(0, 10)
+        .map((o) => (o.type === "select" ? `${o.id}[${o.choices.map((c) => c.value).join("|")}]` : o.id))
+        .join(", ");
+      return `${brief(tool)}${i < 5 && opts ? ` | options: ${opts}` : ""}`;
+    })
+    .join("\n");
+}
+
+function systemPrompt(input: AgentInput, attachments: string[], likely: string): string {
   const profile = input.profile;
   const facts = [
     profile?.name ? `name: ${profile.name}` : null,
@@ -102,20 +133,22 @@ function systemPrompt(input: AgentInput, attachments: string[]): string {
     '{"action":"search_tools","query":"free words about the task"}  -> returns up to 8 matching tools with id, name, inputs/outputs',
     '{"action":"tool_info","toolId":"id"}  -> returns the tool\'s option ids, types, choices, defaults',
     '{"action":"run_tool","toolId":"id","text":"typed input, if the tool takes text/url","options":{"optionId":value},"files":["file1"]}  -> runs it now',
+    '{"action":"read_file","file":"file1"}  -> returns the readable text of an attached file (PDF, Word, PowerPoint, Excel, CSV, text, or an image via OCR) so you can answer questions about it',
     '{"action":"create_workflow","name":"short name","steps":[{"toolId":"id","options":{}}]}  -> validates and saves a reusable workflow for the user',
     '{"action":"run_workflow","steps":[{"toolId":"id","options":{}}],"files":["file1"]}  -> runs a chain on files, each step feeding the next',
     '{"action":"open_page","href":"/tools/..." or one of the app pages,"label":"Open X"}  -> gives the user a button to go there',
     '{"action":"favorite","toolId":"id","on":true}  -> stars/unstars a tool',
     '{"action":"final","message":"your Markdown answer to the user"}  -> ends the turn',
     "",
-    "RULES: Before running a tool you have not seen this turn, search_tools (and tool_info if you need option ids). Use only ids the registry returned. A tool that takes files needs a file ref (attached files and every tool output have refs like file1, file2). Tool outputs become new refs you can pass to the next tool. If a needed file is missing, ask the user to attach it via final. If a run fails, read the error, fix the input/options and retry once, else explain plainly. Use options only with ids from tool_info. Ask a short clarifying question via final only when a required detail is truly missing. When done, summarise what you did and what the result is; mention downloadable files by name (they are shown as download buttons automatically). Never claim you ran something you did not. Run a tool once per input - never repeat a run that already succeeded. Put results the user wants to read (hashes, ids, converted text, tables) in the final message, in a fenced code block or a table when that helps. Keep going until the user's whole request is done, then final.",
+    "RULES: If a OneStop tool can do what the user asks - generating passwords or UUIDs, hashing, encoding, formatting, converting, resizing, OCR, QR codes, anything in the catalogue - you MUST run that tool; never do it yourself in text (a password or hash you make up is not random or correct). Only when no tool applies do you answer from your own knowledge. The LIKELY TOOLS list below was matched to this request: use it directly when one fits, otherwise search_tools. Use only ids the registry returned. A tool that takes files needs a file ref (attached files and every tool output have refs like file1, file2). Tool outputs become new refs you can pass to the next tool. If a needed file is missing, ask the user to attach it via final. If a run fails, read the error, fix the input/options and retry once, else explain plainly. Use options only with ids from tool_info. Ask a short clarifying question via final only when a required detail is truly missing. When done, summarise what you did and what the result is; mention downloadable files by name (they are shown as download buttons automatically). Never claim you ran something you did not. Run a tool once per input - never repeat a run that already succeeded. Put results the user wants to read (hashes, ids, converted text, tables) in the final message, in a fenced code block or a table when that helps. Keep going until the user's whole request is done, then final.",
     "",
     `App pages: ${PAGES.map(([p, d]) => `${p} (${d})`).join("; ")}. Any tool page is /tools/<category>/<slug> - use open_page with a toolId-derived href only from search results.`,
     `Tool categories (available tool counts): ${categoryIndex()}.`,
     facts.length > 0 ? `The signed-in user's own ${facts.join(", ")} (share only with them).` : "The user is a guest (not signed in); tools that need an account will say so.",
     workflows.length > 0 ? `Their saved workflows: ${workflows.join("; ")}.` : "They have no saved workflows yet.",
     (input.favoriteToolIds ?? []).length > 0 ? `Starred tools: ${(input.favoriteToolIds ?? []).slice(0, 40).join(", ")}.` : "",
-    attachments.length > 0 ? `Attached files: ${attachments.join("; ")}.` : "No files are attached.",
+    attachments.length > 0 ? `Attached files: ${attachments.join("; ")}. To answer questions about a file's contents, use read_file.` : "No files are attached.",
+    likely ? `LIKELY TOOLS for this request (id | name | what it does | input -> output | options):\n${likely}` : "",
   ]
     .filter((line) => line !== "")
     .join("\n");
@@ -288,6 +321,54 @@ function safeHref(raw: unknown): string | null {
   return null;
 }
 
+/** Which registry tool turns a file into plain text, by extension. */
+const READERS: Record<string, string> = {
+  pdf: "pdf-to-text",
+  docx: "word-to-text",
+  doc: "word-to-text",
+  odt: "word-to-text",
+  rtf: "word-to-text",
+  pptx: "powerpoint-to-text",
+  ppt: "powerpoint-to-text",
+  xlsx: "excel-to-csv",
+  xls: "excel-to-csv",
+  png: "ai-ocr",
+  jpg: "ai-ocr",
+  jpeg: "ai-ocr",
+  webp: "ai-ocr",
+  gif: "ai-ocr",
+  bmp: "ai-ocr",
+};
+
+const READ_LIMIT = 9000;
+
+/** The readable text of one file, or an explanation of why there is none. */
+async function readFileText(file: PipelineFileInput, userId: string | null | undefined): Promise<string> {
+  const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "";
+  const reader = READERS[ext];
+  let bytes = file.bytes;
+  if (reader) {
+    const outcome = await runPipeline({ toolId: reader, userId: null, files: [file], options: {} }).catch(() => null);
+    void userId;
+    if (!outcome?.ok) return `Could not read ${file.name}: ${outcome?.error?.message ?? "the reader failed"}`;
+    const textFile = outcome.files.find((f) => /\.(txt|csv|md)$/i.test(f.name)) ?? outcome.files[0];
+    if (textFile) bytes = await getTempStore().read(textFile.id).catch(() => new Uint8Array());
+    else if (typeof outcome.output === "string") return outcome.output.slice(0, READ_LIMIT);
+  }
+  const text = new TextDecoder().decode(bytes.slice(0, READ_LIMIT * 4)).replace(/\0/g, "");
+  if (text.trim() === "") return `${file.name} has no readable text.`;
+  return text.length > READ_LIMIT ? `${text.slice(0, READ_LIMIT)}\n…(truncated, ${text.length} characters in all)` : text;
+}
+
+/** Old tool results are cut down so a long run does not blow a free tier's tokens-per-minute cap. */
+function pruneResults(messages: ChatMessage[]): void {
+  const idx = messages.map((m, i) => (m.role === "user" && m.content.startsWith("RESULT:") ? i : -1)).filter((i) => i >= 0);
+  for (const i of idx.slice(0, -2)) {
+    const m = messages[i]!;
+    if (m.content.length > 260) messages[i] = { ...m, content: `${m.content.slice(0, 240)} …(shortened)` };
+  }
+}
+
 /** The whole turn. Throws `AiError` only when no model can be reached at all. */
 export async function runAgent(input: AgentInput): Promise<void> {
   const files = new Files();
@@ -296,19 +377,24 @@ export async function runAgent(input: AgentInput): Promise<void> {
   const outputs: AgentOutput[] = [];
   const history = (input.history ?? []).slice(-12);
   const messages: ChatMessage[] = [
-    { role: "system", content: systemPrompt(input, attachments) },
+    { role: "system", content: systemPrompt(input, attachments, likelyTools(input.request, input.files.map((f) => f.name))) },
     ...history,
     { role: "user", content: input.request },
   ];
   let stepId = 0;
   let runtime: { provider: string; model: string; local: boolean } | null = null;
   let malformed = 0;
+  let nudged = false;
   const emit = (event: AgentEvent) => input.onEvent?.(event);
   const finish = (message: string) =>
-    emit({ type: "final", message, files: files.produced, actions, outputs, runtime });
+    emit({ type: "final", message: message.includes("\n") ? message : message.replace(/\\n/g, "\n"), files: files.produced, actions, outputs, runtime });
 
   for (let turn = 0; turn < MAX_AGENT_TURNS; turn += 1) {
     if (input.signal?.aborted) return;
+    pruneResults(messages);
+    if (turn === MAX_AGENT_TURNS - 2) {
+      messages.push({ role: "user", content: 'RESULT: You are almost out of steps. Reply now with {"action":"final","message":"..."} summarising what was done and what is left.' });
+    }
     const { text, config } = await chat(
       messages,
       { temperature: 0.2, maxTokens: 1400, json: true, budgetMs: 90_000, ...(input.signal ? { signal: input.signal } : {}) },
@@ -331,7 +417,14 @@ export async function runAgent(input: AgentInput): Promise<void> {
 
     switch (call.action) {
       case "final": {
-        finish(typeof call.message === "string" && call.message.trim() !== "" ? call.message.trim() : "Done.");
+        const message = typeof call.message === "string" ? call.message.trim() : "";
+        // "Done." after a tool ran tells the user nothing: ask once for the actual answer.
+        if (message.length < 25 && outputs.length > 0 && !nudged) {
+          nudged = true;
+          reply("Your final message is too short. Write the actual answer for the user: what you did, and the result itself (values, text, or a summary), in Markdown.");
+          break;
+        }
+        finish(message !== "" ? message : "Done.");
         return;
       }
       case "search_tools": {
@@ -367,6 +460,19 @@ export async function runAgent(input: AgentInput): Promise<void> {
         );
         emit({ type: "step", id, label: `${result.ok ? "Ran" : "Could not run"} ${tool.name}`, toolId: tool.id, status: result.ok ? "done" : "failed", detail: result.note.split("\n")[0]!.slice(0, 200) });
         reply(result.note);
+        break;
+      }
+      case "read_file": {
+        const resolved = files.resolve([call.file]);
+        if (resolved.files.length === 0) {
+          reply(`Unknown file "${String(call.file)}". Available: ${attachments.join("; ") || "none"}.`);
+          break;
+        }
+        const id = ++stepId;
+        emit({ type: "step", id, label: `Reading ${resolved.files[0]!.name}`, status: "running" });
+        const body = await readFileText(resolved.files[0]!, input.userId);
+        emit({ type: "step", id, label: `Read ${resolved.files[0]!.name}`, status: "done" });
+        reply(body);
         break;
       }
       case "run_workflow": {
