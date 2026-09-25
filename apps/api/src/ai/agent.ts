@@ -421,6 +421,15 @@ async function readFileText(
     : text;
 }
 
+/** Models sometimes emit literal backslash-n pairs, or image links to files that only exist as download buttons. */
+function tidyMessage(message: string): string {
+  const text = message.includes("\n") ? message : message.replace(/\\n/g, "\n");
+  return text
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 /** Old tool results are cut down so a long run does not blow a free tier's tokens-per-minute cap. */
 function pruneResults(messages: ChatMessage[]): void {
   const idx = messages
@@ -463,7 +472,7 @@ export async function runAgent(input: AgentInput): Promise<void> {
   const finish = (message: string) =>
     emit({
       type: "final",
-      message: message.includes("\n") ? message : message.replace(/\\n/g, "\n"),
+      message: tidyMessage(message),
       files: files.produced,
       actions,
       outputs,

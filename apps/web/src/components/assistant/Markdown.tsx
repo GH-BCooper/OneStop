@@ -66,6 +66,7 @@ function renderInline(text: string, keyPrefix: string): ReactNode[] {
 const HEADER_RE = /^(#{1,6})\s+(.*)$/;
 const BULLET_RE = /^(?:-|\*|\+)\s+(.*)$/;
 const NUMBERED_RE = /^\d+[.)]\s+(.*)$/;
+const QUOTE_RE = /^>\s?/;
 const TABLE_ROW_RE = /^\s*\|.*\|\s*$/;
 const TABLE_DIVIDER_RE = /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/;
 
@@ -147,6 +148,25 @@ export function Markdown({ text }: { text: string }) {
       continue;
     }
 
+    if (QUOTE_RE.test(line)) {
+      const quoted: string[] = [];
+      while (i < lines.length && QUOTE_RE.test(lines[i]!)) {
+        quoted.push(lines[i]!.replace(QUOTE_RE, ""));
+        i++;
+      }
+      blocks.push(
+        <blockquote key={`b${blockKey++}`} className="border-l-2 border-border pl-3 text-fg-muted">
+          {quoted.map((q, idx) => (
+            <Fragment key={idx}>
+              {idx > 0 && <br />}
+              {renderInline(q, `q${blockKey}-${idx}`)}
+            </Fragment>
+          ))}
+        </blockquote>,
+      );
+      continue;
+    }
+
     const header = HEADER_RE.exec(line);
     if (header) {
       const level = header[1]!.length;
@@ -198,6 +218,7 @@ export function Markdown({ text }: { text: string }) {
       lines[i]!.trim() !== "" &&
       !HEADER_RE.test(lines[i]!) &&
       !/^\s*```/.test(lines[i]!) &&
+      !QUOTE_RE.test(lines[i]!) &&
       !BULLET_RE.test(lines[i]!) &&
       !NUMBERED_RE.test(lines[i]!)
     ) {

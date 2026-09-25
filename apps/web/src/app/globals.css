@@ -266,7 +266,6 @@ button:not(:disabled):active {
   border-radius: 14px;
   border: 1px solid var(--os-border);
   background: color-mix(in srgb, var(--os-surface) 88%, transparent);
-  backdrop-filter: blur(6px);
   color: var(--os-fg);
   box-shadow: var(--os-card-shadow);
   backface-visibility: hidden;

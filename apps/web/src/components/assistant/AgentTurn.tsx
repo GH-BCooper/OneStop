@@ -110,6 +110,19 @@ export function AgentTurnView({ data, live }: { data: AgentTurnData; live: boole
         </div>
       )}
       {shownText?.text && <OutputText text={shownText.text} />}
+      {data.files
+        .filter((f) => f.mimeType.startsWith("image/") && f.size < 4_000_000)
+        .slice(-3)
+        .map((f) => (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            key={f.id}
+            src={f.url}
+            alt={f.name}
+            loading="lazy"
+            className="os-rise max-h-64 w-fit max-w-full rounded-lg border border-border bg-surface-muted object-contain p-1"
+          />
+        ))}
       {data.files.length > 0 && (
         <ul className="flex flex-wrap gap-2">
           {data.files.map((file) => (
