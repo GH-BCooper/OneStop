@@ -271,6 +271,41 @@ Typecheck, lint and the full unit suite were run after this change with no failu
 
 ---
 
+## Post-V1: fifth owner pass — agentic assistant, all-tools sweep, motion (2026-09-26, branch `newVersion`)
+
+- **Agentic assistant** (`apps/api/src/ai/agent.ts`, `POST /api/assistant/agent`, NDJSON stream). One
+  loop over the ordinary `chat()`: the model may `search_tools`, `tool_info`, `run_tool` (typed text
+  and/or files), `run_workflow` (steps feed each other), `read_file`, `create_workflow`, `open_page`,
+  `favorite`, `final`. Every action is validated against the registry (unknown / non-available ids
+  refused, page links allow-listed, options filtered to the ids the registry declares) and runs
+  through `runPipeline`, so CLAUDE.md §2.6 still holds: no shell, no unregistered tool. Likely tools
+  are matched *before* the first model call (fewer round trips, real option ids in the prompt), old
+  tool results are shortened (free-tier tokens-per-minute), and the model must use a tool whenever
+  one applies (no invented passwords/hashes). Workflows and stars are applied client-side so a
+  guest's device-only lists still work. With no AI reachable (or any `AI_*` error) the chat falls
+  back to the existing rule planner + confirm/run flow, so the app still works with nothing set up.
+- **Bug fixed:** the first message of a new chat was lost ("That request was interrupted") because
+  `router.push` to the new thread URL remounted `AssistantView` mid-request. The URL is now set with
+  the History API and the thread id is read from `usePathname()`, so the component stays mounted.
+  `updateTurn` no longer saves inside a state updater (React "setState in render" warning).
+- **Every-tool sweep:** `tests/e2e/all-tools.e2e.test.ts` builds real fixtures (text, CSV, JSON, XML,
+  YAML, XLSX, DOCX, PPTX, multi-page PDF, encrypted PDF, PNG/JPG/WebP/GIF, MP3/WAV/MP4 incl. a
+  subtitled MP4, ZIP, SRT, QR image) and runs all 205 available tools through `runPipeline`
+  (`npm run test:e2e -- tests/e2e/all-tools.e2e.test.ts`, ~5 min, needs FFmpeg and LibreOffice env
+  as in `.env`). Result: everything runs; only tools that need the outside world (YouTube/Instagram
+  via yt-dlp, a local Stable Diffusion server for the two AI image tools, a fillable-form PDF) may
+  refuse — and they must refuse politely. Two real bugs found and fixed: `.yaml` uploads sent as
+  `application/x-yaml` were rejected; AI OCR on an image with no text failed with "result is empty".
+- **UI:** a pointer-reactive particle field behind every page (`components/fx/PointerField.tsx`),
+  a spotlight that follows the cursor across every `Card` (`.os-glow`), a CSS-3D cube + orbiting
+  category cards on the landing page that tilt toward the mouse (`ToolOrbit.tsx`), page/answer
+  entrance motion, code-fence + table rendering in assistant replies. All of it stops on hidden
+  tabs, is off under `prefers-reduced-motion`, and uses no library.
+- **Tests:** the two long-standing `shell.test.tsx` failures (`/workflows/demo-1`) were the page
+  assuming `searchParams` is always given; it now tolerates its absence. Full suite green.
+
+---
+
 ## Decisions Log
 
 (Append one line per real architectural decision — e.g. which Postgres host, which AI runtime default, whether LibreOffice is required or optional locally, etc. Newest at the bottom.)

@@ -43,7 +43,11 @@ function history(raw: unknown): AssistantHistory {
   for (const item of raw.slice(-MAX_HISTORY_TURNS * 2)) {
     const role = (item as { role?: unknown })?.role;
     const content = (item as { content?: unknown })?.content;
-    if ((role === "user" || role === "assistant") && typeof content === "string" && content.trim()) {
+    if (
+      (role === "user" || role === "assistant") &&
+      typeof content === "string" &&
+      content.trim()
+    ) {
       turns.push({ role, content: content.trim().slice(0, 4000) });
     }
   }
@@ -83,26 +87,48 @@ function stream(events: (send: (e: unknown) => void) => Promise<void>): Response
     },
   });
   return new Response(body, {
-    headers: { "content-type": "application/x-ndjson; charset=utf-8", "cache-control": "no-store", "x-accel-buffering": "no" },
+    headers: {
+      "content-type": "application/x-ndjson; charset=utf-8",
+      "cache-control": "no-store",
+      "x-accel-buffering": "no",
+    },
   });
 }
 
 export async function POST(request: Request): Promise<Response> {
   const config = loadFileCoreConfig();
-  const wait = consumeRate(`agent:${request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local"}`, RUN_RATE_LIMIT);
+  const wait = consumeRate(
+    `agent:${request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local"}`,
+    RUN_RATE_LIMIT,
+  );
   if (wait !== null) {
-    return stream(async (send) => send({ type: "error", code: "RATE", message: `Too many requests in a row. Wait ${wait} seconds.` }));
+    return stream(async (send) =>
+      send({
+        type: "error",
+        code: "RATE",
+        message: `Too many requests in a row. Wait ${wait} seconds.`,
+      }),
+    );
   }
   let form: FormData;
   try {
     form = await request.formData();
   } catch {
-    return stream(async (send) => send({ type: "error", code: "INVALID", message: "That request could not be read." }));
+    return stream(async (send) =>
+      send({ type: "error", code: "INVALID", message: "That request could not be read." }),
+    );
   }
   const message = String(form.get("message") ?? "").trim();
   if (message === "" || message.length > MAX_REQUEST_CHARS) {
     return stream(async (send) =>
-      send({ type: "error", code: "INVALID", message: message === "" ? "Tell the assistant what you would like done." : `Keep the message under ${MAX_REQUEST_CHARS} characters.` }),
+      send({
+        type: "error",
+        code: "INVALID",
+        message:
+          message === ""
+            ? "Tell the assistant what you would like done."
+            : `Keep the message under ${MAX_REQUEST_CHARS} characters.`,
+      }),
     );
   }
   const uploads = form.getAll("files").filter((v): v is File => v instanceof File);
@@ -111,15 +137,23 @@ export async function POST(request: Request): Promise<Response> {
   for (const upload of uploads.slice(0, config.maxFilesPerRequest)) {
     total += upload.size;
     if (upload.size > config.maxUploadBytes || total > config.maxRequestBytes) {
-      return stream(async (send) => send({ type: "error", code: "INVALID", message: "That file is too large." }));
+      return stream(async (send) =>
+        send({ type: "error", code: "INVALID", message: "That file is too large." }),
+      );
     }
-    files.push({ name: upload.name, mimeType: upload.type, bytes: new Uint8Array(await upload.arrayBuffer()) });
+    files.push({
+      name: upload.name,
+      mimeType: upload.type,
+      bytes: new Uint8Array(await upload.arrayBuffer()),
+    });
   }
 
   const credentials = readAiCredentials(request, form.get("provider"));
   const [userId, who] = await Promise.all([currentUserId(), profile()]);
   const workflows = json<AgentWorkflow[]>(form.get("workflows"), []).slice(0, 100);
-  const favoriteToolIds = json<string[]>(form.get("favoriteToolIds"), []).filter((x) => typeof x === "string").slice(0, 300);
+  const favoriteToolIds = json<string[]>(form.get("favoriteToolIds"), [])
+    .filter((x) => typeof x === "string")
+    .slice(0, 300);
 
   return stream(async (send) => {
     try {
@@ -140,7 +174,11 @@ export async function POST(request: Request): Promise<Response> {
         send({ type: "error", code: err.code, message: assistantFailureMessage(err) });
       } else {
         console.error("[api/assistant/agent] unexpected failure", err);
-        send({ type: "error", code: "FAILED", message: "The assistant hit a problem. Please try again." });
+        send({
+          type: "error",
+          code: "FAILED",
+          message: "The assistant hit a problem. Please try again.",
+        });
       }
     }
   });

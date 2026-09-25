@@ -39,11 +39,29 @@ const MAX_RESULT_CHARS = 1400;
 export type AgentClientAction =
   | { type: "navigate"; href: string; label: string }
   | { type: "favorite"; toolId: string; on: boolean }
-  | { type: "save_workflow"; name: string; steps: { toolId: string; options: Record<string, unknown> }[] };
+  | {
+      type: "save_workflow";
+      name: string;
+      steps: { toolId: string; options: Record<string, unknown> }[];
+    };
 
 export type AgentEvent =
-  | { type: "step"; id: number; label: string; toolId?: string; status: "running" | "done" | "failed"; detail?: string }
-  | { type: "final"; message: string; files: OutputFileRef[]; actions: AgentClientAction[]; outputs: AgentOutput[]; runtime: { provider: string; model: string; local: boolean } | null };
+  | {
+      type: "step";
+      id: number;
+      label: string;
+      toolId?: string;
+      status: "running" | "done" | "failed";
+      detail?: string;
+    }
+  | {
+      type: "final";
+      message: string;
+      files: OutputFileRef[];
+      actions: AgentClientAction[];
+      outputs: AgentOutput[];
+      runtime: { provider: string; model: string; local: boolean } | null;
+    };
 
 export interface AgentOutput {
   toolId: string;
@@ -83,7 +101,8 @@ const ALLOWED_PATHS = new Set<string>(PAGES.map(([p]) => p));
 
 function categoryIndex(): string {
   const counts = new Map<string, number>();
-  for (const t of tools) if (t.status === "available") counts.set(t.category, (counts.get(t.category) ?? 0) + 1);
+  for (const t of tools)
+    if (t.status === "available") counts.set(t.category, (counts.get(t.category) ?? 0) + 1);
   return [...counts].map(([c, n]) => `${c} (${n})`).join(", ");
 }
 
@@ -101,7 +120,12 @@ function likelyTools(request: string, fileNames: string[]): string {
     for (const clause of clauses) best = Math.max(best, scoreTool(tool, clause));
     if (best <= 0) continue;
     // A tool that can actually read the attached file beats one that cannot.
-    if (fileNames.length > 0 && inputKind(tool) === "file" && fileNames.some((n) => acceptsFileName(tool, n))) best += 6;
+    if (
+      fileNames.length > 0 &&
+      inputKind(tool) === "file" &&
+      fileNames.some((n) => acceptsFileName(tool, n))
+    )
+      best += 6;
     seen.set(tool.id, { tool, score: best });
   }
   const top = [...seen.values()].sort((a, b) => b.score - a.score).slice(0, 8);
@@ -110,7 +134,9 @@ function likelyTools(request: string, fileNames: string[]): string {
     .map(({ tool }, i) => {
       const opts = getToolOptions(tool.id)
         .slice(0, 10)
-        .map((o) => (o.type === "select" ? `${o.id}[${o.choices.map((c) => c.value).join("|")}]` : o.id))
+        .map((o) =>
+          o.type === "select" ? `${o.id}[${o.choices.map((c) => c.value).join("|")}]` : o.id,
+        )
         .join(", ");
       return `${brief(tool)}${i < 5 && opts ? ` | options: ${opts}` : ""}`;
     })
@@ -123,7 +149,9 @@ function systemPrompt(input: AgentInput, attachments: string[], likely: string):
     profile?.name ? `name: ${profile.name}` : null,
     profile?.email ? `email: ${profile.email}` : null,
   ].filter(Boolean);
-  const workflows = (input.workflows ?? []).slice(0, 30).map((w) => `${w.id}: "${w.name}"${w.favorite ? " ★" : ""}`);
+  const workflows = (input.workflows ?? [])
+    .slice(0, 30)
+    .map((w) => `${w.id}: "${w.name}"${w.favorite ? " ★" : ""}`);
   return [
     "You are the OneStop Assistant, the built-in AI of OneStop - a free, local-first web app (built by Brett Cooper) for file conversion, PDF, image, data, QR, media, document and developer-utility tasks. Everything in the app can be done from this chat: you can run any OneStop tool, chain tools, create and run workflows, open pages, and star favourites.",
     "You answer in short, clean Markdown. General knowledge and small-talk questions get a direct, friendly answer (never refuse a harmless question), then one brief line steering back to what OneStop can do for them. Questions about OneStop or its tools are answered from the registry - search first, never guess a tool's name or options.",
@@ -144,11 +172,21 @@ function systemPrompt(input: AgentInput, attachments: string[], likely: string):
     "",
     `App pages: ${PAGES.map(([p, d]) => `${p} (${d})`).join("; ")}. Any tool page is /tools/<category>/<slug> - use open_page with a toolId-derived href only from search results.`,
     `Tool categories (available tool counts): ${categoryIndex()}.`,
-    facts.length > 0 ? `The signed-in user's own ${facts.join(", ")} (share only with them).` : "The user is a guest (not signed in); tools that need an account will say so.",
-    workflows.length > 0 ? `Their saved workflows: ${workflows.join("; ")}.` : "They have no saved workflows yet.",
-    (input.favoriteToolIds ?? []).length > 0 ? `Starred tools: ${(input.favoriteToolIds ?? []).slice(0, 40).join(", ")}.` : "",
-    attachments.length > 0 ? `Attached files: ${attachments.join("; ")}. To answer questions about a file's contents, use read_file.` : "No files are attached.",
-    likely ? `LIKELY TOOLS for this request (id | name | what it does | input -> output | options):\n${likely}` : "",
+    facts.length > 0
+      ? `The signed-in user's own ${facts.join(", ")} (share only with them).`
+      : "The user is a guest (not signed in); tools that need an account will say so.",
+    workflows.length > 0
+      ? `Their saved workflows: ${workflows.join("; ")}.`
+      : "They have no saved workflows yet.",
+    (input.favoriteToolIds ?? []).length > 0
+      ? `Starred tools: ${(input.favoriteToolIds ?? []).slice(0, 40).join(", ")}.`
+      : "",
+    attachments.length > 0
+      ? `Attached files: ${attachments.join("; ")}. To answer questions about a file's contents, use read_file.`
+      : "No files are attached.",
+    likely
+      ? `LIKELY TOOLS for this request (id | name | what it does | input -> output | options):\n${likely}`
+      : "",
   ]
     .filter((line) => line !== "")
     .join("\n");
@@ -174,13 +212,16 @@ function searchTools(query: string): string {
     .filter((r) => r.s > 0)
     .sort((a, b) => b.s - a.s)
     .slice(0, 8);
-  return ranked.length === 0 ? "No tool matches. Try different words." : ranked.map((r) => brief(r.t)).join("\n");
+  return ranked.length === 0
+    ? "No tool matches. Try different words."
+    : ranked.map((r) => brief(r.t)).join("\n");
 }
 
 function toolInfo(tool: ToolMeta): string {
   const options = getToolOptions(tool.id).map((o) => {
     const base = `${o.id} (${o.type}${"secret" in o && o.secret ? ", secret" : ""}) - ${o.label}`;
-    if (o.type === "select") return `${base}; choices: ${o.choices.map((c) => c.value).join("|")}; default ${o.default}`;
+    if (o.type === "select")
+      return `${base}; choices: ${o.choices.map((c) => c.value).join("|")}; default ${o.default}`;
     if (o.type === "number") return `${base}; ${o.min}..${o.max}; default ${o.default}`;
     if ("default" in o) return `${base}; default ${JSON.stringify(o.default)}`;
     return base;
@@ -194,7 +235,8 @@ function cleanOptions(tool: ToolMeta, raw: unknown): Record<string, string | num
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!declared.has(key)) continue;
-    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") out[key] = value;
+    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean")
+      out[key] = value;
   }
   return out;
 }
@@ -222,7 +264,8 @@ class Files {
     const missing: string[] = [];
     for (const raw of Array.isArray(refs) ? refs : []) {
       const ref = String(raw).trim();
-      const found = this.byRef.get(ref) ?? [...this.byRef.entries()].find(([, f]) => f.name === ref)?.[1];
+      const found =
+        this.byRef.get(ref) ?? [...this.byRef.entries()].find(([, f]) => f.name === ref)?.[1];
       if (found) files.push(found);
       else missing.push(ref);
     }
@@ -261,13 +304,12 @@ async function runOne(
   }
   for (const file of outcome.files) {
     ctx.files.produced.push(file);
-    let bytes: Uint8Array | null = null;
-    try {
-      bytes = await temp.read(file.id);
-    } catch {
-      bytes = null;
-    }
-    const ref = ctx.files.add({ name: file.name, mimeType: file.mimeType, bytes: bytes ?? new Uint8Array() });
+    const bytes: Uint8Array | null = await temp.read(file.id).catch(() => null);
+    const ref = ctx.files.add({
+      name: file.name,
+      mimeType: file.mimeType,
+      bytes: bytes ?? new Uint8Array(),
+    });
     let preview = "";
     if (bytes && bytes.length > 0 && (TEXTY.test(file.mimeType) || isTextName(file.name))) {
       const body = new TextDecoder().decode(bytes.slice(0, MAX_RESULT_CHARS));
@@ -276,7 +318,10 @@ async function runOne(
     }
     lines.push(`output ${ref}: ${file.name} (${file.size} bytes)${preview}`);
   }
-  if (text) lines.push(`output text: ${text.slice(0, MAX_RESULT_CHARS)}${text.length > MAX_RESULT_CHARS ? "…" : ""}`);
+  if (text)
+    lines.push(
+      `output text: ${text.slice(0, MAX_RESULT_CHARS)}${text.length > MAX_RESULT_CHARS ? "…" : ""}`,
+    );
   ctx.outputs.push({
     toolId: tool.id,
     toolName: tool.name,
@@ -290,7 +335,9 @@ function refuseTool(id: unknown): { tool: ToolMeta } | { error: string } {
   const toolId = typeof id === "string" ? id.trim() : "";
   const tool = toolId ? getTool(toolId) : undefined;
   if (!tool || tool.status !== "available" || tool.id === "ai-assistant") {
-    return { error: `There is no available tool with id "${toolId}". Use search_tools and only ids it returns.` };
+    return {
+      error: `There is no available tool with id "${toolId}". Use search_tools and only ids it returns.`,
+    };
   }
   return { tool };
 }
@@ -343,29 +390,46 @@ const READERS: Record<string, string> = {
 const READ_LIMIT = 9000;
 
 /** The readable text of one file, or an explanation of why there is none. */
-async function readFileText(file: PipelineFileInput, userId: string | null | undefined): Promise<string> {
+async function readFileText(
+  file: PipelineFileInput,
+  userId: string | null | undefined,
+): Promise<string> {
   const ext = file.name.includes(".") ? file.name.split(".").pop()!.toLowerCase() : "";
   const reader = READERS[ext];
   let bytes = file.bytes;
   if (reader) {
-    const outcome = await runPipeline({ toolId: reader, userId: null, files: [file], options: {} }).catch(() => null);
+    const outcome = await runPipeline({
+      toolId: reader,
+      userId: null,
+      files: [file],
+      options: {},
+    }).catch(() => null);
     void userId;
-    if (!outcome?.ok) return `Could not read ${file.name}: ${outcome?.error?.message ?? "the reader failed"}`;
+    if (!outcome?.ok)
+      return `Could not read ${file.name}: ${outcome?.error?.message ?? "the reader failed"}`;
     const textFile = outcome.files.find((f) => /\.(txt|csv|md)$/i.test(f.name)) ?? outcome.files[0];
-    if (textFile) bytes = await getTempStore().read(textFile.id).catch(() => new Uint8Array());
+    if (textFile)
+      bytes = await getTempStore()
+        .read(textFile.id)
+        .catch(() => new Uint8Array());
     else if (typeof outcome.output === "string") return outcome.output.slice(0, READ_LIMIT);
   }
   const text = new TextDecoder().decode(bytes.slice(0, READ_LIMIT * 4)).replace(/\0/g, "");
   if (text.trim() === "") return `${file.name} has no readable text.`;
-  return text.length > READ_LIMIT ? `${text.slice(0, READ_LIMIT)}\n…(truncated, ${text.length} characters in all)` : text;
+  return text.length > READ_LIMIT
+    ? `${text.slice(0, READ_LIMIT)}\n…(truncated, ${text.length} characters in all)`
+    : text;
 }
 
 /** Old tool results are cut down so a long run does not blow a free tier's tokens-per-minute cap. */
 function pruneResults(messages: ChatMessage[]): void {
-  const idx = messages.map((m, i) => (m.role === "user" && m.content.startsWith("RESULT:") ? i : -1)).filter((i) => i >= 0);
+  const idx = messages
+    .map((m, i) => (m.role === "user" && m.content.startsWith("RESULT:") ? i : -1))
+    .filter((i) => i >= 0);
   for (const i of idx.slice(0, -2)) {
     const m = messages[i]!;
-    if (m.content.length > 260) messages[i] = { ...m, content: `${m.content.slice(0, 240)} …(shortened)` };
+    if (m.content.length > 260)
+      messages[i] = { ...m, content: `${m.content.slice(0, 240)} …(shortened)` };
   }
 }
 
@@ -377,7 +441,17 @@ export async function runAgent(input: AgentInput): Promise<void> {
   const outputs: AgentOutput[] = [];
   const history = (input.history ?? []).slice(-12);
   const messages: ChatMessage[] = [
-    { role: "system", content: systemPrompt(input, attachments, likelyTools(input.request, input.files.map((f) => f.name))) },
+    {
+      role: "system",
+      content: systemPrompt(
+        input,
+        attachments,
+        likelyTools(
+          input.request,
+          input.files.map((f) => f.name),
+        ),
+      ),
+    },
     ...history,
     { role: "user", content: input.request },
   ];
@@ -387,17 +461,34 @@ export async function runAgent(input: AgentInput): Promise<void> {
   let nudged = false;
   const emit = (event: AgentEvent) => input.onEvent?.(event);
   const finish = (message: string) =>
-    emit({ type: "final", message: message.includes("\n") ? message : message.replace(/\\n/g, "\n"), files: files.produced, actions, outputs, runtime });
+    emit({
+      type: "final",
+      message: message.includes("\n") ? message : message.replace(/\\n/g, "\n"),
+      files: files.produced,
+      actions,
+      outputs,
+      runtime,
+    });
 
   for (let turn = 0; turn < MAX_AGENT_TURNS; turn += 1) {
     if (input.signal?.aborted) return;
     pruneResults(messages);
     if (turn === MAX_AGENT_TURNS - 2) {
-      messages.push({ role: "user", content: 'RESULT: You are almost out of steps. Reply now with {"action":"final","message":"..."} summarising what was done and what is left.' });
+      messages.push({
+        role: "user",
+        content:
+          'RESULT: You are almost out of steps. Reply now with {"action":"final","message":"..."} summarising what was done and what is left.',
+      });
     }
     const { text, config } = await chat(
       messages,
-      { temperature: 0.2, maxTokens: 1400, json: true, budgetMs: 90_000, ...(input.signal ? { signal: input.signal } : {}) },
+      {
+        temperature: 0.2,
+        maxTokens: 1400,
+        json: true,
+        budgetMs: 90_000,
+        ...(input.signal ? { signal: input.signal } : {}),
+      },
       input.credentials ?? {},
     );
     runtime = { provider: config.provider, model: config.model, local: config.info.local };
@@ -406,10 +497,21 @@ export async function runAgent(input: AgentInput): Promise<void> {
       malformed += 1;
       // A model that answered in plain words is answering the user; show it rather than looping.
       if (malformed >= 2 || (text.trim() !== "" && !text.includes("{"))) {
-        finish(text.trim() !== "" ? text.trim() : "Sorry, I could not work that out. Could you rephrase?");
+        finish(
+          text.trim() !== ""
+            ? text.trim()
+            : "Sorry, I could not work that out. Could you rephrase?",
+        );
         return;
       }
-      messages.push({ role: "assistant", content: text }, { role: "user", content: 'Reply with ONE JSON object using the protocol (e.g. {"action":"final","message":"..."}).' });
+      messages.push(
+        { role: "assistant", content: text },
+        {
+          role: "user",
+          content:
+            'Reply with ONE JSON object using the protocol (e.g. {"action":"final","message":"..."}).',
+        },
+      );
       continue;
     }
     messages.push({ role: "assistant", content: JSON.stringify(call) });
@@ -421,7 +523,9 @@ export async function runAgent(input: AgentInput): Promise<void> {
         // "Done." after a tool ran tells the user nothing: ask once for the actual answer.
         if (message.length < 25 && outputs.length > 0 && !nudged) {
           nudged = true;
-          reply("Your final message is too short. Write the actual answer for the user: what you did, and the result itself (values, text, or a summary), in Markdown.");
+          reply(
+            "Your final message is too short. Write the actual answer for the user: what you did, and the result itself (values, text, or a summary), in Markdown.",
+          );
           break;
         }
         finish(message !== "" ? message : "Done.");
@@ -429,7 +533,12 @@ export async function runAgent(input: AgentInput): Promise<void> {
       }
       case "search_tools": {
         const id = ++stepId;
-        emit({ type: "step", id, label: `Looking for tools: ${String(call.query ?? "").slice(0, 60)}`, status: "done" });
+        emit({
+          type: "step",
+          id,
+          label: `Looking for tools: ${String(call.query ?? "").slice(0, 60)}`,
+          status: "done",
+        });
         reply(searchTools(String(call.query ?? "")));
         break;
       }
@@ -447,25 +556,42 @@ export async function runAgent(input: AgentInput): Promise<void> {
         const tool = guard.tool;
         const resolved = files.resolve(call.files);
         if (resolved.missing.length > 0) {
-          reply(`Unknown file ref(s): ${resolved.missing.join(", ")}. Available: ${attachments.join("; ") || "none"}.`);
+          reply(
+            `Unknown file ref(s): ${resolved.missing.join(", ")}. Available: ${attachments.join("; ") || "none"}.`,
+          );
           break;
         }
         const id = ++stepId;
-        emit({ type: "step", id, label: `Running ${tool.name}`, toolId: tool.id, status: "running" });
+        emit({
+          type: "step",
+          id,
+          label: `Running ${tool.name}`,
+          toolId: tool.id,
+          status: "running",
+        });
         const text = typeof call.text === "string" ? call.text : null;
         const result = await runOne(
           tool,
           { text, options: cleanOptions(tool, call.options), inputs: resolved.files },
           { userId: input.userId, files, outputs },
         );
-        emit({ type: "step", id, label: `${result.ok ? "Ran" : "Could not run"} ${tool.name}`, toolId: tool.id, status: result.ok ? "done" : "failed", detail: result.note.split("\n")[0]!.slice(0, 200) });
+        emit({
+          type: "step",
+          id,
+          label: `${result.ok ? "Ran" : "Could not run"} ${tool.name}`,
+          toolId: tool.id,
+          status: result.ok ? "done" : "failed",
+          detail: result.note.split("\n")[0]!.slice(0, 200),
+        });
         reply(result.note);
         break;
       }
       case "read_file": {
         const resolved = files.resolve([call.file]);
         if (resolved.files.length === 0) {
-          reply(`Unknown file "${String(call.file)}". Available: ${attachments.join("; ") || "none"}.`);
+          reply(
+            `Unknown file "${String(call.file)}". Available: ${attachments.join("; ") || "none"}.`,
+          );
           break;
         }
         const id = ++stepId;
@@ -498,7 +624,13 @@ export async function runAgent(input: AgentInput): Promise<void> {
         for (const [i, step] of steps.entries()) {
           const tool = getTool(step.toolId)!;
           const id = ++stepId;
-          emit({ type: "step", id, label: `Step ${i + 1}/${steps.length}: ${tool.name}`, toolId: tool.id, status: "running" });
+          emit({
+            type: "step",
+            id,
+            label: `Step ${i + 1}/${steps.length}: ${tool.name}`,
+            toolId: tool.id,
+            status: "running",
+          });
           const before = files.produced.length;
           const inputs = i === 0 ? carried : carried.filter((f) => acceptsFileName(tool, f.name));
           const result = await runOne(
@@ -506,7 +638,14 @@ export async function runAgent(input: AgentInput): Promise<void> {
             { text: null, options: step.options, inputs: inputs.length > 0 ? inputs : carried },
             { userId: input.userId, files, outputs },
           );
-          emit({ type: "step", id, label: `${tool.name}`, toolId: tool.id, status: result.ok ? "done" : "failed", detail: result.note.split("\n")[0]!.slice(0, 200) });
+          emit({
+            type: "step",
+            id,
+            label: `${tool.name}`,
+            toolId: tool.id,
+            status: result.ok ? "done" : "failed",
+            detail: result.note.split("\n")[0]!.slice(0, 200),
+          });
           notes.push(`Step ${i + 1} (${tool.name}): ${result.note}`);
           if (!result.ok) {
             failed = true;
@@ -517,7 +656,11 @@ export async function runAgent(input: AgentInput): Promise<void> {
             const loaded: PipelineFileInput[] = [];
             for (const f of fresh) {
               try {
-                loaded.push({ name: f.name, mimeType: f.mimeType, bytes: await getTempStore().read(f.id) });
+                loaded.push({
+                  name: f.name,
+                  mimeType: f.mimeType,
+                  bytes: await getTempStore().read(f.id),
+                });
               } catch {
                 /* expired mid-run: the next step will report the missing input */
               }
@@ -539,20 +682,34 @@ export async function runAgent(input: AgentInput): Promise<void> {
           reply(`Invalid workflow: ${describeIssues(check.issues)}`);
           break;
         }
-        const name = String(call.name ?? "").trim().slice(0, 80) || "Assistant workflow";
+        const name =
+          String(call.name ?? "")
+            .trim()
+            .slice(0, 80) || "Assistant workflow";
         actions.push({ type: "save_workflow", name, steps });
         const id = ++stepId;
-        emit({ type: "step", id, label: `Saved workflow "${name}" (${steps.length} steps)`, status: "done" });
+        emit({
+          type: "step",
+          id,
+          label: `Saved workflow "${name}" (${steps.length} steps)`,
+          status: "done",
+        });
         reply(`Workflow "${name}" saved for the user. It appears on the Workflows page.`);
         break;
       }
       case "open_page": {
         const href = safeHref(call.href);
         if (!href) {
-          reply(`That page is not allowed. Use one of: ${[...ALLOWED_PATHS].join(", ")} or a /tools/<category>/<slug> path from search results.`);
+          reply(
+            `That page is not allowed. Use one of: ${[...ALLOWED_PATHS].join(", ")} or a /tools/<category>/<slug> path from search results.`,
+          );
           break;
         }
-        actions.push({ type: "navigate", href, label: String(call.label ?? "Open").slice(0, 60) || "Open" });
+        actions.push({
+          type: "navigate",
+          href,
+          label: String(call.label ?? "Open").slice(0, 60) || "Open",
+        });
         reply("A button to open it is shown to the user.");
         break;
       }
@@ -565,7 +722,12 @@ export async function runAgent(input: AgentInput): Promise<void> {
         const on = call.on !== false;
         actions.push({ type: "favorite", toolId: guard.tool.id, on });
         const id = ++stepId;
-        emit({ type: "step", id, label: `${on ? "Starred" : "Unstarred"} ${guard.tool.name}`, status: "done" });
+        emit({
+          type: "step",
+          id,
+          label: `${on ? "Starred" : "Unstarred"} ${guard.tool.name}`,
+          status: "done",
+        });
         reply(`${guard.tool.name} ${on ? "starred" : "unstarred"}.`);
         break;
       }
@@ -573,7 +735,9 @@ export async function runAgent(input: AgentInput): Promise<void> {
         reply(`Unknown action "${String(call.action)}". Use one from the protocol.`);
     }
   }
-  finish("That took more steps than I am allowed in one go. Here is where things stand - tell me to continue and I will pick up from there.");
+  finish(
+    "That took more steps than I am allowed in one go. Here is where things stand - tell me to continue and I will pick up from there.",
+  );
 }
 
 export { AiError };

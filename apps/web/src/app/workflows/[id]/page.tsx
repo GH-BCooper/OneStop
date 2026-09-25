@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: "Workflow" };
 
 export default async function WorkflowPage({ params, searchParams }: Props) {
   const { id } = await params;
-  const { use } = await searchParams;
+  const { use } = (await searchParams) ?? {};
   const useOnly = use === "1";
   return (
     <div className="flex flex-col gap-6">

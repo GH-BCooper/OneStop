@@ -44,7 +44,11 @@ const dot = { running: "os-pulse-dot", done: "bg-success", failed: "bg-danger" }
 function Steps({ data, live }: { data: AgentTurnData; live: boolean }) {
   if (data.steps.length === 0) return null;
   return (
-    <ol className="flex flex-col gap-1.5" data-testid="agent-steps" aria-label="What the assistant did">
+    <ol
+      className="flex flex-col gap-1.5"
+      data-testid="agent-steps"
+      aria-label="What the assistant did"
+    >
       {data.steps.map((step) => (
         <li
           key={step.id}
@@ -53,7 +57,11 @@ function Steps({ data, live }: { data: AgentTurnData; live: boolean }) {
           <span
             aria-hidden="true"
             className={`mt-1 inline-block h-2 w-2 shrink-0 rounded-full ${
-              step.status === "running" && live ? dot.running : step.status === "failed" ? dot.failed : dot.done
+              step.status === "running" && live
+                ? dot.running
+                : step.status === "failed"
+                  ? dot.failed
+                  : dot.done
             }`}
           />
           <span className="min-w-0">
@@ -106,8 +114,14 @@ export function AgentTurnView({ data, live }: { data: AgentTurnData; live: boole
         <ul className="flex flex-wrap gap-2">
           {data.files.map((file) => (
             <li key={file.id}>
-              <a className={buttonClasses("secondary", "sm")} href={file.url} download data-testid="result-download">
-                ⬇ {file.name} <span className="text-xs text-fg-muted">({formatBytes(file.size)})</span>
+              <a
+                className={buttonClasses("secondary", "sm")}
+                href={file.url}
+                download
+                data-testid="result-download"
+              >
+                ⬇ {file.name}{" "}
+                <span className="text-xs text-fg-muted">({formatBytes(file.size)})</span>
               </a>
             </li>
           ))}
@@ -128,7 +142,13 @@ export function AgentTurnView({ data, live }: { data: AgentTurnData; live: boole
         <p className="text-xs text-fg-muted">
           {data.actions
             .map((a) =>
-              a.type === "save_workflow" ? `Workflow “${a.name}” saved` : a.type === "favorite" ? (a.on ? `Starred ${a.toolId}` : `Unstarred ${a.toolId}`) : "",
+              a.type === "save_workflow"
+                ? `Workflow “${a.name}” saved`
+                : a.type === "favorite"
+                  ? a.on
+                    ? `Starred ${a.toolId}`
+                    : `Unstarred ${a.toolId}`
+                  : "",
             )
             .filter(Boolean)
             .join(" · ")}

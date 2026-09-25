@@ -452,7 +452,6 @@ export function AssistantView() {
       return;
     }
     setTurns(incoming ? (getThread(incoming)?.turns.map(fromStored) ?? []) : []);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [threadId]);
 
   const provider = typeof window === "undefined" ? null : activeAiProvider();

@@ -32,7 +32,7 @@ export const colors = {
     danger: "#b91c1c",
     ring: "#26323d",
     "shine-start": "#1a222b",
-    "shine-end": "#7d8e9d",
+    "shine-end": "#566a7b",
     "bg-image":
       "radial-gradient(60% 45% at 14% 4%, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0) 70%), radial-gradient(45% 40% at 92% 14%, rgba(238,228,208,0.7) 0%, rgba(238,228,208,0) 70%), radial-gradient(70% 45% at 50% 105%, rgba(255,255,255,0.5) 0%, rgba(255,255,255,0) 70%), linear-gradient(118deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.55) 20%, rgba(255,255,255,0) 31%, rgba(112,134,152,0.3) 46%, rgba(255,255,255,0) 57%, rgba(255,255,255,0.5) 72%, rgba(255,255,255,0) 84%), linear-gradient(160deg, #bccbd8 0%, #dbe4eb 26%, #aebfcd 50%, #d3dce3 74%, #b9c7d3 100%)",
     "surface-sheen":

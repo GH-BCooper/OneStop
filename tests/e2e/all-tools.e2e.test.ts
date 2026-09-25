@@ -156,7 +156,7 @@ const EXTRA: Record<string, { files?: string[]; options?: Record<string, unknown
   "wifi-to-qr": { options: { password: "hunter2hunter2" } },
   "ask-questions-about-a-file": { options: { question: "What is the notice period?" } },
   "ai-image-editor": { options: { prompt: "make it brighter" } },
-  "regex-tester": { options: { pattern: "\d+", flags: "g" } },
+  "regex-tester": { options: { pattern: "[0-9]+", flags: "g" } },
   "user-agent-viewer": { options: { userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36" } },
   "ip-address-lookup": { text: "8.8.8.8" },
   "ip-geolocation": { text: "8.8.8.8" },
@@ -278,7 +278,7 @@ describe("every registered tool runs for real", () => {
       }
       if (extra?.text) textIn = extra.text;
       const started = Date.now();
-      let note = "";
+      let note: string;
       let ok = false;
       try {
         const outcome = await runPipeline({
@@ -302,8 +302,8 @@ describe("every registered tool runs for real", () => {
     }
 
     const passed = results.filter((r) => r.ok).length;
-    console.log(`\nALL-TOOLS SWEEP: ${passed}/${results.length} ran OK`);
-    for (const r of results.filter((r) => !r.ok)) console.log(`  ✗ ${r.id}: ${r.note}`);
+    console.warn(`\nALL-TOOLS SWEEP: ${passed}/${results.length} ran OK`);
+    for (const r of results.filter((r) => !r.ok)) console.warn(`  ✗ ${r.id}: ${r.note}`);
     fs.writeFileSync(path.join(os.tmpdir(), "onestop-all-tools-report.json"), JSON.stringify(results, null, 2));
     expect(failures, failures.join("\n")).toEqual([]);
   });

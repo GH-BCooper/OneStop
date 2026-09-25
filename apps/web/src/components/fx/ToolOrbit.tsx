@@ -27,7 +27,9 @@ export function ToolOrbit({ items }: { items: OrbitItem[] }) {
   useEffect(() => {
     const root = scene.current;
     if (!root) return;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduce =
+      typeof window.matchMedia !== "function" ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const target = { x: -12, y: 0 };
     const cur = { x: -12, y: 0 };
     let spin = 0;
@@ -52,14 +54,17 @@ export function ToolOrbit({ items }: { items: OrbitItem[] }) {
       }
       if (visible && !document.hidden) raf = requestAnimationFrame(frame);
     };
-    const io = new IntersectionObserver(([entry]) => {
-      visible = Boolean(entry?.isIntersecting);
-      if (visible && !document.hidden && !reduce) {
-        cancelAnimationFrame(raf);
-        raf = requestAnimationFrame(frame);
-      }
-    });
-    io.observe(root);
+    const io =
+      typeof IntersectionObserver === "function"
+        ? new IntersectionObserver(([entry]) => {
+            visible = Boolean(entry?.isIntersecting);
+            if (visible && !document.hidden && !reduce) {
+              cancelAnimationFrame(raf);
+              raf = requestAnimationFrame(frame);
+            }
+          })
+        : null;
+    io?.observe(root);
     if (!reduce) {
       window.addEventListener("pointermove", onMove, { passive: true });
       raf = requestAnimationFrame(frame);
@@ -67,7 +72,7 @@ export function ToolOrbit({ items }: { items: OrbitItem[] }) {
       root.style.transform = "rotateX(-12deg) rotateY(18deg)";
     }
     return () => {
-      io.disconnect();
+      io?.disconnect();
       cancelAnimationFrame(raf);
       window.removeEventListener("pointermove", onMove);
     };
