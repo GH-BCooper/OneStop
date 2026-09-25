@@ -3,7 +3,7 @@
 // What matters here is what the loop *refuses* as much as what it runs: a tool id that is not in
 // the registry, a page outside the app, and a model that answers in plain prose all have to end
 // in a safe, useful reply.
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import "../index.ts";
 import { runAgent, type AgentEvent } from "./agent.ts";
 import { setAiFetch } from "./modelRuntime.ts";
@@ -44,9 +44,6 @@ async function run(request: string, replies: unknown[]) {
   const final = events.find((e) => e.type === "final");
   return { events, final: final?.type === "final" ? final : null, seen: model.seen };
 }
-
-let restore: (() => void) | null = null;
-afterEach(() => restore?.());
 
 describe("the agentic assistant", () => {
   it("runs a registered tool, hands back its file, and reports the result", async () => {
