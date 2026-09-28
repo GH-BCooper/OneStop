@@ -23,9 +23,17 @@ imports, not a second service, so there is nothing to split.
 | Local AI (Ollama)               | ❌                            | ❌ on a free tier — no free plan has the RAM     |
 | Long jobs                       | request timeout (10–60 s)     | minutes                                          |
 | Idle behaviour                  | always warm                   | free tiers sleep; first request is slow          |
+| Scheduled automations           | best-effort only (see below)  | ✅ real background tick                          |
 
 **Recommendation.** Take the container route (Render's free web service is the simplest) unless you
 only want the document/data/image tools, in which case Vercel is a two-minute deploy.
+
+**Automations** (post-V1 automation pass) run on a plain in-process timer, not a queue or an
+external cron service (`apps/api/src/automation/scheduler.ts`) — free, but it needs the same
+persistent Node process the container route already gives you. On serverless, there is no
+process sitting idle between requests to tick on, so a due automation instead runs the next time
+any signed-in user's browser loads a page (`kickScheduler()` in `/api/notifications`) — it still
+works, just not on the dot.
 
 Whatever you pick, **`/status` on the deployed instance tells the truth**: it lists all 206 tools,
 which are offline-capable, and which server-side programs this particular host actually has. A tool

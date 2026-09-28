@@ -34,6 +34,8 @@ model User {
   qrLinks             QrLink[]
   emailChangeRequest  EmailChangeRequest?
   accountDeleteOtp    AccountDeleteOtp?
+  workflowSchedules   WorkflowSchedule[]
+  notifications       Notification[]
 
   @@map("users")
 }
@@ -179,10 +181,58 @@ model Workflow {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schedules WorkflowSchedule[]
 
   @@index([userId])
   @@map("workflows")
+}
+
+/// A recurring automation: run a saved workflow on its own, on a schedule (post-V1 automation
+/// pass; see /versionTwo.md). Cadence is a plain enum + hour/minute/weekday rather than a cron
+/// string, so the UI can be a simple picker and `nextRunAt` is computed in plain JS — no new
+/// dependency, no cron-string parsing/validation surface.
+model WorkflowSchedule {
+  id         String    @id @default(uuid())
+  userId     String
+  workflowId String
+  cadence    String
+  hour       Int       @default(9)
+  minute     Int       @default(0)
+  weekday    Int?
+  enabled    Boolean   @default(true)
+  lastRunAt  DateTime?
+  lastStatus String?
+  nextRunAt  DateTime
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workflow Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  @@index([enabled, nextRunAt])
+  @@index([userId])
+  @@map("workflow_schedules")
+}
+
+/// A real, account-visible event (post-V1 automation pass). Written only by things that actually
+/// happened — an automation run, or its failure — never decorative (the third owner pass explicitly
+/// deferred a notification bell for exactly this reason: nothing real to show it yet).
+model Notification {
+  id        String    @id @default(uuid())
+  userId    String
+  type      String
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@map("notifications")
 }
 
 /// master plan §16: theme, preferred AI runtime and other small preferences.

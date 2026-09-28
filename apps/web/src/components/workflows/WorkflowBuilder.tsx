@@ -25,6 +25,7 @@ import {
   saveLocalWorkflow,
   saveRemoteWorkflow,
 } from "@/lib/workflows";
+import { AutomatePanel } from "./AutomatePanel";
 import { StepEditor, toolsAfter } from "./StepEditor";
 import { WorkflowRunner } from "./WorkflowRunner";
 
@@ -295,6 +296,10 @@ export function WorkflowBuilder({ workflow, useOnly = false }: WorkflowBuilderPr
               if (workflow?.scope === "device") recordLocalUse(workflow.id);
             }}
         />
+      ) : null}
+
+      {workflow?.scope === "account" ? (
+        <AutomatePanel workflowId={workflow.id} steps={steps} />
       ) : null}
     </div>
   );

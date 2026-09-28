@@ -120,6 +120,8 @@ export async function resetTestDatabase(prisma: PrismaClient): Promise<void> {
   await prisma.qrLink.deleteMany({});
   await prisma.favorite.deleteMany({});
   await prisma.job.deleteMany({});
+  await prisma.notification.deleteMany({});
+  await prisma.workflowSchedule.deleteMany({});
   await prisma.workflow.deleteMany({});
   await prisma.userSettings.deleteMany({});
   await prisma.session.deleteMany({});

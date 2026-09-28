@@ -44,6 +44,7 @@ import {
   saveRemoteWorkflow,
   WORKFLOWS_CHANGED,
 } from "@/lib/workflows";
+import { createSchedule } from "@/lib/schedules";
 import { AgentTurnView, RotatingNotice, PLANNING_NOTICES } from "./AgentTurn";
 import type { AgentTurnData } from "@/lib/agent-types";
 import { Markdown } from "./Markdown";
@@ -679,6 +680,14 @@ export function AssistantView() {
           else saveLocalWorkflow(input);
         } else if (action.type === "favorite" && isFavorite(action.toolId) !== action.on) {
           toggleFavorite(action.toolId);
+        } else if (action.type === "schedule_workflow" && userId) {
+          await createSchedule({
+            workflowId: action.workflowId,
+            cadence: action.cadence,
+            hour: action.hour,
+            minute: action.minute,
+            weekday: action.weekday,
+          });
         }
       } catch (err) {
         console.error("[assistant] could not apply an action", err);

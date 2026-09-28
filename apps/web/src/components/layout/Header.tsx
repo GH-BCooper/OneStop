@@ -9,6 +9,7 @@ import { buttonClasses } from "@onestop/ui";
 import { AccountMenu } from "@/components/auth/AccountMenu";
 import { ConnectionBadge } from "./ConnectionBadge";
 import { Nav } from "./Nav";
+import { NotificationBell } from "./NotificationBell";
 import { ThemeToggle } from "./ThemeToggle";
 
 function Wordmark() {
@@ -61,6 +62,7 @@ export function Header({ accountsEnabled = false }: { accountsEnabled?: boolean 
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-2 lg:ml-0">
           <ConnectionBadge />
+          {accountsEnabled && <NotificationBell />}
           {accountsEnabled && <AccountMenu />}
           <ThemeToggle />
           <button

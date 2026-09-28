@@ -36,3 +36,5 @@ export * from "./ai/index.ts";
 // Importing these registers the phase-17 executors.
 export * from "./online-media/index.ts";
 export * from "./network/index.ts";
+// Scheduled workflow automations and notifications (post-V1 automation pass; see /versionTwo.md).
+export * from "./automation/index.ts";

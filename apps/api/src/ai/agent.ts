@@ -43,6 +43,14 @@ export type AgentClientAction =
       type: "save_workflow";
       name: string;
       steps: { toolId: string; options: Record<string, unknown> }[];
+    }
+  | {
+      type: "schedule_workflow";
+      workflowId: string;
+      cadence: "hourly" | "daily" | "weekly";
+      hour: number;
+      minute: number;
+      weekday: number | null;
     };
 
 export type AgentEvent =
@@ -164,6 +172,7 @@ function systemPrompt(input: AgentInput, attachments: string[], likely: string):
     '{"action":"read_file","file":"file1"}  -> returns the readable text of an attached file (PDF, Word, PowerPoint, Excel, CSV, text, or an image via OCR) so you can answer questions about it',
     '{"action":"create_workflow","name":"short name","steps":[{"toolId":"id","options":{}}]}  -> validates and saves a reusable workflow for the user',
     '{"action":"run_workflow","steps":[{"toolId":"id","options":{}}],"files":["file1"]}  -> runs a chain on files, each step feeding the next',
+    '{"action":"schedule_workflow","workflowId":"id","cadence":"hourly"|"daily"|"weekly","hour":9,"minute":0,"weekday":1}  -> automates an already-saved workflow (id from "Their saved workflows" below) to run on its own on a schedule; only works for a one-step workflow whose tool needs no file/typed input (a generator like Password/UUID Generator) - hour/minute are UTC, weekday is 0=Sunday..6=Saturday (only for weekly)',
     '{"action":"open_page","href":"/tools/..." or one of the app pages,"label":"Open X"}  -> gives the user a button to go there',
     '{"action":"favorite","toolId":"id","on":true}  -> stars/unstars a tool',
     '{"action":"final","message":"your Markdown answer to the user"}  -> ends the turn',
@@ -704,6 +713,37 @@ export async function runAgent(input: AgentInput): Promise<void> {
           status: "done",
         });
         reply(`Workflow "${name}" saved for the user. It appears on the Workflows page.`);
+        break;
+      }
+      case "schedule_workflow": {
+        if (!input.userId) {
+          reply("Automations need an account so they can run with nobody present. Ask the user to sign in first.");
+          break;
+        }
+        const workflowId = String(call.workflowId ?? "").trim();
+        const known = (input.workflows ?? []).find((w) => w.id === workflowId);
+        if (!known) {
+          reply("That workflow id is not one of the user's saved workflows. Use an id from the saved-workflows list, or create_workflow first.");
+          break;
+        }
+        const cadence = call.cadence;
+        if (cadence !== "hourly" && cadence !== "daily" && cadence !== "weekly") {
+          reply('cadence must be "hourly", "daily" or "weekly".');
+          break;
+        }
+        const hour = Number(call.hour ?? 9);
+        const minute = Number(call.minute ?? 0);
+        const weekday = call.weekday === undefined || call.weekday === null ? null : Number(call.weekday);
+        if (!Number.isInteger(hour) || hour < 0 || hour > 23 || !Number.isInteger(minute) || minute < 0 || minute > 59) {
+          reply("hour must be 0-23 and minute 0-59 (UTC).");
+          break;
+        }
+        actions.push({ type: "schedule_workflow", workflowId, cadence, hour, minute, weekday });
+        const id = ++stepId;
+        emit({ type: "step", id, label: `Scheduled "${known.name}" to run ${cadence}`, status: "done" });
+        reply(
+          `Requested: automate "${known.name}" ${cadence}. The app will confirm it (it only succeeds if that workflow's first step needs no input) and it will then appear on that workflow's page with real notifications when it runs.`,
+        );
         break;
       }
       case "open_page": {

@@ -977,6 +977,39 @@ registry).
   with the new `ToolCatalogue` component — each tool and each group is a real `next/link` straight
   to its page, never a made-up name.
 
+## Post-V1: sixth owner pass — automations & real notifications (2026-09-28, branch `newVersion`)
+
+Owner asked for a broad upgrade pass with this session's focus specifically on automations, done
+free of cost and fast. Full detail is in `/versionTwo.md` (new — a short, dated log of upgrade
+passes, kept separate from this phase-by-phase file per the owner's request); summary here:
+
+- **Scheduled workflow automations**: new `WorkflowSchedule`/`Notification` Prisma models
+  (migration `20260928120000_automations_notifications`), `apps/api/src/automation/` (schedule
+  CRUD + `nextRunAt` math, notification CRUD, an in-process scheduler tick — no new dependency, no
+  cron package, no external cron service), `/api/automations/schedules*` and `/api/notifications*`
+  routes, an "Automate" panel on a workflow's own page, and a real notification bell in the header
+  (signed-in only, never decorative — only a real automation event ever writes one).
+- **Deliberate scope limit, not a gap**: an automation only accepts a one-step workflow whose tool
+  needs no input (a generator - Password/UUID Generator, etc.), because nobody is present to
+  supply a file when it fires and the shared chain validator
+  (`packages/tool-registry/src/workflows.ts`) deliberately requires a *multi-step* workflow's first
+  step to take a file (existing, tested behaviour - `workflows.test.ts` asserts the exact message).
+  Rather than weaken that shared, tested rule, the scheduler runs the one step straight through
+  `runPipeline`, bypassing workflow-chain validation entirely, and `createSchedule` enforces the
+  one-step/no-input shape up front. Logged per CLAUDE.md §9 rather than silently working around it.
+  Full reasoning and backlog (watched-folder automation, multi-step schedules, a dedicated
+  `/automations` page) in `/versionTwo.md`.
+- **AI Assistant**: new agent action `schedule_workflow` so the assistant can set up an automation
+  by chat, subject to the same eligibility check as the UI.
+- **Tests**: `apps/api/src/automation/automation.test.ts`, 15 tests (pure cadence/validation +
+  database-backed CRUD/eligibility/end-to-end run/notifications; skips with no Postgres like every
+  other DB suite here). Full `lint`/`typecheck` and the existing web + api unit suites re-run green.
+- **Free-of-cost**: zero new npm dependencies, zero new external services (the scheduler is a
+  `setInterval` in the already-running Node process); two small tables on the same free-tier
+  Postgres every other feature already uses. `docs/DEPLOYMENT.md` gained a short note on the one
+  real tradeoff (a serverless host has no persistent process to tick on — automations there run
+  opportunistically instead, via a piggy-back check on `/api/notifications`).
+
 ## Next Up
 
 **All 20 phases are complete.** `docs/build/` is finished; there is no next phase file.
