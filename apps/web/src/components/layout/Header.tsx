@@ -7,10 +7,31 @@ import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
 import { buttonClasses } from "@onestop/ui";
 import { AccountMenu } from "@/components/auth/AccountMenu";
+import { openCommandPalette } from "./CommandPalette";
 import { ConnectionBadge } from "./ConnectionBadge";
 import { Nav } from "./Nav";
 import { NotificationBell } from "./NotificationBell";
 import { ThemeToggle } from "./ThemeToggle";
+
+/**
+ * Opens the command palette (roadmap §2). It is a button rather than a fake search box because that
+ * is what it is - the real input lives in the palette itself, and this way the header stays narrow.
+ */
+function PaletteButton() {
+  return (
+    <button
+      type="button"
+      onClick={openCommandPalette}
+      className="hidden h-9 items-center gap-2 rounded-md border border-border px-2.5 text-sm text-fg-muted hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-ring sm:inline-flex"
+      aria-label="Open the command palette"
+      aria-keyshortcuts="Control+K Meta+K"
+      title="Search everything (Ctrl+K)"
+    >
+      <span aria-hidden="true">🔍</span>
+      <kbd className="rounded border border-border px-1 py-0.5 text-[10px] leading-none">Ctrl K</kbd>
+    </button>
+  );
+}
 
 function Wordmark() {
   return (
@@ -61,6 +82,7 @@ export function Header({ accountsEnabled = false }: { accountsEnabled?: boolean 
           <Nav />
         </div>
         <div className="ml-auto flex shrink-0 items-center gap-2 lg:ml-0">
+          <PaletteButton />
           <ConnectionBadge />
           {accountsEnabled && <NotificationBell />}
           {accountsEnabled && <AccountMenu />}

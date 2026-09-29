@@ -7,9 +7,10 @@
 // `Workflow[]`. The banner says which, so nobody has to guess where a workflow went.
 import { getTool, WORKFLOW_TEMPLATES } from "@onestop/tool-registry";
 import type { Workflow, WorkflowStep } from "@onestop/types";
-import { Badge, Button, buttonClasses, Card, CardTitle } from "@onestop/ui";
+import { Badge, Button, buttonClasses, Card } from "@onestop/ui";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
+import { EmptyState } from "@/components/fx/EmptyState";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -163,11 +164,11 @@ export function WorkflowsView({ accountsEnabled }: WorkflowsViewProps) {
         <p className="text-sm text-fg-muted">Loading…</p>
       ) : workflows.length === 0 ? (
         <Card className="flex flex-col gap-4">
-          <CardTitle>No workflows yet</CardTitle>
-          <p className="text-sm text-fg-muted">
-            A workflow is an ordered chain of tools you can run again on new files. Start from one
-            of these examples, or build your own.
-          </p>
+          <EmptyState
+            kind="no-workflows"
+            title="No workflows yet"
+            description="A workflow is an ordered chain of tools you can run again on new files. Start from one of these examples, or build your own."
+          />
           <div className="flex flex-wrap gap-2">
             {WORKFLOW_TEMPLATES.map((template) => (
               <Button

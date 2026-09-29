@@ -9,6 +9,8 @@
 import { Button, Card, CardDescription, CardTitle, buttonClasses } from "@onestop/ui";
 import type { ThemePreference } from "@onestop/types";
 import { useSession } from "next-auth/react";
+import { AccessPanel } from "./AccessPanel";
+import { AppearancePanel } from "./AppearancePanel";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { AiStatus } from "@onestop/types";
@@ -306,6 +308,14 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
           ))}
         </fieldset>
       </Card>
+
+      {/* Theme presets, text accessibility and reduced data (roadmap §7.6, §6). */}
+      <Card className="flex flex-col gap-3">
+        <AppearancePanel />
+      </Card>
+
+      {/* Push notifications, access tokens and shared links (roadmap §2). Accounts only. */}
+      {signedIn && <AccessPanel />}
 
       <Card className="flex flex-col gap-4">
         <div>

@@ -4,6 +4,8 @@
 // pattern: the registry never imports these files, they register themselves.
 import { registerExecutor } from "@onestop/tool-registry";
 
+import { barcodeGeneratorExecutor, batchQrExecutor, logoQrExecutor } from "./expansion.ts";
+
 import { qrAnalyticsExecutor } from "./analytics.ts";
 // Registering the Postgres-backed store (14-history-favorites.md); a no-op without a database.
 import "./register.ts";
@@ -96,3 +98,26 @@ export const QR_EXECUTORS = [
 ] as const;
 
 for (const [id, executor] of QR_EXECUTORS) registerExecutor(id, executor);
+
+/** Every tool 21-roadmap-expansion.md adds to this category (roadmap §1.6). */
+export {
+  BARCODE_SYMBOLOGIES,
+  SYMBOLOGY_LABELS,
+  barcodeSvg,
+  batchRows,
+  code128Checksum,
+  eanCheckDigit,
+  encodeCode39,
+  encodeCode128,
+  encodeEan,
+  encodeItf14,
+  type Symbology,
+} from "./expansion.ts";
+
+export const QR_EXPANSION_EXECUTORS = [
+  ["barcode-generator", barcodeGeneratorExecutor],
+  ["batch-qr-generator", batchQrExecutor],
+  ["logo-qr-code", logoQrExecutor],
+] as const;
+
+for (const [id, executor] of QR_EXPANSION_EXECUTORS) registerExecutor(id, executor);

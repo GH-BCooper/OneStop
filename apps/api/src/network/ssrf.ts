@@ -100,7 +100,11 @@ export async function checkUrl(raw: string): Promise<SafeUrl> {
 }
 
 export interface SafeFetchOptions {
-  method?: "GET" | "HEAD" | "POST";
+  /**
+   * The verbs `safeFetch` will send. PUT/PATCH/DELETE were added for the API Request Tester
+   * (21-roadmap-expansion.md); the SSRF checks are identical for every one of them.
+   */
+  method?: "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS";
   headers?: Record<string, string>;
   body?: string;
   timeoutMs?: number;

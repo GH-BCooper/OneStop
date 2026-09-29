@@ -4,6 +4,7 @@ import type { FileRef, OutputFileRef } from "@onestop/types";
 import { Button, buttonClasses, Card } from "@onestop/ui";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { CompareSlider } from "./CompareSlider";
 
 export const TOOL_STATES = [
   "empty",
@@ -116,6 +117,11 @@ export interface ToolStateViewProps {
   progress?: { percent: number; label: string } | null;
   onReset?: () => void;
   onDownload?: () => void;
+  /**
+   * The original image the run was given, as a blob URL. When it is here and the result is a single
+   * image, the preview becomes a before/after slider instead of just the result (roadmap §7.5).
+   */
+  beforeImageUrl?: string | null;
 }
 
 const titles: Record<ToolStateName, string> = {
@@ -189,6 +195,7 @@ export function ToolStateView({
   progress,
   onReset,
   onDownload,
+  beforeImageUrl,
 }: ToolStateViewProps) {
   const [showPreview, setShowPreview] = useState(false);
   useEffect(() => {
@@ -264,9 +271,17 @@ export function ToolStateView({
           )}
           {showPreview && previewFiles.length > 0 && (
             <div className="flex flex-wrap gap-3" data-testid="result-preview">
-              {previewFiles.map((file) => (
-                <FilePreview key={file.id} file={file} />
-              ))}
+              {beforeImageUrl && previewFiles.length === 1 && previewFiles[0]!.mimeType.startsWith("image/") ? (
+                <CompareSlider
+                  beforeSrc={beforeImageUrl}
+                  afterSrc={previewFiles[0]!.url}
+                  beforeLabel="Original"
+                  afterLabel="Result"
+                  className="w-full max-w-lg"
+                />
+              ) : (
+                previewFiles.map((file) => <FilePreview key={file.id} file={file} />)
+              )}
             </div>
           )}
           {state.output !== undefined && (

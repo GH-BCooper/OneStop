@@ -14,11 +14,27 @@ export const CATEGORY_IDS = [
   "dev-utility",
   "network",
   "file-utility",
+  "security",
+  "finance",
+  "education",
+  "time",
+  "fun",
 ] as const;
 export type ToolCategory = (typeof CATEGORY_IDS)[number];
 
 /** Build phases that implement tools (file prefix in docs/build/). */
-export type ToolPhase = "05" | "06" | "07" | "08" | "09" | "10" | "11" | "12" | "16" | "17";
+export type ToolPhase =
+  | "05"
+  | "06"
+  | "07"
+  | "08"
+  | "09"
+  | "10"
+  | "11"
+  | "12"
+  | "16"
+  | "17"
+  | "21";
 
 /**
  * Planned network needs. This is design intent, not a verified capability:
@@ -81,7 +97,17 @@ export interface CategoryInfo {
   group: GroupId;
 }
 
-export type GroupId = "pdf" | "documents" | "data" | "images" | "media" | "qr" | "ai" | "utilities";
+export type GroupId =
+  | "pdf"
+  | "documents"
+  | "data"
+  | "images"
+  | "media"
+  | "qr"
+  | "ai"
+  | "utilities"
+  | "security"
+  | "everyday";
 
 export interface GroupInfo {
   id: GroupId;
@@ -104,6 +130,11 @@ export const CATEGORIES: CategoryInfo[] = [
   { id: "dev-utility", name: "Developer", group: "utilities" },
   { id: "network", name: "Network & Info", group: "utilities" },
   { id: "file-utility", name: "File Utilities", group: "utilities" },
+  { id: "security", name: "Security & Privacy", group: "security" },
+  { id: "finance", name: "Finance & Math", group: "everyday" },
+  { id: "education", name: "Education & Reference", group: "everyday" },
+  { id: "time", name: "Calendar & Time", group: "everyday" },
+  { id: "fun", name: "Fun & Personal", group: "everyday" },
 ];
 
 export const GROUPS: GroupInfo[] = [
@@ -125,6 +156,13 @@ export const GROUPS: GroupInfo[] = [
     icon: "🛠️",
     categories: ["dev-utility", "network", "file-utility"],
   },
+  { id: "security", name: "Security & Privacy", icon: "🛡️", categories: ["security"] },
+  {
+    id: "everyday",
+    name: "Everyday, Money & Fun",
+    icon: "🎲",
+    categories: ["finance", "education", "time", "fun"],
+  },
 ];
 
 export const PHASE_FILES: Record<ToolPhase, string> = {
@@ -138,6 +176,7 @@ export const PHASE_FILES: Record<ToolPhase, string> = {
   "12": "12-dev-utility-tools.md",
   "16": "16-ai-assistant.md",
   "17": "17-online-media-network-tools.md",
+  "21": "21-roadmap-expansion.md",
 };
 
 /** Items in docs/OneStop_Features.md that are platform features, not registry tools. */

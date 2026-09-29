@@ -5,6 +5,7 @@ import { authIsConfigured } from "@/lib/auth-config";
 import { SessionProvider } from "@/components/auth/SessionProvider";
 import { Footer } from "@/components/layout/Footer";
 import { PointerField } from "@/components/fx/PointerField";
+import { CommandPalette } from "@/components/layout/CommandPalette";
 import { Header } from "@/components/layout/Header";
 import { OfflineBanner } from "@/components/layout/OfflineBanner";
 import { ServiceWorkerManager } from "@/components/pwa/ServiceWorkerManager";
@@ -58,6 +59,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <SessionProvider>
           <ServiceWorkerManager />
           <Header accountsEnabled={authIsConfigured()} />
+          {/* Global command palette (roadmap §2/§7.1): one instance, opened with Ctrl/Cmd+K. */}
+          <CommandPalette />
           <OfflineBanner />
           <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
             {children}

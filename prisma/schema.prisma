@@ -36,6 +36,8 @@ model User {
   accountDeleteOtp    AccountDeleteOtp?
   workflowSchedules   WorkflowSchedule[]
   notifications       Notification[]
+  accessTokens        AccessToken[]
+  sharedResults       SharedResult[]
 
   @@map("users")
 }
@@ -170,16 +172,16 @@ model Job {
 
 /// master plan §16. The run engine arrives in phase 15; this phase only creates the table.
 model Workflow {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   userId      String
   name        String
   description String?
-  steps       Json     @default("[]")
-  favorite    Boolean  @default(false)
-  useCount    Int      @default(0)
+  steps       Json      @default("[]")
+  favorite    Boolean   @default(false)
+  useCount    Int       @default(0)
   lastUsedAt  DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   schedules WorkflowSchedule[]
@@ -260,6 +262,55 @@ model Favorite {
   @@id([userId, toolId])
   @@index([userId, createdAt])
   @@map("favorites")
+}
+
+/// A personal access token (21-roadmap-expansion.md, roadmap section 2): lets a signed-in user's own
+/// scripts call POST /api/tools/run from outside the browser. Only the SHA-256 hash is stored, so a
+/// leaked database row cannot be replayed; the token itself is shown once, at creation.
+model AccessToken {
+  id         String    @id @default(uuid())
+  userId     String
+  name       String
+  /// SHA-256 of the token, hex-encoded.
+  tokenHash  String    @unique
+  /// The first few characters, so the UI can tell two tokens apart without holding either.
+  prefix     String
+  /// Reserved for later narrowing; today a token can do exactly what its owner can.
+  scopes     String[]  @default([])
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime?
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("access_tokens")
+}
+
+/// A time-boxed, unguessable link to one job's result (21-roadmap-expansion.md, roadmap section 2).
+/// It never outlives the temp files it points at, and the owner can revoke it at any time.
+model SharedResult {
+  id           String    @id @default(uuid())
+  /// The unguessable part of the URL.
+  slug         String    @unique
+  userId       String
+  jobId        String
+  /// What the recipient sees above the files.
+  title        String?
+  /// Optional bcrypt-style hash of a passphrase; null means the link alone is enough.
+  secretHash   String?
+  createdAt    DateTime  @default(now())
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  viewCount    Int       @default(0)
+  lastViewedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+  @@map("shared_results")
 }
 
 /// A dynamic QR code (14-history-favorites.md), moved out of phase 11's interim JSON file.

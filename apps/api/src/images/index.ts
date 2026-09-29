@@ -5,7 +5,22 @@
 // 6.2) is phase 05's `pdf-to-images` executor; it is not re-registered here.
 import { registerExecutor } from "@onestop/tool-registry";
 
+import {
+  asciiArtExecutor,
+  colorBlindnessExecutor,
+  colorPaletteExecutor,
+  nearDuplicateExecutor,
+  vectorizerExecutor,
+} from "./analysis.ts";
 import { basicEditorExecutor } from "./basicEditor.ts";
+import {
+  batchRenamerExecutor,
+  collageExecutor,
+  faviconSetExecutor,
+  photoMapExecutor,
+  socialResizerExecutor,
+  spriteSheetExecutor,
+} from "./batchTools.ts";
 import { bgRemovalExecutor } from "./bgRemoval.ts";
 import { blurExecutor } from "./blur.ts";
 import { colorAdjustExecutor } from "./colorAdjust.ts";
@@ -31,6 +46,35 @@ import { upscaleExecutor } from "./upscale.ts";
 import { watermarkExecutor } from "./watermark.ts";
 
 export { convertImage, imagesToGif, imagesToPdf } from "./convert.ts";
+// 21-roadmap-expansion.md (roadmap §1.4).
+export {
+  ASCII_RAMPS,
+  CVD_MATRICES,
+  hammingDistance,
+  imageToAscii,
+  kMeansPalette,
+  paletteSvg,
+  pathsToSvg,
+  perceptualHash,
+  simplifyPath,
+  simulateCvd,
+  toHex,
+  traceContours,
+  type SimilarGroup,
+  type Swatch,
+} from "./analysis.ts";
+export {
+  FAVICON_SIZES,
+  SOCIAL_PRESETS,
+  applyNamePattern,
+  buildIco,
+  pointsToGeoJson,
+  sanitizeFileName as sanitizeImageFileName,
+  spriteCss,
+  type PhotoPoint,
+  type SocialPreset,
+  type SpriteFrame,
+} from "./batchTools.ts";
 export { resizeImage, resizeTarget } from "./resize.ts";
 export { cropImage } from "./crop.ts";
 export { compressImage } from "./compress.ts";
@@ -82,3 +126,21 @@ export const IMAGE_EXECUTORS = [
 ] as const;
 
 for (const [id, executor] of IMAGE_EXECUTORS) registerExecutor(id, executor);
+
+/** Every image tool 21-roadmap-expansion.md adds (roadmap §1.4), kept separate from phase 09's. */
+export const IMAGE_EXPANSION_EXECUTORS = [
+  ["color-palette-extractor", colorPaletteExecutor],
+  ["image-to-ascii-art", asciiArtExecutor],
+  ["favicon-set-generator", faviconSetExecutor],
+  ["social-media-preset-resizer", socialResizerExecutor],
+  ["collage-maker", collageExecutor],
+  ["batch-image-renamer", batchRenamerExecutor],
+  ["sprite-sheet-generator", spriteSheetExecutor],
+  ["near-duplicate-image-finder", nearDuplicateExecutor],
+  ["color-blindness-simulator", colorBlindnessExecutor],
+  ["image-vectorizer", vectorizerExecutor],
+  ["photo-map-viewer", photoMapExecutor],
+] as const;
+
+for (const [id, executor] of IMAGE_EXPANSION_EXECUTORS) registerExecutor(id, executor);
+

@@ -7,6 +7,7 @@
 // Cheap on purpose: ~60-90 points, DPR capped at 1.5, one rAF loop that stops when the tab is
 // hidden, nothing at all for visitors who ask for reduced motion.
 import { useEffect, useRef } from "react";
+import { decorationsEnabled } from "@/lib/appearance";
 
 interface Dot {
   x: number;
@@ -23,9 +24,10 @@ export function PointerField() {
     const el = canvas.current;
     const ctx = el?.getContext("2d");
     if (!el || !ctx) return;
-    const reduce =
-      typeof window.matchMedia !== "function" ||
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    // Reduced data (roadmap §6) and a metered/slow connection count the same as reduced motion:
+    // the field stays static rather than animating. `decorationsEnabled` is the one place that
+    // decides, so the success burst below and any future effect agree with it.
+    const reduce = !decorationsEnabled();
 
     let w = 0;
     let h = 0;
@@ -168,6 +170,8 @@ export function PointerField() {
     <canvas
       ref={canvas}
       aria-hidden="true"
+      // `data-decorative` is what reduced-data mode hides in CSS, before any JS runs.
+      data-decorative="true"
       className="pointer-events-none fixed inset-0 z-0 opacity-90"
     />
   );

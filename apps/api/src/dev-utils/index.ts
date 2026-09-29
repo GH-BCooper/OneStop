@@ -11,6 +11,8 @@
 // promotes it from "demo" to "available" and adds the Metadata Remover beside it.
 import { registerExecutor } from "@onestop/tool-registry";
 
+import { colorConverterExecutor } from "./colors.ts";
+import { cronBuilderExecutor } from "./cron.ts";
 import { duplicateFileDetectorExecutor } from "./duplicateDetector.ts";
 import {
   base64DecoderExecutor,
@@ -28,7 +30,16 @@ import {
 import { passwordGeneratorExecutor, uuidGeneratorExecutor } from "./generators.ts";
 import { checksumGeneratorExecutor, hashGeneratorExecutor } from "./hashing.ts";
 import { markdownConverterExecutor, markdownToHtmlExecutor } from "./markdown.ts";
+import { jwtDecoderExecutor } from "./jwt.ts";
 import { regexTesterExecutor } from "./regex.ts";
+import { secretsScannerExecutor } from "./secrets.ts";
+import { textDiffExecutor } from "./textDiff.ts";
+import {
+  caseConverterExecutor,
+  loremIpsumExecutor,
+  readabilityExecutor,
+  unitConverterExecutor,
+} from "./transforms.ts";
 import { timestampConverterExecutor } from "./timestamps.ts";
 import { userAgentViewerExecutor } from "./userAgent.ts";
 import { fileCompressorExecutor, zipCreatorExecutor, zipExtractorExecutor } from "./zip.ts";
@@ -131,6 +142,52 @@ export {
   type DuplicateReport,
 } from "./duplicateDetector.ts";
 export { MIME as DEV_UTIL_MIME, safeStem, type UtilFile } from "./common.ts";
+// 21-roadmap-expansion.md additions.
+export { base64UrlDecode, base64UrlEncode, decodeJwt, type JwtReport, type SignatureState } from "./jwt.ts";
+export {
+  buildPalette,
+  cmykToRgb,
+  contrastRatio as cssContrastRatio,
+  hslToRgb,
+  judgeContrast,
+  luminance,
+  parseColor as parseCssColor,
+  rgbToCmyk,
+  rgbToHex,
+  rgbToHsl,
+  type ContrastVerdict,
+  type PaletteKind,
+  type Rgb as CssRgb,
+} from "./colors.ts";
+export { CRON_MACROS, explainCron, nextRuns, parseCron, type CronSpec } from "./cron.ts";
+export {
+  CASE_STYLES,
+  TEMPERATURE_UNITS,
+  UNITS,
+  analyseReadability,
+  convertCase,
+  convertUnit,
+  countSyllables,
+  fromCelsius,
+  loremParagraph,
+  loremWords,
+  placeholderJson,
+  placeholderSvg,
+  splitWords,
+  toCelsius,
+  type CaseStyle,
+  type Readability,
+} from "./transforms.ts";
+export { diffHtml, readTwoSides, type DiffSide } from "./textDiff.ts";
+export {
+  SECRET_RULES,
+  mask as maskSecret,
+  reportText as secretsReportText,
+  scanText as scanForSecrets,
+  shannonEntropy,
+  type Finding as SecretFinding,
+  type SecretRule,
+} from "./secrets.ts";
 
 /** Every tool this phase owns, in the order the Features list gives them. */
 export const DEV_UTIL_EXECUTORS = [
@@ -162,3 +219,19 @@ export const DEV_UTIL_EXECUTORS = [
 ] as const;
 
 for (const [id, executor] of DEV_UTIL_EXECUTORS) registerExecutor(id, executor);
+
+/** Every utility 21-roadmap-expansion.md adds (roadmap §1.8), kept separate from phase 12's. */
+export const DEV_UTIL_EXPANSION_EXECUTORS = [
+  ["jwt-decoder", jwtDecoderExecutor],
+  ["color-converter", colorConverterExecutor],
+  ["cron-expression-builder", cronBuilderExecutor],
+  ["text-diff-viewer", textDiffExecutor],
+  ["case-converter", caseConverterExecutor],
+  ["unit-converter", unitConverterExecutor],
+  ["lorem-ipsum-generator", loremIpsumExecutor],
+  ["secrets-scanner", secretsScannerExecutor],
+  ["readability-score-checker", readabilityExecutor],
+] as const;
+
+for (const [id, executor] of DEV_UTIL_EXPANSION_EXECUTORS) registerExecutor(id, executor);
+

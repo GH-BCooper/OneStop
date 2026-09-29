@@ -16,6 +16,7 @@ import { Badge, Button, buttonClasses, Card } from "@onestop/ui";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { EmptyState } from "@/components/fx/EmptyState";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { readLocalFavorites } from "@/lib/favorites";
 import {
@@ -64,12 +65,42 @@ function stillAvailable(expiresAt: string): boolean {
 function HistoryEntryCard({
   entry,
   onRemove,
+  canShare = false,
 }: {
   entry: HistoryEntry;
   onRemove: (entry: HistoryEntry) => void;
+  /** Sharing needs an account and a database, so a guest never sees the button. */
+  canShare?: boolean;
 }) {
   const tool = getTool(entry.toolId);
   const downloads = entry.outputs.filter((f) => stillAvailable(f.expiresAt));
+  // A share link (roadmap §2) is created on demand and copied straight to the clipboard: the whole
+  // point is handing someone a file quickly, so there is no dialog in the way.
+  const [shareNote, setShareNote] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const share = async () => {
+    setSharing(true);
+    setShareNote(null);
+    try {
+      const response = await fetch("/api/shares", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jobId: entry.id, title: tool ? `${tool.name} result` : null }),
+      });
+      const body = (await response.json()) as { ok?: boolean; share?: { path: string }; error?: { message?: string } };
+      if (!response.ok || !body.share) {
+        setShareNote(body.error?.message ?? "That link could not be created.");
+        return;
+      }
+      const url = `${window.location.origin}${body.share.path}`;
+      await navigator.clipboard?.writeText(url).catch(() => undefined);
+      setShareNote(`Link copied. It expires on its own, and you can revoke it in Settings.`);
+    } catch {
+      setShareNote("OneStop could not reach the server.");
+    } finally {
+      setSharing(false);
+    }
+  };
   return (
     <Card className="flex flex-col gap-2" data-history-entry={entry.id}>
       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -120,10 +151,20 @@ function HistoryEntryCard({
             Run again
           </Link>
         )}
+        {canShare && downloads.length > 0 && (
+          <Button size="sm" variant="ghost" disabled={sharing} onClick={() => void share()}>
+            Share result
+          </Button>
+        )}
         <Button size="sm" variant="ghost" onClick={() => onRemove(entry)}>
           Remove
         </Button>
       </div>
+      {shareNote && (
+        <p role="status" className="text-xs text-fg-muted">
+          {shareNote}
+        </p>
+      )}
     </Card>
   );
 }
@@ -436,16 +477,20 @@ export function HistoryView({ initial, accountsEnabled }: HistoryViewProps) {
       </div>
 
       {!loading && page.entries.length === 0 ? (
-        <Card className="flex flex-col items-start gap-3 border-dashed">
-          <p className="text-fg-muted">
-            {filtered
-              ? "Nothing matches those filters yet."
-              : "Nothing here yet. Every tool you run is listed on this page."}
-          </p>
-          <Link href="/tools" className={buttonClasses("secondary", "sm")}>
-            Browse the tools
-          </Link>
-        </Card>
+        <EmptyState
+          kind={filtered ? "no-results" : "no-history"}
+          title={filtered ? "Nothing matches those filters" : "Nothing here yet"}
+          description={
+            filtered
+              ? "Widen the date range, or clear the tool filter."
+              : "Every tool you run is listed on this page, with its result files until they expire."
+          }
+          action={
+            <Link href="/tools" className={buttonClasses("secondary", "sm")}>
+              Browse the tools
+            </Link>
+          }
+        />
       ) : (
         <ul className="flex flex-col gap-3" aria-label="Past runs">
           {groupHistoryEntries(page.entries).map((group) =>
@@ -465,6 +510,7 @@ export function HistoryView({ initial, accountsEnabled }: HistoryViewProps) {
                         key={entry.id}
                         entry={entry}
                         onRemove={(e) => void removeEntry(e)}
+                        canShare={signedIn && entry.scope !== "device"}
                       />
                     ))}
                   </div>
@@ -472,7 +518,11 @@ export function HistoryView({ initial, accountsEnabled }: HistoryViewProps) {
               </li>
             ) : (
               <li key={group.key}>
-                <HistoryEntryCard entry={group.entries[0]!} onRemove={(e) => void removeEntry(e)} />
+                <HistoryEntryCard
+                  entry={group.entries[0]!}
+                  onRemove={(e) => void removeEntry(e)}
+                  canShare={signedIn && group.entries[0]!.scope !== "device"}
+                />
               </li>
             ),
           )}

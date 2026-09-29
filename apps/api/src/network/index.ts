@@ -92,5 +92,28 @@ export {
   type SiteInfo,
 } from "./siteInfo.ts";
 export { COUNTRIES, GEOIP_BUILT_ON, type CountryRow } from "./data/countries.ts";
+// 21-roadmap-expansion.md: TLS certificates, security headers, sitemap/robots, MX, weather and the
+// API Request Tester (roadmap §1.8-1.10).
+export {
+  EMAIL_SYNTAX,
+  FORECAST_URL,
+  GEOCODE_URL,
+  apiTesterExecutor,
+  describeCertificate,
+  emailValidatorExecutor,
+  gradeHeaders,
+  headerGraderExecutor,
+  hostMatchesName,
+  parseHeaderLines,
+  parseRobots,
+  parseSitemap,
+  sitemapValidatorExecutor,
+  sslCheckerExecutor,
+  weatherLookupExecutor,
+  type CertificateReport,
+  type HeaderCheck,
+  type RobotsReport,
+  type SitemapReport,
+} from "./httpTools.ts";
 
 for (const [id, executor] of NETWORK_EXECUTORS) registerExecutor(id, executor);

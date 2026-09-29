@@ -33,6 +33,14 @@ OneStop is an all-in-one utility platform combining document conversion, PDF pro
 24. Compare PDFs
 25. Repair PDF
 26. OCR PDF
+27. PDF Redaction
+28. PDF Bookmark Editor
+29. PDF Chapter Splitter
+30. PDF Booklet Layout
+31. PDF Table Extractor
+32. PDF Accessibility Checker
+33. PDF Visual Diff
+34. PDF Form Designer
 
 ## 2 Word / Document Tools
 
@@ -51,6 +59,11 @@ OneStop is an all-in-one utility platform combining document conversion, PDF pro
 13. Text Formatter
 14. Document Summarizer
 15. Document Metadata Viewer/Remover
+16. Track Changes Cleaner
+17. Markdown to Word
+18. Word to Markdown
+19. Citation Formatter
+20. Resume Template Filler
 
 ## 3 Excel / Spreadsheet Tools
 
@@ -74,6 +87,8 @@ OneStop is an all-in-one utility platform combining document conversion, PDF pro
 18. Column/Row Transformer
 19. Spreadsheet Formatter
 20. Data Validator
+21. Pivot Table Builder
+22. Chart Generator
 
 ## 4 Data Conversion Tools
 
@@ -95,6 +110,9 @@ OneStop is an all-in-one utility platform combining document conversion, PDF pro
 16. XML Validator
 17. YAML → JSON
 18. JSON → YAML
+19. Data Diff
+20. JSON Schema Generator
+21. Sample Data Generator
 
 ## 5 PowerPoint Tools
 
@@ -108,6 +126,7 @@ OneStop is an all-in-one utility platform combining document conversion, PDF pro
 8. Extract Slides
 9. Rearrange Slides
 10. Remove Slides
+11. Markdown to Slides
 
 ## 6 Image Tools
 
@@ -149,6 +168,17 @@ OneStop is an all-in-one utility platform combining document conversion, PDF pro
     - Blur Background
 27. Meme Generator
 28. Basic Image Editor
+29. Color Palette Extractor
+30. Image to ASCII Art
+31. Favicon Set Generator
+32. Social Media Preset Resizer
+33. Collage Maker
+34. Batch Image Renamer
+35. Sprite Sheet Generator
+36. Near-Duplicate Image Finder
+37. Color Blindness Simulator
+38. Image Vectorizer
+39. Photo Map Viewer
 
 ## 7 Audio Tools
 
@@ -165,6 +195,11 @@ OneStop is an all-in-one utility platform combining document conversion, PDF pro
 11. Audio Metadata Viewer/Editor
 12. Volume Normalizer
 13. Audio Waveform Generator
+14. Silence Trimmer
+15. Podcast Chapter Marker
+16. Waveform Video Generator
+17. Text to Speech Reader
+18. Auto Subtitle Generator
 
 ## 8 Video Tools
 
@@ -183,6 +218,9 @@ OneStop is an all-in-one utility platform combining document conversion, PDF pro
 13. Subtitle Conversion
 14. Change Video Resolution
 15. Change Video Quality
+16. Video Stabilizer
+17. Video Contact Sheet
+18. Subtitle Burner
 
 ## 9 Online Media Tools
 
@@ -211,6 +249,9 @@ OneStop is an all-in-one utility platform combining document conversion, PDF pro
 13. QR Code Customization
 14. QR Code Analytics
 15. QR Code → Content Page
+16. Barcode Generator
+17. Batch QR Generator
+18. Logo QR Code
 
 A QR code can point to a OneStop-hosted page containing text, images, audio, links, files, or other supported content.
 
@@ -232,6 +273,11 @@ A QR code can point to a OneStop-hosted page containing text, images, audio, lin
 14. AI Image Generator
 15. AI Image Editor
 16. AI Background/Object Removal
+17. AI Flashcard Generator
+18. AI Code Explainer
+19. AI Resume Matcher
+20. AI Alt-Text Generator
+21. AI Meeting Summarizer
 
 ## 12 Developer / Utility Tools
 
@@ -258,6 +304,34 @@ A QR code can point to a OneStop-hosted page containing text, images, audio, lin
 21. File Metadata Viewer
 22. ZIP Creator
 23. ZIP Extractor
+24. JWT Decoder
+25. Color Converter
+26. Cron Expression Builder
+27. Text Diff Viewer
+28. Case Converter
+29. Unit Converter
+30. Lorem Ipsum Generator
+31. API Request Tester
+32. Secrets Scanner
+33. Readability Score Checker
+34. Password Strength Meter
+35. TOTP Code Generator
+36. Diceware Passphrase Generator
+37. File Encryptor
+38. File Decryptor
+39. Breach Check
+40. Loan Calculator
+41. Compound Interest Calculator
+42. Tip Splitter
+43. Currency Converter
+44. Invoice Generator
+45. Flashcard Maker
+46. Typing Speed Test
+47. World Clock Converter
+48. Calendar Event Generator
+49. Countdown Page Generator
+50. Decision Maker
+51. Year in OneStop
 
 ## 13 Network / Information Utilities
 
@@ -270,6 +344,11 @@ A QR code can point to a OneStop-hosted page containing text, images, audio, lin
 7. DNS Lookup
 8. WHOIS Lookup
 9. Website Information Lookup
+10. SSL Certificate Checker
+11. HTTP Security Header Grader
+12. Sitemap and Robots Validator
+13. Email MX Validator
+14. Weather Lookup
 
 Some of these tools naturally require an internet connection.
 

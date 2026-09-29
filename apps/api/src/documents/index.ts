@@ -5,6 +5,15 @@
 import { registerExecutor } from "@onestop/tool-registry";
 
 import {
+  citationFormatterExecutor,
+  markdownToSlidesExecutor,
+  markdownToWordExecutor,
+  resumeFillerExecutor,
+  trackChangesCleanerExecutor,
+  wordToMarkdownExecutor,
+} from "./expansion.ts";
+
+import {
   COMPRESS_DOCUMENTS_TOOL_ID,
   COMPRESS_PRESENTATION_TOOL_ID,
   compressDocumentsExecutor,
@@ -106,3 +115,30 @@ export const DOCUMENT_EXECUTORS = [
 ] as const;
 
 for (const [id, executor] of DOCUMENT_EXECUTORS) registerExecutor(id, executor);
+
+/** Every tool 21-roadmap-expansion.md adds to this category (roadmap §1.2). */
+export {
+  docxToMarkdown,
+  formatReference,
+  parseMarkdownSlides,
+  parseReferences,
+  parseResume,
+  resolveRevisions,
+  resumeMarkdown,
+  type CitationStyle,
+  type ParsedSlide,
+  type Reference,
+  type ResumeData,
+  type RevisionCounts,
+} from "./expansion.ts";
+
+export const DOCUMENT_EXPANSION_EXECUTORS = [
+  ["track-changes-cleaner", trackChangesCleanerExecutor],
+  ["markdown-to-word", markdownToWordExecutor],
+  ["word-to-markdown", wordToMarkdownExecutor],
+  ["citation-formatter", citationFormatterExecutor],
+  ["resume-template-filler", resumeFillerExecutor],
+  ["markdown-to-slides", markdownToSlidesExecutor],
+] as const;
+
+for (const [id, executor] of DOCUMENT_EXPANSION_EXECUTORS) registerExecutor(id, executor);

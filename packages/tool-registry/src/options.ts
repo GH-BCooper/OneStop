@@ -10,10 +10,12 @@
 
 import { AI_LANGUAGES, AI_METHOD_OPTION, AI_RUNTIME_OPTIONS, AI_TOOL_OPTIONS } from "./options-ai";
 import { DATA_TOOL_OPTIONS } from "./options-data";
+import { EXPANSION_TOOL_OPTIONS } from "./options-expansion";
 import { IMAGE_TOOL_OPTIONS } from "./options-images";
 import { MEDIA_TOOL_OPTIONS } from "./options-media";
 import { NETWORK_TOOL_OPTIONS } from "./options-network";
 import { QR_TOOL_OPTIONS } from "./options-qr";
+import { TOOLKIT_TOOL_OPTIONS } from "./options-toolkit";
 import { UTILITY_TOOL_OPTIONS } from "./options-utilities";
 
 export interface ToolOptionBase {
@@ -86,7 +88,7 @@ export interface ImageOption extends ToolOptionBase {
  */
 export interface ClientOption extends ToolOptionBase {
   type: "client";
-  source: "userAgent" | "timeZone" | "locale" | "aiProvider" | "aiKey";
+  source: "userAgent" | "timeZone" | "locale" | "aiProvider" | "aiKey" | "localHistory";
   default: "";
   /** Shown read-only beside the other options; false hides it from the form entirely. */
   visible?: boolean;
@@ -214,10 +216,12 @@ const compressLevel: SelectOption = {
 export const TOOL_OPTIONS: Record<string, ToolOption[]> = {
   ...AI_TOOL_OPTIONS,
   ...DATA_TOOL_OPTIONS,
+  ...EXPANSION_TOOL_OPTIONS,
   ...IMAGE_TOOL_OPTIONS,
   ...MEDIA_TOOL_OPTIONS,
   ...NETWORK_TOOL_OPTIONS,
   ...QR_TOOL_OPTIONS,
+  ...TOOLKIT_TOOL_OPTIONS,
   ...UTILITY_TOOL_OPTIONS,
   "pdf-to-images": [
     {

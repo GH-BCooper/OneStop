@@ -9,7 +9,7 @@ export {
   requirePrisma,
   type PrismaClient,
 } from "./client.ts";
-export { createPrismaJobStore, createResilientJobStore } from "./job-store.ts";
+export { createPrismaJobStore, createResilientJobStore, toJobFromRow } from "./job-store.ts";
 // Test-only helpers (they do nothing unless a test database is configured), exported here so the
 // web app's route tests can reach them through the same package boundary as everything else.
 export {

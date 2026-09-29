@@ -116,9 +116,13 @@ describe("registry", () => {
     }
   });
 
-  it("covers every dev-utility and file-utility tool the registry lists", () => {
+  it("covers every phase-12 dev-utility and file-utility tool the registry lists", () => {
     const registered = new Set<string>(DEV_UTIL_EXECUTORS.map(([id]) => id));
-    const owed = tools.filter((t) => t.category === "dev-utility" || t.category === "file-utility");
+    const owed = tools.filter(
+      // Phase 21 added more tools to these categories; they have their own list and their own
+      // suite, so this one stays about the phase it belongs to.
+      (t) => (t.category === "dev-utility" || t.category === "file-utility") && t.phase === "12",
+    );
     expect(owed.length).toBeGreaterThan(0);
     // Every one of them runs; File Metadata Viewer's executor is phase 04's, not this phase's.
     expect(owed.filter((t) => !hasExecutor(t.id)).map((t) => t.id)).toEqual([]);

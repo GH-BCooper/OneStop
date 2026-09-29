@@ -28,6 +28,7 @@
 | 18  | 18-pwa-offline.md                | Complete             | 2026-09-19   | Installable PWA: manifest + generated icon set, a hand-written service worker (4 caching rules, no new dependency), an `/offline` fallback, and real three-state connectivity (`online` / `limited` / `offline`) verified by two probes rather than `navigator.onLine`. `/status` is now registry-driven - 206 tools, 172 offline, 18 Internet-only, 16 unverified - plus a live panel and a server dependency table. 40 new unit tests and 12 real-browser checks pass; `node scripts/pwa-audit.mjs` reports 26/26 installability checks.                                                                                                                                                                                         |     |
 | 19  | 19-testing.md                    | Complete             | 2026-09-19   | Hardening only, no new tools. One gate: `npm run verify` (lint + typecheck + 1,014 unit/integration/contract checks + the offline-flag check). New tool-contract suite proves all 206 registry entries map to a real, non-stub executor; new offline ledger proves all 172 `offline: true` tools really ran with the network trapped (172/172) and fails the build otherwise; three cross-category workflows added to phase 15's four §8 examples; Google OAuth covered for the first time - which found and fixed a real bug (the Auth.js adapter could not create a Google user); a five-journey E2E suite; GitHub Actions `verify` workflow. The flaky-under-load question is settled (`maxWorkers: "50%"`).                    |
 | 20  | 20-deployment.md                 | Complete (see notes) | 2026-09-19   | Final `README.md`, `docs/LOCAL_SETUP.md` and `docs/DEPLOYMENT.md`; the §26/§27 QA checklist signed off below. Also closed the backlog phase 19 handed over: `document-translator` now runs on phase 16's model runtime (glossary fallback intact), `POST /api/tools/run` has a per-caller rate limit, and the E2E suite runs as one command against one shared server (`npm run test:e2e:shared`). Three of the four manual checklist items are now verified and two of them automated; five real defects were found by doing so. **See notes:** no hosted instance has actually been deployed - that step needs accounts outside this repository; see "Still open after this phase".                                              |     |
+| 21  | 21-roadmap-expansion.md          | Complete             | 2026-09-29   | The roadmap expansion: 79 new tools (206 -> 285), five new categories, the global command palette, theme presets + accessibility/reduced-data modes, shareable result links, personal access tokens, opt-in ntfy push, a shared diff engine, the before/after compare slider, inline-SVG empty states and a bento home. Zero new runtime dependencies. 162 new checks; 229/285 tools offline-verified. |
 
 Status values to use: `Not started` → `In progress` → `Complete`. If a phase is complete but with a known gap, use `Complete (see notes)` and explain in Notes / Known Issues below — never mark something Complete that silently doesn't meet its acceptance criteria.
 
@@ -1010,9 +1011,111 @@ passes, kept separate from this phase-by-phase file per the owner's request); su
   real tradeoff (a serverless host has no persistent process to tick on — automations there run
   opportunistically instead, via a piggy-back check on `/api/notifications`).
 
+## Phase 21 — roadmap expansion (2026-09-29, branch `newVersion`)
+
+`docs/build/21-roadmap-expansion.md` — the first new build file since phase 20, scoping
+`docs/OneStop_Future_Roadmap.md` Part 1 (new tools), Part 2 (platform features), Part 5
+(architecture), Part 6 (security/accessibility) and Part 7 (UI) into something buildable. Owner
+asked for the whole roadmap implemented and tested.
+
+**The catalogue went from 206 tools to 285** (79 new), across 17 categories in 10 catalogue groups;
+229 of the 285 are now proven offline by a trapped-network test, 26 are Internet-required by design.
+
+### New tools, by area
+
+- **PDF (8)** — Redaction (re-renders the touched pages so the text is genuinely gone, not covered),
+  Bookmark Editor (read/replace/build-from-headings), Chapter Splitter, Booklet Layout
+  (saddle-stitch imposition), Table Extractor, PDF/UA Accessibility Checker, Visual Diff (red =
+  removed, green = added), Form Designer.
+- **Word / PowerPoint (6)** — Track Changes Cleaner (OOXML `w:ins`/`w:del` surgery), Markdown ↔ Word,
+  Citation Formatter (APA/MLA/Chicago/Harvard/IEEE/BibTeX), Resume Template Filler,
+  Markdown → Slides.
+- **Data (5)** — Pivot Table Builder, Chart Generator (SVG built as a string; PNG via the `sharp`
+  already installed), Data Diff (key-based or positional), JSON Schema Generator, Sample Data
+  Generator.
+- **Images (11)** — Colour Palette Extractor (deterministic k-means), ASCII Art, Favicon Set
+  Generator (incl. a hand-written `.ico` container), Social Preset Resizer, Collage Maker, Batch
+  Renamer, Sprite Sheet Generator/Splitter, Near-Duplicate Finder (DCT perceptual hash),
+  Colour-Blindness Simulator, Vectorizer, Photo Map Viewer.
+- **Audio / video (8)** — Silence Trimmer, Podcast Chapter Marker (stream-copy, no re-encode),
+  Waveform Video, Video Stabilizer (`vidstab` two-pass), Video Contact Sheet, Subtitle Burner, plus
+  the two optional-binary tools below.
+- **QR / barcodes (3)** — Barcode Generator (Code 128 with subset-C switching, EAN-13/8, UPC-A,
+  Code 39, ITF-14 — all hand-written rather than adding `bwip-js`), Batch QR (CSV mail-merge with an
+  A4 print sheet), Logo QR (decodes its own output and shrinks the logo until it really scans).
+- **AI (5)** — Flashcard Generator (with a genuine no-model cloze fallback), Code Explainer, Resume ↔
+  Job Description Matcher, Alt-Text Generator, Meeting Summarizer (chains whisper.cpp → summary).
+- **Developer / utility (10)** — JWT Decoder, Colour Converter, Cron Builder/Explainer, Text Diff
+  Viewer, Case Converter, Unit Converter, Lorem Ipsum, API Request Tester, Secrets Scanner,
+  Readability Checker.
+- **Network (5)** — SSL Certificate Checker (Node's own `tls`), HTTP Security Header Grader, Sitemap
+  & robots Validator, Email MX Validator, Weather Lookup (Open-Meteo, keyless).
+- **Five new categories (18 tools)** — Security & Privacy (Password Strength Meter, TOTP, Diceware,
+  File Encryptor/Decryptor, Breach Check), Finance & Math (Loan, Compound Interest, Tip Splitter,
+  Currency Converter, Invoice Generator), Education & Reference (Flashcard Maker, Typing Speed
+  Test), Calendar & Time (World Clock, `.ics` Generator, Countdown Page), Fun & Personal (Decision
+  Maker, Year in OneStop).
+
+### Platform, architecture and UI
+
+- **Global command palette** (⌘K / Ctrl+K) over the registry's existing search index — zero new
+  dependencies, grouped Tools / Workflows / History / Go to / Actions, fully keyboard-driven.
+- **Theme presets** — Terminal Green, Paper & Sepia and High Contrast alongside the two originals,
+  generated by the *same* `themeCss()` from palette data. A test asserts every preset clears WCAG AA
+  for body text. Plus dyslexia-friendly spacing, larger text, and a reduced-data mode that turns off
+  the particle field (and does so by itself when the browser reports a metered connection).
+- **Shareable read-only result links** (`/s/<slug>`) — unguessable, optionally passphrase-protected,
+  and clamped so a link can never outlive the temp files it points at.
+- **Personal access tokens** — `Authorization: Bearer osk_…` on `POST /api/tools/run`, for the
+  owner's own scripts. Only a SHA-256 hash is stored; the token is shown once. Checked only when
+  there is no session, so a header can never re-attribute a browser request.
+- **Outbound push via ntfy** (opt-in, Apache-2.0, no account) mirroring the in-app bell to a phone.
+- **Shared diff engine** (`apps/api/src/shared/diff.ts`) now behind Compare PDFs, Data Diff and Text
+  Diff — roadmap §5's "one core, three uses".
+- **Before/after compare slider**, inline-SVG empty/error states, and a bento-grid home whose tiles
+  tilt towards the cursor like the landing page's orbit cards.
+- Prisma migration `20260929120000_access_tokens_shared_results`; a `/workflows/new` PWA shortcut.
+
+### Deliberate choices, logged per CLAUDE.md §9
+
+- **Zero new runtime dependencies.** `sql.js`, `parquet-wasm`, `bwip-js`, `@faker-js/faker`,
+  `zxcvbn`, `potrace` and `cmdk` were all evaluated and all avoided: the barcode encoders, the
+  perceptual hash, the vectorizer (marching squares — the roadmap's own licence-safe fallback for
+  GPL `potrace`), the sample-data generator, the password scorer and the command palette are written
+  here instead. The one idea genuinely dropped is the **SQL Query Runner over CSV/Excel**, which
+  needs `sql.js` to mean anything; it is out of the Features list rather than half-built.
+- **whisper.cpp and Piper are optional local binaries**, detected exactly the way FFmpeg and
+  LibreOffice already are. Missing means a clear, actionable message and a `/status` entry — never a
+  hosted substitute, so audio can never quietly leave the machine.
+- **Vision support is Ollama-only** for the same reason: a hosted vision API would mean uploading
+  the visitor's photo to a third party.
+- **Not marked offline**: the FFmpeg/whisper/Piper tools, the AI tools, and everything
+  Internet-required. Their tests prove they *fail clearly* rather than that they run, which is the
+  honest thing to assert on a machine without those binaries.
+- Generated data is unreachable on purpose — `@example.com`, the reserved `555-01xx` phone range and
+  the RFC 5737 documentation IP block — so the Sample Data Generator can never invent a real person's
+  contact details. A test asserts it.
+
+### Tests
+
+`apps/api/src/expansion.test.ts` (133 checks) and `apps/web/src/test/expansion.test.tsx` (29 checks).
+The unit half targets the parts where "it ran" and "it is right" differ: RFC 6238 against its
+published vectors, the EAN/UPC and Code 128 checksums, the annuity formula, AES-GCM tamper
+detection, the perceptual hash under a JPEG round trip, POSIX cron's day-field OR rule, the OOXML
+revision surgery in both directions, and WCAG contrast against known ratios. The offline half runs
+all 57 phase-21 tools that must never touch the network with `fetch` and `http/https.get/request`
+trapped, and records them in the coverage ledger, which `scripts/check-offline-coverage.mjs`
+reconciles against `VERIFIED_OFFLINE`.
+
+Three pre-existing suites needed updating, all because the catalogue grew rather than because
+anything broke: the registry's hard-coded "non-stub" list became a derived assertion, two
+hard-coded category counts became derived ones, and phase 12's coverage test now scopes itself to
+phase 12 (phase 21's additions to those categories have their own list and their own suite).
+
 ## Next Up
 
-**All 20 phases are complete.** `docs/build/` is finished; there is no next phase file.
+**All 21 phases are complete.** `docs/build/` is finished; there is no next phase file.
+Phase 21 (2026-09-29) took `docs/OneStop_Future_Roadmap.md` and built it — see the entry above.
 
 What a first real feature addition should look at, in the order it would pay off:
 

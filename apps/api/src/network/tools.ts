@@ -36,6 +36,14 @@ import { classifyIp, parseIp } from "./ipAddress.ts";
 import { describeSite, lookupSite } from "./siteInfo.ts";
 import { safeFetch } from "./ssrf.ts";
 import { whois } from "./whois.ts";
+import {
+  apiTesterExecutor,
+  emailValidatorExecutor,
+  headerGraderExecutor,
+  sitemapValidatorExecutor,
+  sslCheckerExecutor,
+  weatherLookupExecutor,
+} from "./httpTools.ts";
 
 /**
  * Third parties are doing OneStop a favour by answering at all, so each tool gets a modest
@@ -528,4 +536,12 @@ export const NETWORK_EXECUTORS = [
   ["dns-lookup", dnsLookupExecutor],
   ["whois-lookup", whoisLookupExecutor],
   ["website-information-lookup", websiteInformationLookupExecutor],
+  // 21-roadmap-expansion.md (roadmap §1.8-1.10). They live in ./httpTools.ts; the list stays here
+  // so there is one place that says what this module registers.
+  ["ssl-certificate-checker", sslCheckerExecutor],
+  ["http-security-header-grader", headerGraderExecutor],
+  ["sitemap-and-robots-validator", sitemapValidatorExecutor],
+  ["email-mx-validator", emailValidatorExecutor],
+  ["weather-lookup", weatherLookupExecutor],
+  ["api-request-tester", apiTesterExecutor],
 ] as const;

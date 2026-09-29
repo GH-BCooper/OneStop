@@ -7,6 +7,17 @@
 import { registerExecutor } from "@onestop/tool-registry";
 
 import {
+  autoSubtitleExecutor,
+  chapterMarkerExecutor,
+  contactSheetExecutor,
+  silenceTrimmerExecutor,
+  subtitleBurnerExecutor,
+  textToSpeechExecutor,
+  videoStabilizerExecutor,
+  waveformVideoExecutor,
+} from "./expansion.ts";
+
+import {
   audioCompressorExecutor,
   audioConverterExecutor,
   audioToAacExecutor,
@@ -112,3 +123,43 @@ if (process.env.NODE_ENV !== "test" && !ffmpegStatus().available) {
     "[media] FFmpeg was not found on PATH. The audio and video tools will report that it is required until it is installed (macOS: brew install ffmpeg · Ubuntu/Debian: sudo apt install ffmpeg · Windows: winget install Gyan.FFmpeg), or set FFMPEG_PATH.",
   );
 }
+
+/** The optional local speech engines and the tools 21-roadmap-expansion.md adds (roadmap §1.5). */
+export {
+  PIPER_MISSING_MESSAGE,
+  WHISPER_MISSING_MESSAGE,
+  findSpeech,
+  setSpeechLocator,
+  speechStatus,
+  speechVersion,
+  type SpeechKind,
+  type SpeechStatus,
+} from "./speechCheck.ts";
+export {
+  WAVEFORM_STYLES,
+  WHISPER_LANGUAGES,
+  assColor,
+  chaptersToFfmetadata,
+  chunkForSpeech,
+  cuesToSrt,
+  cuesToVtt,
+  parseChapterList,
+  parseSilenceDetect,
+  parseSrt,
+  type Chapter,
+  type SilenceRange,
+  type TranscriptCue,
+} from "./expansion.ts";
+
+export const MEDIA_EXPANSION_EXECUTORS = [
+  ["silence-trimmer", silenceTrimmerExecutor],
+  ["podcast-chapter-marker", chapterMarkerExecutor],
+  ["waveform-video-generator", waveformVideoExecutor],
+  ["text-to-speech-reader", textToSpeechExecutor],
+  ["auto-subtitle-generator", autoSubtitleExecutor],
+  ["video-stabilizer", videoStabilizerExecutor],
+  ["video-contact-sheet", contactSheetExecutor],
+  ["subtitle-burner", subtitleBurnerExecutor],
+] as const;
+
+for (const [id, executor] of MEDIA_EXPANSION_EXECUTORS) registerExecutor(id, executor);

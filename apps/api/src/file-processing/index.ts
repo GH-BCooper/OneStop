@@ -57,3 +57,6 @@ export type {
 export { fileMetadataExecutor } from "./executors/file-metadata.ts";
 
 registerExecutor(FILE_METADATA_TOOL_ID, fileMetadataExecutor);
+
+// Shareable read-only result links (21-roadmap-expansion.md, roadmap §2).
+export * from "./sharedResults.ts";

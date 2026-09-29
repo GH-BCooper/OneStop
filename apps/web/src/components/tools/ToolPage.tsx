@@ -21,7 +21,7 @@ import {
 } from "@onestop/types";
 import { Button, Card } from "@onestop/ui";
 import { useSession } from "next-auth/react";
-import { useCallback, useEffect, useId, useReducer, useState } from "react";
+import { useCallback, useEffect, useId, useReducer, useRef, useState } from "react";
 import { FavoriteButton } from "./FavoriteButton";
 import { recordLocalRun } from "@/lib/localHistory";
 import { readLocalPreferences } from "@/lib/preferences";
@@ -104,7 +104,20 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
   // The real File objects, kept beside the reducer's metadata so they can be uploaded.
   const [files, setFiles] = useState<File[]>([]);
   const [progressToken, setProgressToken] = useState<string | null>(null);
+  // A blob URL for the single image that was uploaded, so the result can be shown as a before/after
+  // slider (roadmap §7.5). It is revoked as soon as the selection changes, so nothing leaks.
+  const [beforeImageUrl, setBeforeImageUrl] = useState<string | null>(null);
   const progress = useProgressPolling(progressToken, state.status === "processing");
+  // One cleanup on unmount. It reads the latest url through a ref so the effect never re-runs:
+  // `selectFiles` already revokes the previous url whenever the selection changes.
+  const beforeUrlRef = useRef<string | null>(null);
+  beforeUrlRef.current = beforeImageUrl;
+  useEffect(
+    () => () => {
+      if (beforeUrlRef.current) URL.revokeObjectURL(beforeUrlRef.current);
+    },
+    [],
+  );
   const [text, setText] = useState(state.input?.kind === "text" ? state.input.value : "");
   const toolOptions = getToolOptions(tool.id);
   const [optionValues, setOptionValues] = useState<OptionValues>(() =>
@@ -140,6 +153,12 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
   const selectFiles = (picked: File[]) => {
     setFiles(picked);
     setText("");
+    // One image in means a before/after comparison is possible; anything else clears it.
+    setBeforeImageUrl((previous) => {
+      if (previous) URL.revokeObjectURL(previous);
+      const only = picked.length === 1 ? picked[0]! : null;
+      return only && only.type.startsWith("image/") ? URL.createObjectURL(only) : null;
+    });
     if (picked.length === 0) dispatch({ type: "CLEAR" });
     else dispatch({ type: "SELECT", input: { kind: "files", files: toFileRefs(picked) } });
   };
@@ -409,6 +428,7 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
         progress={progress}
         onReset={() => dispatch({ type: "RESET" })}
         onDownload={download}
+        beforeImageUrl={beforeImageUrl}
       />
     </div>
   );

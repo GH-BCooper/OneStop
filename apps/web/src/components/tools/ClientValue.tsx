@@ -9,6 +9,7 @@
 import { useEffect, useRef } from "react";
 import type { ClientOption } from "@onestop/tool-registry";
 import { activeAiProvider, readAiKey } from "@/lib/preferences";
+import { readLocalHistory } from "@/lib/localHistory";
 
 export function readClientValue(source: ClientOption["source"]): string {
   if (typeof window === "undefined") return "";
@@ -21,6 +22,9 @@ export function readClientValue(source: ClientOption["source"]): string {
     // Only when the visitor uses their own provider: OneStop's own service needs neither.
     if (source === "aiProvider") return activeAiProvider() ?? "";
     if (source === "aiKey") return activeAiProvider() ? readAiKey(activeAiProvider()) : "";
+    // "localHistory" is read asynchronously out of IndexedDB below; there is nothing synchronous
+    // to return for it.
+    if (source === "localHistory") return "";
     return navigator.language ?? "";
   } catch {
     return "";
@@ -41,8 +45,26 @@ export function ClientValue({ id, option, value, onChange }: ClientValueProps) {
   latest.current = { value, onChange };
 
   useEffect(() => {
+    if (option.source === "localHistory") {
+      // A guest's own history lives in IndexedDB, so "Year in OneStop" gets it from here rather
+      // than from Postgres. Only the two fields the wrap-up needs are handed over.
+      let live = true;
+      void readLocalHistory()
+        .then((entries) => {
+          if (!live) return;
+          const trimmed = JSON.stringify(
+            entries.map((e) => ({ toolId: e.toolId, createdAt: e.createdAt, status: e.status })),
+          );
+          if (trimmed !== latest.current.value) latest.current.onChange(trimmed);
+        })
+        .catch(() => undefined);
+      return () => {
+        live = false;
+      };
+    }
     const detected = readClientValue(option.source);
     if (detected !== "" && detected !== latest.current.value) latest.current.onChange(detected);
+    return undefined;
   }, [option.source]);
 
   if (option.visible === false) return null;

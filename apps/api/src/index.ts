@@ -38,3 +38,6 @@ export * from "./online-media/index.ts";
 export * from "./network/index.ts";
 // Scheduled workflow automations and notifications (post-V1 automation pass; see /versionTwo.md).
 export * from "./automation/index.ts";
+// The five toolkit categories from the roadmap expansion: Security & Privacy, Finance & Math,
+// Education & Reference, Calendar & Time and Fun & Personal (21-roadmap-expansion.md).
+export * from "./toolkit/index.ts";

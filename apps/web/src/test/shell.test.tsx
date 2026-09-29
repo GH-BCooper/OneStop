@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { GROUPS } from "@onestop/tool-registry";
 import { THEME_STORAGE_KEY, themeCss, themeInitScript } from "@onestop/ui";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { computeAccessibleName } from "dom-accessibility-api";
@@ -156,7 +157,8 @@ describe("home page", () => {
       const categoryLinks = screen
         .getAllByRole("link")
         .filter((l) => /^\/tools\/[^/]+$/.test(l.getAttribute("href") ?? ""));
-      expect(categoryLinks).toHaveLength(8);
+      // One link per catalogue group, whatever that number is today (phase 21 added two groups).
+    expect(categoryLinks).toHaveLength(GROUPS.length);
     },
   );
 
@@ -176,7 +178,8 @@ describe("home page", () => {
     const categoryLinks = screen
       .getAllByRole("link")
       .filter((l) => /^\/tools\/[^/]+$/.test(l.getAttribute("href") ?? ""));
-    expect(categoryLinks).toHaveLength(8);
+    // One link per catalogue group, whatever that number is today (phase 21 added two groups).
+    expect(categoryLinks).toHaveLength(GROUPS.length);
   });
 
   it("Dashboard falls back to a plain greeting with no name", () => {

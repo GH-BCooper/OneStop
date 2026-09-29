@@ -30,7 +30,8 @@ function asMetadata(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function toJob(row: JobRow): Job {
+/** A stored job row as the app's `Job` type. Exported so the shared-result page can read one. */
+export function toJobFromRow(row: JobRow): Job {
   return {
     id: row.id,
     userId: row.userId,
@@ -57,12 +58,12 @@ export function createPrismaJobStore(prisma: PrismaClient): JobStore {
           inputMetadata: (input.inputMetadata ?? {}) as never,
         },
       });
-      return toJob(row as JobRow);
+      return toJobFromRow(row as JobRow);
     },
 
     async get(id: string) {
       const row = await prisma.job.findUnique({ where: { id } });
-      return row ? toJob(row as JobRow) : undefined;
+      return row ? toJobFromRow(row as JobRow) : undefined;
     },
 
     async update(id: string, patch: UpdateJobInput) {
@@ -82,7 +83,7 @@ export function createPrismaJobStore(prisma: PrismaClient): JobStore {
             : {}),
         },
       });
-      return toJob(row as JobRow);
+      return toJobFromRow(row as JobRow);
     },
 
     async list(filter: ListJobsFilter = {}) {
@@ -95,7 +96,7 @@ export function createPrismaJobStore(prisma: PrismaClient): JobStore {
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         ...(filter.limit !== undefined ? { take: filter.limit } : {}),
       });
-      return (rows as JobRow[]).map(toJob);
+      return (rows as JobRow[]).map(toJobFromRow);
     },
 
     async delete(id: string) {

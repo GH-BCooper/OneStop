@@ -41,6 +41,17 @@ import {
 import { PDF_TO_PDFA_TOOL_ID, pdfToPdfAExecutor } from "./toPdfA.ts";
 import { UNPROTECT_PDF_TOOL_ID, unprotectPdfExecutor } from "./unprotect.ts";
 
+import {
+  accessibilityCheckerExecutor,
+  bookletExecutor,
+  bookmarkEditorExecutor,
+  chapterSplitterExecutor,
+  formDesignerExecutor,
+  redactionExecutor,
+  tableExtractorExecutor,
+  visualDiffExecutor,
+} from "./expansion.ts";
+
 export * from "./document.ts";
 export * from "./errors.ts";
 export * from "./render.ts";
@@ -113,3 +124,32 @@ export const PDF_ADVANCED_EXECUTORS = [
 ] as const;
 
 for (const [id, executor] of PDF_ADVANCED_EXECUTORS) registerExecutor(id, executor);
+
+/** Every tool 21-roadmap-expansion.md adds to this category (roadmap §1.1). */
+export {
+  bookletOrder,
+  checkPdfUa,
+  flattenOutline,
+  parseBookmarkList,
+  parseFieldSpecs,
+  parseRedactionBoxes,
+  readOutline,
+  writeOutline,
+  type AccessibilityReport,
+  type Bookmark,
+  type FieldSpec,
+  type RedactionBox,
+} from "./expansion.ts";
+
+export const PDF_EXPANSION_EXECUTORS = [
+  ["pdf-redaction", redactionExecutor],
+  ["pdf-bookmark-editor", bookmarkEditorExecutor],
+  ["pdf-chapter-splitter", chapterSplitterExecutor],
+  ["pdf-booklet-layout", bookletExecutor],
+  ["pdf-table-extractor", tableExtractorExecutor],
+  ["pdf-accessibility-checker", accessibilityCheckerExecutor],
+  ["pdf-visual-diff", visualDiffExecutor],
+  ["pdf-form-designer", formDesignerExecutor],
+] as const;
+
+for (const [id, executor] of PDF_EXPANSION_EXECUTORS) registerExecutor(id, executor);

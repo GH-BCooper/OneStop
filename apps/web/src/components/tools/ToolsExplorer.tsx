@@ -11,7 +11,10 @@ import {
   type SortKey,
   type ToolTag,
 } from "@onestop/tool-registry";
+import { buttonClasses } from "@onestop/ui";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { EmptyState } from "@/components/fx/EmptyState";
 import { useMemo, useState } from "react";
 import { useFavorites } from "@/lib/use-favorites";
 import { useUsage } from "@/lib/use-usage";
@@ -204,9 +207,16 @@ export function ToolsExplorer({ initial }: { initial: ExplorerParams }) {
       </p>
 
       {results.length === 0 ? (
-        <p className="rounded-lg border border-dashed border-border p-6 text-center text-fg-muted">
-          No tools match. Try different words, or ask the AI Assistant.
-        </p>
+        <EmptyState
+          kind="no-results"
+          title="No tools match"
+          description="Try different words — a file type (“pdf”), a verb (“compress”) or what you want at the end (“smaller photo”). The AI Assistant can also work it out from a sentence."
+          action={
+            <Link href="/assistant" className={buttonClasses("secondary", "sm")}>
+              Ask the AI Assistant
+            </Link>
+          }
+        />
       ) : (
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Tools">
           {results.map((t) => (

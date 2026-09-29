@@ -45,7 +45,8 @@ describe("search relevance (more)", () => {
 describe("filters and sorting", () => {
   it("filters by registry category and by catalogue group", () => {
     const pdf = searchTools(tools, { category: "pdf" });
-    expect(pdf.length).toBe(26);
+    expect(pdf.length).toBe(tools.filter((t) => t.category === "pdf").length);
+    expect(pdf.length).toBeGreaterThanOrEqual(26);
     expect(pdf.every((t) => t.category === "pdf")).toBe(true);
     const media = searchTools(tools, { category: "media" });
     expect(new Set(media.map((t) => t.category))).toEqual(
@@ -55,7 +56,10 @@ describe("filters and sorting", () => {
 
   it("filters by subcategory", () => {
     const ppt = searchTools(tools, { category: "documents", subcategory: "PowerPoint" });
-    expect(ppt.length).toBe(9);
+    expect(ppt.map((t) => t.subcategory)).toEqual(ppt.map(() => "PowerPoint"));
+    expect(ppt.length).toBe(
+      tools.filter((t) => t.category === "documents" && t.subcategory === "PowerPoint").length,
+    );
   });
 
   it("filters by tags", () => {

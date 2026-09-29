@@ -8,6 +8,7 @@ import {
   getAiStatus,
   isDatabaseConfigured,
   mmdbStatus,
+  speechStatus,
   ytdlpStatus,
 } from "@onestop/api";
 
@@ -28,6 +29,10 @@ export async function platformRows(): Promise<PlatformRow[]> {
   const ffmpeg = ffmpegStatus();
   const ytdlp = ytdlpStatus();
   const mmdb = mmdbStatus();
+  // The two optional local speech engines (21-roadmap-expansion.md). Reported here for the same
+  // reason FFmpeg is: the tools that need them say so, and this page says where to get them.
+  const whisper = speechStatus("whisper");
+  const piper = speechStatus("piper");
 
   let ai: Awaited<ReturnType<typeof getAiStatus>> | null = null;
   try {
@@ -55,6 +60,24 @@ export async function platformRows(): Promise<PlatformRow[]> {
         ? `Local binary at ${ytdlp.path ?? "the system path"}.`
         : "Install yt-dlp and restart OneStop, or set YTDLP_PATH.",
       affects: "Online media downloads — these also need the Internet.",
+    },
+    {
+      name: "whisper.cpp",
+      state: whisper.installed && whisper.model ? "ok" : "missing",
+      value: whisper.installed ? (whisper.modelName ?? "no model") : "not found",
+      detail:
+        whisper.message ??
+        `Local binary at ${whisper.path ?? "the system path"}, model ${whisper.modelName}. Speech never leaves this machine.`,
+      affects: "Auto-Subtitle Generator and the Meeting Summarizer's transcription step.",
+    },
+    {
+      name: "Piper",
+      state: piper.installed && piper.model ? "ok" : "missing",
+      value: piper.installed ? (piper.modelName ?? "no voice") : "not found",
+      detail:
+        piper.message ??
+        `Local binary at ${piper.path ?? "the system path"}, voice ${piper.modelName}. Nothing is sent anywhere.`,
+      affects: "Text-to-Speech Reader.",
     },
     {
       name: "IP geolocation data",

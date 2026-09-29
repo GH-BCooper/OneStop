@@ -90,7 +90,16 @@ describe("manifest and icons (installability)", () => {
   });
 
   it("only links shortcuts that are real routes", () => {
-    const known = new Set(["/tools", "/assistant", "/status", ...tools.map((t) => toolHref(t))]);
+    // The app's own pages a shortcut may point at, plus every tool route.
+    const known = new Set([
+      "/tools",
+      "/assistant",
+      "/status",
+      "/workflows",
+      "/workflows/new",
+      "/history",
+      ...tools.map((t) => toolHref(t)),
+    ]);
     for (const shortcut of manifest.shortcuts ?? []) {
       expect(known, shortcut.url).toContain(shortcut.url.split("?")[0]);
     }

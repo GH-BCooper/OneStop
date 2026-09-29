@@ -74,6 +74,22 @@ export async function pushNotification(
       where: { id: { in: (stale as { id: string }[]).map((r) => r.id) } },
     });
   }
+  // Mirror it to the user's phone when they opted in (21-roadmap-expansion.md, roadmap §2). Purely
+  // additive and deliberately not awaited for its result: the bell is already written, and a phone
+  // being unreachable must never make a finished job look like a failed one.
+  const { mirrorToPush } = await import("./outbound.ts");
+  await mirrorToPush(
+    userId,
+    {
+      title: input.title,
+      body: input.body ?? null,
+      link: input.link ?? null,
+      type: input.type,
+      tags: input.type === "automation_failed" ? ["warning"] : ["onestop"],
+      priority: input.type === "automation_failed" ? "high" : "default",
+    },
+    prisma,
+  ).catch(() => undefined);
 }
 
 export async function markNotificationRead(

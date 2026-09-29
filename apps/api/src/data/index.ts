@@ -4,6 +4,10 @@
 // pattern: the registry never imports these files, they register themselves.
 import { registerExecutor } from "@onestop/tool-registry";
 
+import { chartGeneratorExecutor } from "./chart.ts";
+import { dataDiffExecutor, jsonSchemaExecutor, sampleDataExecutor } from "./dataDiff.ts";
+import { pivotTableExecutor } from "./pivot.ts";
+
 import {
   duplicateRowRemoverExecutor,
   emptyRowColumnRemoverExecutor,
@@ -48,6 +52,32 @@ export { validateJson, validateTable, validateXml } from "./validate.ts";
 export { chunkTable, groupTable, stackTables } from "./spreadsheet.ts";
 
 /** Every tool this phase owns, in the order the build file lists them. */
+export { AGGREGATIONS, aggregate, buildPivot, findColumn, pivotTableExecutor, type Aggregation } from "./pivot.ts";
+export {
+  CHART_TYPES,
+  SERIES_COLORS,
+  chartGeneratorExecutor,
+  readSeries,
+  renderChartSvg,
+  type ChartOptions,
+  type ChartPoint,
+  type ChartType,
+} from "./chart.ts";
+export {
+  FIELD_TYPES,
+  dataDiffExecutor,
+  diffTables,
+  diffToCsv,
+  generateField,
+  inferSchema,
+  jsonSchemaExecutor,
+  parseFieldSpec,
+  sampleDataExecutor,
+  type DataDiffReport,
+  type FieldType,
+  type RowDiff,
+} from "./dataDiff.ts";
+
 export const DATA_EXECUTORS = [
   ["excel-to-pdf", excelToPdfExecutor],
   ["excel-to-word", excelToWordExecutor],
@@ -82,3 +112,15 @@ export const DATA_EXECUTORS = [
 ] as const;
 
 for (const [id, executor] of DATA_EXECUTORS) registerExecutor(id, executor);
+
+/** Every data tool 21-roadmap-expansion.md adds (roadmap §1.3), kept separate from phase 08's. */
+export const DATA_EXPANSION_EXECUTORS = [
+  ["pivot-table-builder", pivotTableExecutor],
+  ["chart-generator", chartGeneratorExecutor],
+  ["data-diff", dataDiffExecutor],
+  ["json-schema-generator", jsonSchemaExecutor],
+  ["sample-data-generator", sampleDataExecutor],
+] as const;
+
+for (const [id, executor] of DATA_EXPANSION_EXECUTORS) registerExecutor(id, executor);
+

@@ -6,6 +6,14 @@
 import { registerExecutor, type Executor } from "@onestop/tool-registry";
 
 import {
+  aiAltTextExecutor,
+  aiCodeExplainerExecutor,
+  aiFlashcardExecutor,
+  aiMeetingSummarizerExecutor,
+  aiResumeMatcherExecutor,
+} from "./expansion.ts";
+
+import {
   AI_DOCUMENT_ANALYZER_TOOL_ID,
   AI_OCR_TOOL_ID,
   AI_PDF_SUMMARIZER_TOOL_ID,
@@ -101,3 +109,26 @@ registerImageRuntime();
 // Phase 07's Document Translator picks this up through `getTextModelRuntime()`. With no runtime
 // reachable it falls back to the built-in glossary, exactly as it did before phase 16.
 registerTextRuntime();
+
+/** Every tool 21-roadmap-expansion.md adds to this category (roadmap §1.7), plus vision (§3.4). */
+export {
+  clozeCards,
+  compareKeywords,
+  guessLanguage,
+  keywordSet,
+  parseFlashcardAnswer,
+  transcriptToProse,
+  type Flashcard as AiFlashcard,
+  type MatchReport,
+} from "./expansion.ts";
+export { VISION_MISSING_MESSAGE, describeImage, visionConfigured, visionModel } from "./vision.ts";
+
+export const AI_EXPANSION_EXECUTORS = [
+  ["ai-flashcard-generator", aiFlashcardExecutor],
+  ["ai-code-explainer", aiCodeExplainerExecutor],
+  ["ai-resume-matcher", aiResumeMatcherExecutor],
+  ["ai-alt-text-generator", aiAltTextExecutor],
+  ["ai-meeting-summarizer", aiMeetingSummarizerExecutor],
+] as const;
+
+for (const [id, executor] of AI_EXPANSION_EXECUTORS) registerExecutor(id, executor);

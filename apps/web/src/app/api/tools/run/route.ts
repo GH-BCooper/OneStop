@@ -9,10 +9,13 @@
 // Validation happens server-side; the client's checks are only there to fail fast and politely.
 import {
   consumeRate,
+  getPrisma,
   loadFileCoreConfig,
   RUN_RATE_LIMIT,
   runPipeline,
+  tokenFromHeaders,
   UnknownToolError,
+  verifyAccessToken,
 } from "@onestop/api";
 import { ERROR_MESSAGES } from "@onestop/types";
 import { NextResponse } from "next/server";
@@ -128,7 +131,26 @@ export async function POST(request: Request): Promise<Response> {
   try {
     // Signed in: the job (and anything a tool stores) is attributed to the user. Guest: null,
     // and every public tool still runs - auth is never required to use one (master plan 9).
-    const userId = await currentUserId();
+    //
+    // A personal access token is the third way in (21-roadmap-expansion.md, roadmap §2): the
+    // owner's own script, acting as the owner. It is checked only when there is no session, so a
+    // browser request can never be silently re-attributed by a header someone injected, and it
+    // grants nothing beyond what the owner already has - same registry, same validation, same
+    // rate limit, which was already counted above.
+    let userId = await currentUserId();
+    if (!userId) {
+      const presented = tokenFromHeaders(request.headers);
+      const prisma = presented ? getPrisma() : null;
+      if (presented && prisma) {
+        const identity = await verifyAccessToken(presented, prisma).catch(() => null);
+        if (!identity) {
+          return problem(401, "AUTH_REQUIRED", "That access token is not valid, or has been revoked.");
+        }
+        userId = identity.userId;
+      } else if (presented) {
+        return problem(503, "DATABASE_UNAVAILABLE", "Access tokens need a database, and none is configured here.");
+      }
+    }
     const outcome = await runPipeline(
       { toolId, userId, files, text, options, clientIp: clientIpOf(request), progressToken },
       { config },

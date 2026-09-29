@@ -2,6 +2,7 @@
 // Importing this module validates every entry; an invalid registry throws at build/start time.
 import { aiTools } from "./entries/ai";
 import { dataTools } from "./entries/data";
+import { EXPANSION_TOOLS } from "./entries/expansion";
 import { documentTools } from "./entries/documents";
 import { imageTools } from "./entries/images";
 import { audioTools, onlineMediaTools, videoTools } from "./entries/media";
@@ -50,6 +51,8 @@ export const tools: readonly ToolMeta[] = loadRegistry(
     ...devTools,
     ...networkTools,
     ...fileUtilityTools,
+    // 21-roadmap-expansion.md — the tools taken from docs/OneStop_Future_Roadmap.md Part 1.
+    ...EXPANSION_TOOLS,
   ],
   PLATFORM_FEATURES,
 );
