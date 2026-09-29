@@ -16,6 +16,7 @@ import os from "node:os";
 import path from "node:path";
 import { chromium, type Browser, type Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { guestBaseUrl, guestServerEnv, guestServerIsShared } from "./guest.ts";
 import { readZip } from "../../apps/api/src/dev-utils/zip.ts";
 
 const root = path.resolve(import.meta.dirname, "../..");
@@ -25,7 +26,7 @@ let server: ChildProcess | undefined;
 let browser: Browser;
 let workDir: string;
 
-const baseUrl = () => process.env.E2E_BASE_URL ?? `http://127.0.0.1:${port}`;
+const baseUrl = () => guestBaseUrl(`http://127.0.0.1:${port}`);
 
 async function waitForServer(url: string, timeoutMs = 60_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -56,7 +57,7 @@ async function launchBrowser(): Promise<Browser> {
 
 beforeAll(async () => {
   workDir = await fs.mkdtemp(path.join(os.tmpdir(), "onestop-e2e-devutils-"));
-  if (!process.env.E2E_BASE_URL) {
+  if (!guestServerIsShared()) {
     if (!existsSync(path.join(root, "apps/web/.next/BUILD_ID"))) {
       throw new Error("Run `npm run build` before `npm run test:e2e`.");
     }
@@ -70,7 +71,7 @@ beforeAll(async () => {
         "-H",
         "127.0.0.1",
       ],
-      { cwd: path.join(root, "apps/web"), stdio: "ignore" },
+      { cwd: path.join(root, "apps/web"), stdio: "ignore", env: guestServerEnv() },
     );
   }
   await waitForServer(baseUrl());
@@ -153,7 +154,9 @@ describe("developer & file utilities in a real browser", () => {
     await page.goto(`${baseUrl()}/tools/dev-utility/user-agent-viewer`);
     const shown = page.getByTestId("client-option-userAgent");
     await shown.waitFor({ timeout: 30_000 });
-    expect(await shown.textContent()).toMatch(/Mozilla\/5\.0/);
+    // The element is in the server-rendered HTML with a placeholder; the browser's own value
+    // arrives once the page has hydrated, which on a busy machine is not instant.
+    await expect.poll(() => shown.textContent(), { timeout: 30_000 }).toMatch(/Mozilla\/5\.0/);
     const text = await runInBrowser(page, /^Run User-Agent Viewer$/);
     // Chrome or Edge, recognised from the string the page supplied — the server was told nothing.
     expect(text).toMatch(/Chrome|Microsoft Edge/);

@@ -11,6 +11,7 @@ import path from "node:path";
 import { PDFDocument } from "@cantoo/pdf-lib";
 import { chromium, type Browser, type Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { guestBaseUrl, guestServerEnv, guestServerIsShared } from "./guest.ts";
 
 const root = path.resolve(import.meta.dirname, "../..");
 const port = Number(process.env.E2E_FILE_PORT ?? 3108);
@@ -23,7 +24,7 @@ let browser: Browser;
 let workDir: string;
 
 function baseUrl(): string {
-  return process.env.E2E_BASE_URL ?? `http://127.0.0.1:${port}`;
+  return guestBaseUrl(`http://127.0.0.1:${port}`);
 }
 
 async function waitForServer(url: string, timeoutMs = 60_000): Promise<void> {
@@ -57,7 +58,7 @@ async function launchBrowser(): Promise<Browser> {
 
 beforeAll(async () => {
   workDir = await fs.mkdtemp(path.join(os.tmpdir(), "onestop-e2e-files-"));
-  if (!process.env.E2E_BASE_URL) {
+  if (!guestServerIsShared()) {
     if (!existsSync(path.join(root, "apps/web/.next/BUILD_ID"))) {
       throw new Error("Run `npm run build` before `npm run test:e2e`.");
     }
@@ -71,7 +72,7 @@ beforeAll(async () => {
         "-H",
         "127.0.0.1",
       ],
-      { cwd: path.join(root, "apps/web"), stdio: "ignore" },
+      { cwd: path.join(root, "apps/web"), stdio: "ignore", env: guestServerEnv() },
     );
   }
   await waitForServer(baseUrl());

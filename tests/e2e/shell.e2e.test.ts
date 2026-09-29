@@ -8,6 +8,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { chromium, type Browser, type Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { guestBaseUrl, guestServerEnv, guestServerIsShared } from "./guest.ts";
 
 const root = path.resolve(import.meta.dirname, "../..");
 const port = Number(process.env.E2E_PORT ?? 3107);
@@ -68,7 +69,7 @@ async function launchBrowser(): Promise<Browser> {
 }
 
 beforeAll(async () => {
-  if (!process.env.E2E_BASE_URL) {
+  if (!guestServerIsShared()) {
     if (!existsSync(path.join(root, "apps/web/.next/BUILD_ID"))) {
       throw new Error("Run `npm run build` before `npm run test:e2e`.");
     }
@@ -82,7 +83,7 @@ beforeAll(async () => {
         "-H",
         "127.0.0.1",
       ],
-      { cwd: path.join(root, "apps/web"), stdio: "ignore" },
+      { cwd: path.join(root, "apps/web"), stdio: "ignore", env: guestServerEnv() },
     );
   }
   await waitForServer(baseUrl());
@@ -95,7 +96,7 @@ afterAll(async () => {
 });
 
 function baseUrl(): string {
-  return process.env.E2E_BASE_URL ?? base;
+  return guestBaseUrl(base);
 }
 
 async function newPage(width: number): Promise<Page> {
@@ -155,7 +156,8 @@ describe.each(widths)("layout at %ipx", (width) => {
     const menu = page.getByRole("button", { name: "Open menu" });
     if (await menu.isVisible()) await menu.click();
     const nav = page.getByRole("navigation", { name: width >= 1024 ? "Primary" : "Mobile" });
-    await expect(nav.getByRole("link").count()).resolves.toBe(6);
+    // AI Assistant, All Tools, Workflows, History. "Home" is not a nav link: the logo goes there.
+    await expect(nav.getByRole("link").count()).resolves.toBe(4);
     await page.context().close();
   });
 });
@@ -202,9 +204,11 @@ describe("behaviour", () => {
   it('"Ask OneStop AI" navigates to /assistant', async () => {
     const page = await newPage(375);
     await page.goto(baseUrl() + "/");
-    await page.getByRole("link", { name: "Ask OneStop AI" }).click();
+    // "Ask OneStop AI" is the submit button of the home search box: an empty box just opens the
+    // assistant, and a message in it is handed over to start work straight away.
+    await page.getByRole("button", { name: "Ask OneStop AI" }).click();
     await page.waitForURL("**/assistant");
-    await expect(page.locator("h1").textContent()).resolves.toBe("AI Assistant");
+    await page.getByTestId("assistant").waitFor({ timeout: 30_000 });
     await page.context().close();
   });
 });

@@ -26,6 +26,8 @@ import {
   urlForSchema,
 } from "../../apps/api/src/db/testing.ts";
 import type { PrismaClient } from "../../apps/api/src/db/client.ts";
+import { seedUser, signInAs } from "./accounts.ts";
+import { ensureGuestServer } from "./guest.ts";
 
 const root = path.resolve(import.meta.dirname, "../..");
 const port = Number(process.env.E2E_WORKFLOWS_PORT ?? 3116);
@@ -36,10 +38,13 @@ const SCHEMA = process.env.E2E_SCHEMA ?? "test_workflows_e2e";
 const OWNS_SCHEMA = !process.env.E2E_SCHEMA;
 
 let server: ChildProcess | undefined;
+let guest: { url: string; stop: () => void } | undefined;
 let browser: Browser;
 let prisma: PrismaClient | undefined;
 
 const baseUrl = () => process.env.E2E_BASE_URL ?? `http://127.0.0.1:${port}`;
+/** The server with no accounts: the only place a guest can build and run a workflow. */
+const guestUrl = () => guest!.url;
 const hasDb = hasTestDatabase();
 
 async function waitForServer(url: string, timeoutMs = 60_000): Promise<void> {
@@ -146,7 +151,8 @@ describe("workflows in a real browser", () => {
         stdio: ["ignore", "ignore", "ignore"],
         env: {
           ...process.env,
-          ...(hasDb ? { DATABASE_URL: urlForSchema(testDatabaseUrl() as string, SCHEMA) } : {}),
+          // Never fall through to whatever database `.env` points at.
+          DATABASE_URL: hasDb ? urlForSchema(testDatabaseUrl() as string, SCHEMA) : "",
           NEXTAUTH_URL: `http://127.0.0.1:${port}`,
           APP_URL: `http://127.0.0.1:${port}`,
           NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET ?? "e2e-only-secret-value-not-for-real-use",
@@ -155,11 +161,14 @@ describe("workflows in a real browser", () => {
       },
     );
     await waitForServer(baseUrl());
+    // Accounts gate every page but the catalogue, so the guest half runs where there are none.
+    guest = await ensureGuestServer(root, port + 200);
     browser = await launchBrowser();
   }, 180_000);
 
   afterAll(async () => {
     await browser?.close();
+    guest?.stop();
     server?.kill();
     if (prisma) {
       await prisma.$disconnect();
@@ -174,7 +183,7 @@ describe("workflows in a real browser", () => {
 
   it("refuses an incompatible chain in the builder, before anything is uploaded", async () => {
     const page = await newPage();
-    await page.goto(`${baseUrl()}/workflows/new`);
+    await page.goto(`${guestUrl()}/workflows/new`);
     await page.getByRole("button", { name: "+ Add step" }).click();
     await page
       .getByTestId("workflow-step-0")
@@ -196,7 +205,7 @@ describe("workflows in a real browser", () => {
 
   it("a guest saves a workflow on the device, finds it after a reload and runs it", async () => {
     const page = await newPage();
-    await page.goto(`${baseUrl()}/workflows/new`);
+    await page.goto(`${guestUrl()}/workflows/new`);
     await buildImagesToPdf(page, "Photos to a small PDF");
     await page.getByRole("button", { name: "Save workflow" }).click();
 
@@ -217,7 +226,7 @@ describe("workflows in a real browser", () => {
     await page.getByTestId("workflow-step-1").waitFor();
 
     // And it is listed on /workflows as a device workflow.
-    await page.goto(`${baseUrl()}/workflows`);
+    await page.goto(`${guestUrl()}/workflows`);
     const list = page.getByTestId("workflow-list");
     await list.waitFor({ timeout: 30_000 });
     expect(await list.textContent()).toMatch(/Photos to a small PDF/);
@@ -239,7 +248,7 @@ describe("workflows in a real browser", () => {
 
     // The result link really serves a PDF.
     const href = await result.getByRole("link").first().getAttribute("href");
-    const response = await page.request.get(`${baseUrl()}${href}`);
+    const response = await page.request.get(`${guestUrl()}${href}`);
     expect(response.status()).toBe(200);
     const body = await response.body();
     expect(body.subarray(0, 5).toString()).toBe("%PDF-");
@@ -248,7 +257,7 @@ describe("workflows in a real browser", () => {
 
   it("batch mode finishes the good files and fails only the broken one", async () => {
     const page = await newPage();
-    await page.goto(`${baseUrl()}/workflows/new`);
+    await page.goto(`${guestUrl()}/workflows/new`);
     await buildImagesToPdf(page, "Batch of photos");
     await page.getByTestId("workflow-runner").waitFor({ timeout: 30_000 });
     await page.getByRole("radio", { name: /each file separately/i }).check();
@@ -275,14 +284,10 @@ describe("workflows in a real browser", () => {
       const email = `e2e-workflows-${Date.now()}@example.com`;
       const password = "a-very-good-password";
 
+      // Sign-up needs an emailed code; the account is written straight into the schema.
+      await seedUser(prisma!, { email, password, name: "Workflow Tester" });
       const sessionA = await newPage();
-      await sessionA.goto(`${baseUrl()}/auth/signup`);
-      await sessionA.getByLabel("Name").fill("Workflow Tester");
-      await sessionA.getByLabel("Email").fill(email);
-      await sessionA.getByLabel("Password", { exact: true }).fill(password);
-      await sessionA.getByLabel("Confirm password").fill(password);
-      await sessionA.getByRole("button", { name: "Create account" }).click();
-      await sessionA.waitForURL(`${baseUrl()}/account`, { timeout: 30_000 });
+      await signInAs(sessionA, baseUrl(), email, password);
 
       await sessionA.goto(`${baseUrl()}/workflows/new`);
       await buildImagesToPdf(sessionA, "Account workflow");
@@ -298,11 +303,7 @@ describe("workflows in a real browser", () => {
 
       // Session B: a different context, so a different cookie jar and empty localStorage.
       const sessionB = await newPage();
-      await sessionB.goto(`${baseUrl()}/auth/login`);
-      await sessionB.getByLabel("Email").fill(email);
-      await sessionB.getByLabel("Password").fill(password);
-      await sessionB.getByRole("button", { name: "Sign in" }).click();
-      await sessionB.waitForURL(`${baseUrl()}/account`, { timeout: 30_000 });
+      await signInAs(sessionB, baseUrl(), email, password);
 
       await sessionB.goto(`${baseUrl()}/workflows`);
       const list = sessionB.getByTestId("workflow-list");

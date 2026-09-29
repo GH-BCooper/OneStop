@@ -80,6 +80,9 @@ beforeAll(async () => {
         stdio: "ignore",
         env: {
           ...process.env,
+          // No accounts: the offline behaviour under test is the guest's, and an empty database
+          // setting also keeps a `.env` pointing at a real database out of a test run.
+          DATABASE_URL: "",
           // Port 9 (discard) refuses connections, so the server's Internet probe always fails and
           // this whole suite runs in the deterministic "no Internet" state. Nothing else changes.
           CONNECTIVITY_CHECK_URL: "http://127.0.0.1:9/probe",
@@ -200,7 +203,10 @@ describe("installability", () => {
     const cache = status as { version: string; entries: number; shellCached: string[] };
     expect(cache.entries).toBeGreaterThan(0);
     expect(cache.shellCached).toContain("/offline");
-    expect(cache.shellCached).toContain("/");
+    expect(cache.shellCached).toContain("/tools");
+    // `/` is deliberately not precached: it renders differently per visitor (the guest landing page
+    // versus a signed-in dashboard), so a frozen copy could be handed to the wrong person.
+    expect(cache.shellCached).not.toContain("/");
     await context.close();
   });
 });
@@ -251,7 +257,10 @@ describe("no Internet, OneStop still running", () => {
     // The rest of the UI stays usable: navigation still works while a tool is blocked.
     await page.getByRole("link", { name: "OneStop" }).first().click();
     await page.waitForURL(baseUrl() + "/");
-    expect(await page.locator("h1").first().textContent()).toContain("What do you want to do?");
+    // Home's headline is a time-of-day greeting; its search box is the stable thing to look for.
+    await page
+      .getByRole("searchbox", { name: /what do you want to do/i })
+      .waitFor({ timeout: 15_000 });
     await context.close();
   });
 

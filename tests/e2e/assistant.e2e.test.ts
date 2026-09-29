@@ -126,6 +126,9 @@ describe("the AI Assistant in a real browser, with no AI runtime configured", ()
         stdio: ["ignore", "ignore", "ignore"],
         env: {
           ...process.env,
+          // No accounts: a guest can use the assistant, and an empty database setting also keeps a
+          // `.env` pointing at a real database out of a test run.
+          DATABASE_URL: "",
           APP_URL: `http://127.0.0.1:${port}`,
           // The whole point of this file: nothing AI is configured, and Ollama is pointed at a
           // port nothing is listening on so a developer's own install cannot make it pass.
@@ -151,14 +154,15 @@ describe("the AI Assistant in a real browser, with no AI runtime configured", ()
     return context.newPage();
   }
 
-  it("says which runtime it has, and that it still works without one", async () => {
+  it("says plainly that no AI runtime answered, and still lets the person work", async () => {
     const page = await newPage();
     await page.goto(`${baseUrl()}/assistant`);
-    const runtime = page.getByTestId("assistant-runtime");
-    await expect
-      .poll(async () => runtime.textContent(), { timeout: 20_000 })
-      .toContain("built-in offline method");
-    expect(await runtime.textContent()).toContain("Not configured");
+    // One short line pointing at the app settings (the longer provider/disclosure text lives in
+    // Settings now), and the composer stays usable: the built-in planner needs no runtime.
+    const notice = page.getByTestId("assistant-out-of-service");
+    await notice.waitFor({ state: "visible", timeout: 30_000 });
+    expect(await notice.textContent()).toMatch(/out of service/i);
+    expect(await page.getByTestId("assistant-request").isEnabled()).toBe(true);
     await page.close();
   }, 60_000);
 

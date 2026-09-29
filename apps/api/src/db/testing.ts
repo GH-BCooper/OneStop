@@ -26,6 +26,9 @@ export function loadTestEnv(): void {
   } catch {
     // No .env - CI exports the variables itself, or there is no database and tests skip.
   }
+  // See tests/setup/env.ts: with a dedicated test database configured, the app's own DATABASE_URL
+  // must not be reachable from a test process.
+  if (process.env.TEST_DATABASE_URL?.trim()) delete process.env.DATABASE_URL;
 }
 
 export function testDatabaseUrl(): string | null {

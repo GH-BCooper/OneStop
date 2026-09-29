@@ -24,6 +24,9 @@ try {
 } catch {
   // No .env: the database suites will skip, which is a supported way to run.
 }
+// The runner's environment is inherited by Vitest and by the servers it starts. Every server is
+// given an explicit DATABASE_URL below; this keeps the plain one out of the test processes.
+if (process.env.TEST_DATABASE_URL?.trim()) delete process.env.DATABASE_URL;
 const port = Number(process.env.E2E_SHARED_PORT ?? 3140);
 const baseUrl = `http://127.0.0.1:${port}`;
 const passthrough = process.argv.slice(2);
@@ -96,39 +99,61 @@ if (db.url) console.log(`e2e: one database schema for every file: ${SCHEMA}`);
 const serverLogPath = path.join(os.tmpdir(), `onestop-e2e-server-${process.pid}.log`);
 const serverLogFd = openSync(serverLogPath, "w");
 
-console.log(`e2e: starting one server on ${baseUrl}`);
-const server = spawn(
-  process.execPath,
-  [
-    path.join(root, "node_modules/next/dist/bin/next"),
-    "start",
-    "-p",
-    String(port),
-    "-H",
-    "127.0.0.1",
-  ],
-  {
-    cwd: path.join(root, "apps/web"),
-    stdio: ["ignore", serverLogFd, serverLogFd],
-    env: {
-      ...process.env,
-      ...(db.url ? { DATABASE_URL: db.url } : {}),
-      NEXTAUTH_URL: baseUrl,
-      APP_URL: baseUrl,
-      NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET ?? "e2e-only-secret-value-not-for-real-use",
-      MAIL_TRANSPORT: "console",
-      // The suite drives hundreds of tool runs from one address; the per-caller limit phase 20
-      // added to POST /api/tools/run is not what is under test here.
-      RUN_RATE_LIMIT: process.env.RUN_RATE_LIMIT ?? "100000",
+// Two servers, because the app has two modes and the suite has to cover both:
+//
+//   * the ACCOUNT server, on the test database schema: every page but the landing page and the
+//     catalogue sits behind sign-in, and running a tool needs an account (the hosted deployment);
+//   * the GUEST server, with no database at all: no accounts, no gating, history kept on the
+//     device (the "just run it on my machine" deployment, and the only place a guest can run a
+//     tool at all).
+//
+// Both are given an explicit DATABASE_URL - the guest one an empty one - so nothing in a test run
+// can ever reach whatever database `.env` points at.
+const guestPort = port + 1;
+const guestBaseUrl = `http://127.0.0.1:${guestPort}`;
+
+function startServer(serverPort, url, extraEnv) {
+  return spawn(
+    process.execPath,
+    [
+      path.join(root, "node_modules/next/dist/bin/next"),
+      "start",
+      "-p",
+      String(serverPort),
+      "-H",
+      "127.0.0.1",
+    ],
+    {
+      cwd: path.join(root, "apps/web"),
+      stdio: ["ignore", serverLogFd, serverLogFd],
+      env: {
+        ...process.env,
+        NEXTAUTH_URL: url,
+        APP_URL: url,
+        NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET ?? "e2e-only-secret-value-not-for-real-use",
+        MAIL_TRANSPORT: "console",
+        // The production build refuses to send sign-up codes to a console nobody reads; the suite
+        // reads them back out of the log, so it opts in explicitly.
+        ALLOW_CONSOLE_MAIL: "1",
+        // The suite drives hundreds of tool runs from one address; the per-caller limit phase 20
+        // added to POST /api/tools/run is not what is under test here.
+        RUN_RATE_LIMIT: process.env.RUN_RATE_LIMIT ?? "100000",
+        ...extraEnv,
+      },
     },
-  },
-);
+  );
+}
+
+console.log(`e2e: starting the account server on ${baseUrl} and a guest server on ${guestBaseUrl}`);
+const server = startServer(port, baseUrl, { DATABASE_URL: db.url ?? "" });
+const guestServer = startServer(guestPort, guestBaseUrl, { DATABASE_URL: "" });
 
 let stopped = false;
 const stop = () => {
   if (stopped) return;
   stopped = true;
   server.kill();
+  guestServer.kill();
 };
 process.on("exit", stop);
 process.on("SIGINT", () => {
@@ -146,11 +171,13 @@ const shared = readdirSync(path.join(root, "tests/e2e"))
 let code = 1;
 try {
   await waitForServer(baseUrl);
+  await waitForServer(guestBaseUrl);
   console.log(
-    `e2e: server up, running ${filtered ? "your selection" : `${shared.length} files`} against it`,
+    `e2e: servers up, running ${filtered ? "your selection" : `${shared.length} files`} against them`,
   );
   code = await runVitest(filtered ? [] : shared, {
     E2E_BASE_URL: baseUrl,
+    E2E_GUEST_BASE_URL: guestBaseUrl,
     E2E_SERVER_LOG: serverLogPath,
     ...(db.url ? { E2E_SCHEMA: SCHEMA } : {}),
   });

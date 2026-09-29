@@ -20,6 +20,7 @@ import {
   urlForSchema,
 } from "../../apps/api/src/db/testing.ts";
 import type { PrismaClient } from "../../apps/api/src/db/client.ts";
+import { latestVerificationCode } from "./accounts.ts";
 
 const root = path.resolve(import.meta.dirname, "../..");
 const port = Number(process.env.E2E_AUTH_PORT ?? 3114);
@@ -127,6 +128,9 @@ describeDb("accounts in a real browser", () => {
           APP_URL: `http://127.0.0.1:${port}`,
           NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET ?? "e2e-only-secret-value-not-for-real-use",
           MAIL_TRANSPORT: "console",
+          // The production build refuses to "send" sign-up codes to an unread console; this file
+          // reads them back out of the log, so it opts in explicitly.
+          ALLOW_CONSOLE_MAIL: "1",
         },
       },
     );
@@ -151,14 +155,30 @@ describeDb("accounts in a real browser", () => {
 
   it("signs up, lands on the account page, and signs out again", async () => {
     const page = await newPage();
+    markConsole();
     await page.goto(`${baseUrl()}/auth/signup`);
     await page.getByLabel("Name").fill("E2E Tester");
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password", { exact: true }).fill(password);
     await page.getByLabel("Confirm password").fill(password);
-    await page.getByRole("button", { name: "Create account" }).click();
+    await page.getByRole("button", { name: "Send verification code" }).click();
 
-    await page.waitForURL(`${baseUrl()}/account`, { timeout: 30_000 });
+    // Nothing exists yet: the account is only created once the emailed code is entered.
+    await page.getByLabel("Verification code").waitFor({ timeout: 30_000 });
+    expect(await prisma.user.count({ where: { email } })).toBe(0);
+    const deadline = Date.now() + 15_000;
+    let code: string | undefined;
+    while (Date.now() < deadline && !code) {
+      code = latestVerificationCode(consoleOutput());
+      if (!code) await new Promise((r) => setTimeout(r, 250));
+    }
+    expect(code, "the sign-up code should reach the server console").toBeTruthy();
+    await page.getByLabel("Verification code").fill(code as string);
+    await page.getByRole("button", { name: "Verify and create account" }).click();
+
+    // Signing up signs the person in and takes them to the home page (never the account page).
+    await page.waitForURL(`${baseUrl()}/`, { timeout: 30_000 });
+    await page.goto(`${baseUrl()}/account`);
     await expect(
       page.getByRole("heading", { level: 1, name: "Account" }).isVisible(),
     ).resolves.toBe(true);
@@ -186,13 +206,14 @@ describeDb("accounts in a real browser", () => {
     const page = await newPage();
     await page.goto(`${baseUrl()}/auth/login`);
     await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill("not-the-password");
-    await page.getByRole("button", { name: "Sign in" }).click();
+    // `exact`: the field's "Show password" toggle also has "Password" in its label.
+    await page.getByLabel("Password", { exact: true }).fill("not-the-password");
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await page.getByText("That email or password is incorrect.").waitFor({ timeout: 30_000 });
 
-    await page.getByLabel("Password").fill(password);
-    await page.getByRole("button", { name: "Sign in" }).click();
-    await page.waitForURL(`${baseUrl()}/account`, { timeout: 30_000 });
+    await page.getByLabel("Password", { exact: true }).fill(password);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.waitForURL(`${baseUrl()}/`, { timeout: 30_000 });
     await page.context().close();
   });
 
@@ -217,20 +238,23 @@ describeDb("accounts in a real browser", () => {
     await page.goto(`${baseUrl()}/auth/reset-password?token=${encodeURIComponent(token)}`);
     await page.getByLabel("New password", { exact: true }).fill(newPassword);
     await page.getByLabel("Confirm new password").fill(newPassword);
-    await page.getByRole("button", { name: "Save new password" }).click();
-    await page.getByText(/has been changed/i).waitFor({ timeout: 30_000 });
-
-    // The old password no longer works; the new one does.
-    await page.goto(`${baseUrl()}/auth/login`);
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill(password);
-    await page.getByRole("button", { name: "Sign in" }).click();
-    await page.getByText(/incorrect/i).waitFor({ timeout: 30_000 });
-
-    await page.getByLabel("Password").fill(newPassword);
-    await page.getByRole("button", { name: "Sign in" }).click();
-    await page.waitForURL(`${baseUrl()}/account`, { timeout: 30_000 });
+    await page.getByRole("button", { name: "Save password", exact: true }).click();
+    // Having proved who they are twice over, the person is signed straight in and taken home.
+    await page.waitForURL(`${baseUrl()}/`, { timeout: 30_000 });
     await page.context().close();
+
+    // In a fresh browser session, the old password no longer works; the new one does.
+    const fresh = await newPage();
+    await fresh.goto(`${baseUrl()}/auth/login`);
+    await fresh.getByLabel("Email").fill(email);
+    await fresh.getByLabel("Password", { exact: true }).fill(password);
+    await fresh.getByRole("button", { name: "Sign in", exact: true }).click();
+    await fresh.getByText(/incorrect/i).waitFor({ timeout: 30_000 });
+
+    await fresh.getByLabel("Password", { exact: true }).fill(newPassword);
+    await fresh.getByRole("button", { name: "Sign in", exact: true }).click();
+    await fresh.waitForURL(`${baseUrl()}/`, { timeout: 30_000 });
+    await fresh.context().close();
   });
 
   it("lets a guest run a tool and remembers the job across a restart", async () => {

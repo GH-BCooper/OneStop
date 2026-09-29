@@ -24,6 +24,8 @@ import {
   urlForSchema,
 } from "../../apps/api/src/db/testing.ts";
 import type { PrismaClient } from "../../apps/api/src/db/client.ts";
+import { seedUser, signInAs } from "./accounts.ts";
+import { ensureGuestServer } from "./guest.ts";
 
 const TOOL_NAME = "Text → QR";
 
@@ -36,6 +38,7 @@ const SCHEMA = process.env.E2E_SCHEMA ?? "test_history_e2e";
 const OWNS_SCHEMA = !process.env.E2E_SCHEMA;
 
 let server: ChildProcess | undefined;
+let guest: { url: string; stop: () => void } | undefined;
 let browser: Browser;
 let prisma: PrismaClient;
 
@@ -104,11 +107,16 @@ describeDb("history, favourites and settings sync in a real browser", () => {
       },
     );
     await waitForServer(baseUrl());
+    // Accounts gate every tool, so a guest can only run one on a server with no accounts.
+    guest = await ensureGuestServer(root, port + 200);
+    // Sign-up needs an emailed code; the account under test is written straight into the schema.
+    await seedUser(prisma, { email, password, name: "History Tester" });
     browser = await launchBrowser();
   }, 120_000);
 
   afterAll(async () => {
     await browser?.close();
+    guest?.stop();
     server?.kill();
     await prisma?.$disconnect();
     if (OWNS_SCHEMA) await dropTestSchema(SCHEMA);
@@ -121,38 +129,22 @@ describeDb("history, favourites and settings sync in a real browser", () => {
   }
 
   /** Runs a tool that needs no upload, so the flow is about history, not about files. */
-  async function runTextToQr(page: Page, text: string): Promise<void> {
-    await page.goto(`${baseUrl()}/tools/qr/text-to-qr`);
+  async function runTextToQr(page: Page, text: string, base = baseUrl()): Promise<void> {
+    await page.goto(`${base}/tools/qr/text-to-qr`);
     await page.getByRole("textbox").first().fill(text);
     await page.getByRole("button", { name: /^Run / }).click();
     await page.getByRole("heading", { name: "Done" }).waitFor({ timeout: 60_000 });
   }
 
-  async function signUp(page: Page): Promise<void> {
-    await page.goto(`${baseUrl()}/auth/signup`);
-    await page.getByLabel("Name").fill("History Tester");
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password", { exact: true }).fill(password);
-    await page.getByLabel("Confirm password").fill(password);
-    await page.getByRole("button", { name: "Create account" }).click();
-    await page.waitForURL(`${baseUrl()}/account`, { timeout: 30_000 });
-  }
-
-  async function signIn(page: Page): Promise<void> {
-    await page.goto(`${baseUrl()}/auth/login`);
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill(password);
-    await page.getByRole("button", { name: "Sign in" }).click();
-    await page.waitForURL(`${baseUrl()}/account`, { timeout: 30_000 });
-  }
+  const signIn = (page: Page) => signInAs(page, baseUrl(), email, password);
 
   it("a guest's run lands on /history, on the device, with no account", async () => {
+    // A server with no accounts: nobody can sign in, so the history can only live on the device.
+    const guestUrl = guest!.url;
     const page = await newPage();
-    await runTextToQr(page, "guest run");
+    await runTextToQr(page, "guest run", guestUrl);
 
-    await page.goto(`${baseUrl()}/history`);
-    await page.getByText(/this device only/i).waitFor({ timeout: 30_000 });
-    await page.getByRole("link", { name: /sign in to save your history/i }).waitFor();
+    await page.goto(`${guestUrl}/history`);
     await page.getByRole("link", { name: TOOL_NAME }).first().waitFor({ timeout: 30_000 });
 
     // It really is in IndexedDB, and nothing was written to the account (there is none).
@@ -192,7 +184,7 @@ describeDb("history, favourites and settings sync in a real browser", () => {
 
   it("a signed-in run persists, and is still there in a brand-new session", async () => {
     const sessionA = await newPage();
-    await signUp(sessionA);
+    await signIn(sessionA);
     await runTextToQr(sessionA, "signed-in run");
 
     await sessionA.goto(`${baseUrl()}/history`);

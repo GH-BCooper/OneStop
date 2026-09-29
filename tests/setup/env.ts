@@ -25,6 +25,13 @@ try {
   // No .env: CI exports what it needs, and every suite that needs more skips itself.
 }
 
+// A test run must never reach the database `.env` is really for. With DATABASE_URL set, the shared
+// job store is Postgres-backed, so every tool run a test makes (the all-tools sweep makes hundreds)
+// would be written to whatever that URL is - a hosted production database, on an owner's machine.
+// The suites that need a database take TEST_DATABASE_URL and make their own schema in it, so when
+// one is configured the plain URL is simply removed from the test process.
+if (process.env.TEST_DATABASE_URL?.trim()) delete process.env.DATABASE_URL;
+
 process.env.MAIL_TRANSPORT = "console";
 
 const onPath = (name: string): boolean => {

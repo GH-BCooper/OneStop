@@ -27,11 +27,14 @@ import { chromium, type Browser, type Page } from "playwright-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   createIsolatedTestPrisma,
+  createTestPrisma,
   dropTestSchema,
   hasTestDatabase,
   testDatabaseUrl,
   urlForSchema,
 } from "../../apps/api/src/db/testing.ts";
+import { seedUser, signInAs } from "./accounts.ts";
+import { ensureGuestServer } from "./guest.ts";
 
 const root = path.resolve(import.meta.dirname, "../..");
 const port = Number(process.env.E2E_JOURNEY_PORT ?? 3120);
@@ -42,10 +45,17 @@ const SCHEMA = process.env.E2E_SCHEMA ?? "test_journeys_e2e";
 const OWNS_SCHEMA = !process.env.E2E_SCHEMA;
 
 let server: ChildProcess | undefined;
+let guest: { url: string; stop: () => void } | undefined;
 let browser: Browser;
 let workDir: string;
 
+/** The server with accounts (journey 3). */
 const baseUrl = () => process.env.E2E_BASE_URL ?? `http://127.0.0.1:${port}`;
+/**
+ * The server with no accounts. Once accounts exist the app gates every tool behind sign-in, so the
+ * guest journeys (1, 2, 4 and 5) run where there are none: "nothing configured at all".
+ */
+const guestUrl = () => guest!.url;
 
 async function waitForServer(url: string, timeoutMs = 60_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -100,7 +110,8 @@ beforeAll(async () => {
         stdio: "ignore",
         env: {
           ...process.env,
-          ...(url ? { DATABASE_URL: url } : {}),
+          // Never fall through to whatever database `.env` points at.
+          DATABASE_URL: url ?? "",
           NEXTAUTH_URL: `http://127.0.0.1:${port}`,
           APP_URL: `http://127.0.0.1:${port}`,
           NEXTAUTH_SECRET: process.env.NEXTAUTH_SECRET ?? "e2e-only-secret-value-not-for-real-use",
@@ -110,11 +121,13 @@ beforeAll(async () => {
     );
   }
   await waitForServer(baseUrl());
+  guest = await ensureGuestServer(root, port + 200);
   browser = await launchBrowser();
 }, 150_000);
 
 afterAll(async () => {
   await browser?.close();
+  guest?.stop();
   server?.kill();
   await fs.rm(workDir, { recursive: true, force: true });
   if (hasTestDatabase() && OWNS_SCHEMA) await dropTestSchema(SCHEMA);
@@ -160,7 +173,7 @@ describe("journey 1: upload and convert a PDF", () => {
     page.on("pageerror", (e) => errors.push(e.message));
     const source = await writePdf("journey.pdf", 2);
 
-    await page.goto(`${baseUrl()}/tools/pdf/pdf-to-text`);
+    await page.goto(`${guestUrl()}/tools/pdf/pdf-to-text`);
     await page.setInputFiles("input[type=file]", source);
     await expect(page.getByText("journey.pdf").first().isVisible()).resolves.toBe(true);
 
@@ -185,7 +198,7 @@ describe("journey 1: upload and convert a PDF", () => {
 describe("journey 2: save a workflow and run it", () => {
   it("builds a two-step workflow as a guest, saves it, finds it and runs it", async () => {
     const page = await newPage();
-    await page.goto(`${baseUrl()}/workflows/new`);
+    await page.goto(`${guestUrl()}/workflows/new`);
 
     // Step 1: build the chain the way the builder wants it - Save stays disabled until the steps
     // are there and compatible, which is itself part of the journey.
@@ -209,7 +222,7 @@ describe("journey 2: save a workflow and run it", () => {
     const url = page.url();
 
     // Step 2: it really persisted - a full reload of /workflows still lists it.
-    await page.goto(`${baseUrl()}/workflows`);
+    await page.goto(`${guestUrl()}/workflows`);
     const list = page.getByTestId("workflow-list");
     await list.waitFor({ timeout: 60_000 });
     expect(await list.textContent()).toMatch(/Journey workflow/);
@@ -228,7 +241,7 @@ describe("journey 2: save a workflow and run it", () => {
     const text = (await result.textContent()) ?? "";
     expect(text).toMatch(/Finished/);
     const href = await result.getByRole("link").first().getAttribute("href");
-    const response = await page.request.get(`${baseUrl()}${href}`);
+    const response = await page.request.get(`${guestUrl()}${href}`);
     expect(response.status()).toBe(200);
     expect((await response.body()).subarray(0, 5).toString()).toBe("%PDF-");
     await page.context().close();
@@ -237,20 +250,19 @@ describe("journey 2: save a workflow and run it", () => {
 
 const describeDb = hasTestDatabase() ? describe : describe.skip;
 
-describeDb("journey 3: sign up and log in", () => {
+describeDb("journey 3: sign in and out again", () => {
   const email = `journey-${Date.now()}@example.com`;
   const password = "a-very-good-password";
 
-  it("creates an account, signs out, and signs back in", async () => {
+  // The sign-up half of this journey (which now takes an emailed code) is proved in auth.e2e.test.ts;
+  // here the account is written straight into the schema and the journey starts from the login form.
+  it("signs in, signs out, and signs back in", async () => {
+    const prisma = createTestPrisma(SCHEMA);
+    await seedUser(prisma, { email, password, name: "Journey Tester" });
+    await prisma.$disconnect();
     const page = await newPage();
-    await page.goto(`${baseUrl()}/auth/signup`);
-    await page.getByLabel("Name").fill("Journey Tester");
-    await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password", { exact: true }).fill(password);
-    await page.getByLabel("Confirm password").fill(password);
-    await page.getByRole("button", { name: "Create account" }).click();
-
-    await page.waitForURL(`${baseUrl()}/account`, { timeout: 60_000 });
+    await signInAs(page, baseUrl(), email, password);
+    await page.goto(`${baseUrl()}/account`);
     await expect(page.getByText(email).first().isVisible()).resolves.toBe(true);
 
     await page.getByRole("button", { name: "Sign out" }).click();
@@ -266,9 +278,10 @@ describeDb("journey 3: sign up and log in", () => {
     await page.waitForURL(/\/auth\/login/, { timeout: 60_000 });
 
     await page.getByLabel("Email").fill(email);
-    await page.getByLabel("Password").fill(password);
-    await page.getByRole("button", { name: "Sign in" }).click();
-    await page.waitForURL(`${baseUrl()}/account`, { timeout: 60_000 });
+    await page.getByLabel("Password", { exact: true }).fill(password);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.waitForURL((url) => !url.pathname.startsWith("/auth"), { timeout: 60_000 });
+    await page.goto(`${baseUrl()}/account`);
     await expect(page.getByText(email).first().isVisible()).resolves.toBe(true);
     await page.context().close();
   }, 240_000);
@@ -277,12 +290,12 @@ describeDb("journey 3: sign up and log in", () => {
 describe("journey 4: install the app as a PWA", () => {
   it("meets the installability criteria a browser actually checks", async () => {
     const page = await newPage();
-    await page.goto(baseUrl(), { waitUntil: "domcontentloaded" });
+    await page.goto(guestUrl(), { waitUntil: "domcontentloaded" });
 
     // 1. The page links a manifest...
     const href = await page.getAttribute('link[rel="manifest"]', "href");
     expect(href).toBeTruthy();
-    const manifest = (await (await fetch(new URL(href!, baseUrl()).toString())).json()) as {
+    const manifest = (await (await fetch(new URL(href!, guestUrl()).toString())).json()) as {
       name?: string;
       short_name?: string;
       start_url?: string;
@@ -298,7 +311,7 @@ describe("journey 4: install the app as a PWA", () => {
     expect(sizes.some((s) => s.includes("512"))).toBe(true);
     // 3. ...icons that are really served...
     for (const icon of manifest.icons ?? []) {
-      const res = await fetch(new URL(icon.src!, baseUrl()).toString());
+      const res = await fetch(new URL(icon.src!, guestUrl()).toString());
       expect(res.ok, `${icon.src} is listed in the manifest but not served`).toBe(true);
     }
     // 4. ...and a service worker that takes control of the page.
@@ -315,7 +328,7 @@ describe("journey 4: install the app as a PWA", () => {
 describe("journey 5: ask the AI Assistant for a multi-tool job", () => {
   it("plans master plan §7.1's request as a chain of registry tools", async () => {
     const page = await newPage();
-    await page.goto(`${baseUrl()}/assistant`, { waitUntil: "domcontentloaded" });
+    await page.goto(`${guestUrl()}/assistant`, { waitUntil: "domcontentloaded" });
 
     const box = page.getByRole("textbox").first();
     await box.fill("Convert these images to a PDF, compress it and email-size it");

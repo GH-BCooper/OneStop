@@ -11,6 +11,7 @@ import path from "node:path";
 import { chromium, type Browser, type Page } from "playwright-core";
 import sharp from "sharp";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { guestBaseUrl, guestServerEnv, guestServerIsShared } from "./guest.ts";
 import { findFfmpeg } from "@onestop/api";
 import { makeAudio, makeVideo } from "../../apps/api/src/media/fixtures.ts";
 
@@ -23,7 +24,7 @@ let workDir: string;
 let mp3Path: string;
 let clip: Uint8Array;
 
-const baseUrl = () => process.env.E2E_BASE_URL ?? `http://127.0.0.1:${port}`;
+const baseUrl = () => guestBaseUrl(`http://127.0.0.1:${port}`);
 const HAS_FFMPEG = Boolean(findFfmpeg());
 
 async function waitForServer(url: string, timeoutMs = 60_000): Promise<void> {
@@ -61,7 +62,7 @@ beforeAll(async () => {
     await fs.writeFile(mp3Path, mp3);
     clip = await makeVideo("mp4", { seconds: 2 });
   }
-  if (!process.env.E2E_BASE_URL) {
+  if (!guestServerIsShared()) {
     if (!existsSync(path.join(root, "apps/web/.next/BUILD_ID"))) {
       throw new Error("Run `npm run build` before `npm run test:e2e`.");
     }
@@ -75,7 +76,7 @@ beforeAll(async () => {
         "-H",
         "127.0.0.1",
       ],
-      { cwd: path.join(root, "apps/web"), stdio: "ignore" },
+      { cwd: path.join(root, "apps/web"), stdio: "ignore", env: guestServerEnv() },
     );
   }
   await waitForServer(baseUrl());

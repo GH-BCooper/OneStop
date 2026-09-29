@@ -20,7 +20,11 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "onestop-all-tools-"));
 type Fx = PipelineFileInput;
 
 const enc = (s: string) => new TextEncoder().encode(s);
-const text = (name: string, body: string, mime = "text/plain"): Fx => ({ name, mimeType: mime, bytes: enc(body) });
+const text = (name: string, body: string, mime = "text/plain"): Fx => ({
+  name,
+  mimeType: mime,
+  bytes: enc(body),
+});
 
 const LOREM =
   "OneStop is a free toolbox. It converts files, edits PDFs and images, and cleans data.\n\nThe quick brown fox jumps over the lazy dog. Contact us at hello@example.com or visit https://example.com. The invoice total is $1,250.00 due 2026-10-31.\n\nThis is a seccond paragraph with a typo. Notice period is 30 days.";
@@ -28,51 +32,125 @@ const LOREM =
 async function makeFixtures(): Promise<Record<string, Fx>> {
   const fx: Record<string, Fx> = {};
   fx.txt = text("sample.txt", LOREM);
-  fx.md = text("sample.md", "# Title\n\nSome **bold** text and a list:\n\n- one\n- two\n", "text/markdown");
-  fx.csv = text("people.csv", "name,age,city\nAda,36,London\nLinus,54,Portland\nGrace,85,NYC\nAda,36,London\n", "text/csv");
-  fx.json = text("data.json", JSON.stringify([{ name: "Ada", age: 36 }, { name: "Linus", age: 54 }]), "application/json");
-  fx.xml = text("data.xml", "<root><person><name>Ada</name><age>36</age></person><person><name>Linus</name><age>54</age></person></root>", "application/xml");
-  fx.yaml = text("data.yaml", "people:\n  - name: Ada\n    age: 36\n  - name: Linus\n    age: 54\n", "application/x-yaml");
+  fx.md = text(
+    "sample.md",
+    "# Title\n\nSome **bold** text and a list:\n\n- one\n- two\n",
+    "text/markdown",
+  );
+  fx.csv = text(
+    "people.csv",
+    "name,age,city\nAda,36,London\nLinus,54,Portland\nGrace,85,NYC\nAda,36,London\n",
+    "text/csv",
+  );
+  fx.json = text(
+    "data.json",
+    JSON.stringify([
+      { name: "Ada", age: 36 },
+      { name: "Linus", age: 54 },
+    ]),
+    "application/json",
+  );
+  fx.xml = text(
+    "data.xml",
+    "<root><person><name>Ada</name><age>36</age></person><person><name>Linus</name><age>54</age></person></root>",
+    "application/xml",
+  );
+  fx.yaml = text(
+    "data.yaml",
+    "people:\n  - name: Ada\n    age: 36\n  - name: Linus\n    age: 54\n",
+    "application/x-yaml",
+  );
   fx.html = text("page.html", "<html><body><h1>Hello</h1><p>World</p></body></html>", "text/html");
   fx.css = text("style.css", "body{margin:0;color:red}.a{padding:1px}", "text/css");
   fx.js = text("app.js", "const a=1;function f(x){return x+a}", "text/javascript");
-  fx.srt = text("subs.srt", "1\n00:00:01,000 --> 00:00:03,000\nHello there\n\n2\n00:00:04,000 --> 00:00:06,000\nSecond line\n", "application/x-subrip");
+  fx.srt = text(
+    "subs.srt",
+    "1\n00:00:01,000 --> 00:00:03,000\nHello there\n\n2\n00:00:04,000 --> 00:00:06,000\nSecond line\n",
+    "application/x-subrip",
+  );
 
   const ExcelJS = (await import("exceljs")).default;
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Sheet1");
-  ws.addRows([["name", "age", "city"], ["Ada", 36, "London"], ["Linus", 54, "Portland"], ["Grace", 85, "NYC"], ["Ada", 36, "London"]]);
-  fx.xlsx = { name: "people.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes: new Uint8Array(await wb.xlsx.writeBuffer()) };
+  ws.addRows([
+    ["name", "age", "city"],
+    ["Ada", 36, "London"],
+    ["Linus", 54, "Portland"],
+    ["Grace", 85, "NYC"],
+    ["Ada", 36, "London"],
+  ]);
+  fx.xlsx = {
+    name: "people.xlsx",
+    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    bytes: new Uint8Array(await wb.xlsx.writeBuffer()),
+  };
 
   const docx = await import("docx");
   const doc = new docx.Document({
-    sections: [{ children: LOREM.split("\n\n").flatMap((t, i) => [
-      ...(i > 0 ? [new docx.Paragraph({ children: [new docx.PageBreak()] })] : []),
-      new docx.Paragraph({ text: `Section ${i + 1}`, heading: docx.HeadingLevel.HEADING_1 }),
-      new docx.Paragraph({ children: [new docx.TextRun(t)] }),
-    ]) }],
+    sections: [
+      {
+        children: LOREM.split("\n\n").flatMap((t, i) => [
+          ...(i > 0 ? [new docx.Paragraph({ children: [new docx.PageBreak()] })] : []),
+          new docx.Paragraph({ text: `Section ${i + 1}`, heading: docx.HeadingLevel.HEADING_1 }),
+          new docx.Paragraph({ children: [new docx.TextRun(t)] }),
+        ]),
+      },
+    ],
   });
-  fx.docx = { name: "report.docx", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document", bytes: new Uint8Array(await docx.Packer.toBuffer(doc)) };
+  fx.docx = {
+    name: "report.docx",
+    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    bytes: new Uint8Array(await docx.Packer.toBuffer(doc)),
+  };
 
   const PptxGen = (await import("pptxgenjs")).default;
   const pptx = new PptxGen();
-  for (const t of ["Welcome", "Second slide", "Third slide"]) pptx.addSlide().addText(t, { x: 1, y: 1, fontSize: 32 });
-  fx.pptx = { name: "deck.pptx", mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", bytes: new Uint8Array((await pptx.write({ outputType: "nodebuffer" })) as Buffer) };
+  for (const t of ["Welcome", "Second slide", "Third slide"])
+    pptx.addSlide().addText(t, { x: 1, y: 1, fontSize: 32 });
+  fx.pptx = {
+    name: "deck.pptx",
+    mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    bytes: new Uint8Array((await pptx.write({ outputType: "nodebuffer" })) as Buffer),
+  };
 
   const sharp = (await import("sharp")).default;
-  const base = sharp({ create: { width: 640, height: 480, channels: 3, background: { r: 30, g: 120, b: 200 } } });
-  const overlay = enc(`<svg width="640" height="480" xmlns="http://www.w3.org/2000/svg"><rect x="80" y="80" width="300" height="200" fill="#fff"/><text x="100" y="200" font-size="64" fill="#000" font-family="Arial">OneStop 123</text></svg>`);
+  const base = sharp({
+    create: { width: 640, height: 480, channels: 3, background: { r: 30, g: 120, b: 200 } },
+  });
+  const overlay = enc(
+    `<svg width="640" height="480" xmlns="http://www.w3.org/2000/svg"><rect x="80" y="80" width="300" height="200" fill="#fff"/><text x="100" y="200" font-size="64" fill="#000" font-family="Arial">OneStop 123</text></svg>`,
+  );
   const composed = base.composite([{ input: Buffer.from(overlay) }]);
-  fx.png = { name: "photo.png", mimeType: "image/png", bytes: new Uint8Array(await composed.clone().png().toBuffer()) };
-  fx.jpg = { name: "photo.jpg", mimeType: "image/jpeg", bytes: new Uint8Array(await composed.clone().jpeg().toBuffer()) };
-  fx.webp = { name: "photo.webp", mimeType: "image/webp", bytes: new Uint8Array(await composed.clone().webp().toBuffer()) };
-  fx.gif = { name: "photo.gif", mimeType: "image/gif", bytes: new Uint8Array(await composed.clone().gif().toBuffer()) };
+  fx.png = {
+    name: "photo.png",
+    mimeType: "image/png",
+    bytes: new Uint8Array(await composed.clone().png().toBuffer()),
+  };
+  fx.jpg = {
+    name: "photo.jpg",
+    mimeType: "image/jpeg",
+    bytes: new Uint8Array(await composed.clone().jpeg().toBuffer()),
+  };
+  fx.webp = {
+    name: "photo.webp",
+    mimeType: "image/webp",
+    bytes: new Uint8Array(await composed.clone().webp().toBuffer()),
+  };
+  fx.gif = {
+    name: "photo.gif",
+    mimeType: "image/gif",
+    bytes: new Uint8Array(await composed.clone().gif().toBuffer()),
+  };
 
   const zipper = (await import("jszip")).default;
   const z = new zipper();
   z.file("a.txt", "hello");
   z.file("b.txt", "world");
-  fx.zip = { name: "bundle.zip", mimeType: "application/zip", bytes: new Uint8Array(await z.generateAsync({ type: "uint8array" })) };
+  fx.zip = {
+    name: "bundle.zip",
+    mimeType: "application/zip",
+    bytes: new Uint8Array(await z.generateAsync({ type: "uint8array" })),
+  };
 
   const ffmpeg = process.env.FFMPEG_PATH || "ffmpeg";
   const run = (args: string[], out: string) => {
@@ -84,31 +162,99 @@ async function makeFixtures(): Promise<Record<string, Fx>> {
   const wav = run(["-f", "lavfi", "-i", "sine=frequency=330:duration=3"], "tone.wav");
   const subs = path.join(tmp, "subs.srt");
   fs.writeFileSync(subs, ["1", "00:00:00,500 --> 00:00:02,000", "Hello", ""].join("\n"));
-  const mp4 = run(["-f", "lavfi", "-i", "testsrc=duration=3:size=320x240:rate=15", "-f", "lavfi", "-i", "sine=frequency=440:duration=3", "-shortest", "-pix_fmt", "yuv420p"], "clip.mp4");
+  const mp4 = run(
+    [
+      "-f",
+      "lavfi",
+      "-i",
+      "testsrc=duration=3:size=320x240:rate=15",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=440:duration=3",
+      "-shortest",
+      "-pix_fmt",
+      "yuv420p",
+    ],
+    "clip.mp4",
+  );
   if (mp3) fx.mp3 = { name: "tone.mp3", mimeType: "audio/mpeg", bytes: mp3 };
   if (wav) fx.wav = { name: "tone.wav", mimeType: "audio/wav", bytes: wav };
   if (mp4) fx.mp4 = { name: "clip.mp4", mimeType: "video/mp4", bytes: mp4 };
-  const mp4sub = run(["-i", path.join(tmp, "clip.mp4"), "-i", subs, "-c", "copy", "-c:s", "mov_text"], "clip-sub.mp4");
+  const mp4sub = run(
+    ["-i", path.join(tmp, "clip.mp4"), "-i", subs, "-c", "copy", "-c:s", "mov_text"],
+    "clip-sub.mp4",
+  );
   if (mp4sub) fx.mp4sub = { name: "clip-sub.mp4", mimeType: "video/mp4", bytes: mp4sub };
 
   // A real PDF, made by OneStop's own Word → PDF and Image → PDF tools (also exercises them).
   const pdfFromDoc = await runPipeline({ toolId: "word-to-pdf", files: [fx.docx!], options: {} });
   if (pdfFromDoc.ok && pdfFromDoc.files[0]) {
     const store = (await import("../../apps/api/src/index.ts")).getTempStore();
-    fx.pdf = { name: "report.pdf", mimeType: "application/pdf", bytes: await store.read(pdfFromDoc.files[0].id) };
+    fx.pdf = {
+      name: "report.pdf",
+      mimeType: "application/pdf",
+      bytes: await store.read(pdfFromDoc.files[0].id),
+    };
   }
   if (fx.pdf) {
     // Two pages, so page-level tools have something to keep after deleting one.
-    const twice = await runPipeline({ toolId: "merge-pdf", files: [fx.pdf, { ...fx.pdf, name: "again.pdf" }], options: {} });
+    const twice = await runPipeline({
+      toolId: "merge-pdf",
+      files: [fx.pdf, { ...fx.pdf, name: "again.pdf" }],
+      options: {},
+    });
     if (twice.ok && twice.files[0]) {
       const store = (await import("../../apps/api/src/index.ts")).getTempStore();
-      fx.pdf = { name: "report.pdf", mimeType: "application/pdf", bytes: await store.read(twice.files[0].id) };
+      fx.pdf = {
+        name: "report.pdf",
+        mimeType: "application/pdf",
+        bytes: await store.read(twice.files[0].id),
+      };
     }
     fx.pdf2 = { ...fx.pdf, name: "report-2.pdf" };
-    const locked = await runPipeline({ toolId: "password-protect-pdf", files: [fx.pdf], options: { password: "s3cret-pass" } });
+    const locked = await runPipeline({
+      toolId: "password-protect-pdf",
+      files: [fx.pdf],
+      options: { password: "s3cret-pass" },
+    });
     if (locked.ok && locked.files[0]) {
       const store = (await import("../../apps/api/src/index.ts")).getTempStore();
-      fx.pdfLocked = { name: "locked.pdf", mimeType: "application/pdf", bytes: await store.read(locked.files[0].id) };
+      fx.pdfLocked = {
+        name: "locked.pdf",
+        mimeType: "application/pdf",
+        bytes: await store.read(locked.files[0].id),
+      };
+    }
+  }
+  if (fx.pdf) {
+    const marked = await runPipeline({
+      toolId: "pdf-bookmark-editor",
+      files: [fx.pdf],
+      options: { mode: "replace", bookmarks: "Chapter one | 1\nChapter two | 2" },
+    });
+    if (marked.ok && marked.files[0]) {
+      const store = (await import("../../apps/api/src/index.ts")).getTempStore();
+      fx.pdfBookmarked = {
+        name: "chapters.pdf",
+        mimeType: "application/pdf",
+        bytes: await store.read(marked.files[0].id),
+      };
+    }
+  }
+  if (fx.txt) {
+    const sealed = await runPipeline({
+      toolId: "file-encryptor",
+      files: [fx.txt],
+      options: { password: "correct-horse-battery" },
+    });
+    if (sealed.ok && sealed.files[0]) {
+      const store = (await import("../../apps/api/src/index.ts")).getTempStore();
+      fx.sealed = {
+        name: sealed.files[0].name,
+        mimeType: "application/octet-stream",
+        bytes: await store.read(sealed.files[0].id),
+      };
     }
   }
   fx.docx2 = { ...fx.docx!, name: "report-2.docx" };
@@ -127,7 +273,10 @@ async function makeFixtures(): Promise<Record<string, Fx>> {
 }
 
 /** Tools that need more than one file, a specific fixture, options or text to have anything to do. */
-const EXTRA: Record<string, { files?: string[]; options?: Record<string, unknown>; text?: string }> = {
+const EXTRA: Record<
+  string,
+  { files?: string[]; options?: Record<string, unknown>; text?: string }
+> = {
   "merge-pdf": { files: ["pdf", "pdf2"] },
   "compare-pdfs": { files: ["pdf", "pdf2"] },
   "delete-pdf-pages": { options: { pages: "2" } },
@@ -153,11 +302,17 @@ const EXTRA: Record<string, { files?: string[]; options?: Record<string, unknown
   "video-trimmer": { options: { start: "0:00:01", end: "0:00:02" } },
   "video-merger": { files: ["mp4", "mp4b"] },
   "qr-code-scanner": { files: ["qrpng"] },
+  "logo-qr-code": { text: "https://example.com" },
   "wifi-to-qr": { options: { password: "hunter2hunter2" } },
   "ask-questions-about-a-file": { options: { question: "What is the notice period?" } },
   "ai-image-editor": { options: { prompt: "make it brighter" } },
   "regex-tester": { options: { pattern: "[0-9]+", flags: "g" } },
-  "user-agent-viewer": { options: { userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36" } },
+  "user-agent-viewer": {
+    options: {
+      userAgent:
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0 Safari/537.36",
+    },
+  },
   "ip-address-lookup": { text: "8.8.8.8" },
   "ip-geolocation": { text: "8.8.8.8" },
   "location-lookup": { text: "Eiffel Tower, Paris" },
@@ -174,6 +329,30 @@ const EXTRA: Record<string, { files?: string[]; options?: Record<string, unknown
   "instagram-reel-to-mp3": { text: "https://www.instagram.com/reel/C0abc123/" },
   "instagram-reel-to-mp4": { text: "https://www.instagram.com/reel/C0abc123/" },
   "instagram-quality-selector": { text: "https://www.instagram.com/reel/C0abc123/" },
+  // Phase 21: these refuse an empty request by design, so each is given the smallest real one.
+  "pdf-redaction": { options: { terms: "OneStop" } },
+  "pdf-chapter-splitter": { files: ["pdfBookmarked"] },
+  "pdf-visual-diff": { files: ["pdf", "pdf2"] },
+  "pdf-form-designer": { options: { fields: "text | Full name | 1 | 60,700,220,22" } },
+  "data-diff": { files: ["csv", "csv2"] },
+  "collage-maker": { files: ["png", "jpg"] },
+  "near-duplicate-image-finder": { files: ["png", "jpg"] },
+  "podcast-chapter-marker": { options: { chapters: "00:00 Intro\n00:01 Middle" } },
+  "subtitle-burner": { files: ["mp4", "srt"] },
+  "ai-resume-matcher": {
+    options: { jobDescription: "We need a Python engineer with SQL experience." },
+  },
+  "color-converter": { text: "#1e78c8" },
+  "cron-expression-builder": { text: "30 6 * * 1-5" },
+  "text-diff-viewer": { options: { against: "Hello OneStop, this is some other text 456." } },
+  "totp-code-generator": { text: "JBSWY3DPEHPK3PXP" },
+  "file-encryptor": { options: { password: "correct-horse-battery" } },
+  "file-decryptor": { files: ["sealed"], options: { password: "correct-horse-battery" } },
+  "invoice-generator": { options: { items: "Design work | 3 | 450" } },
+  "flashcard-maker": { text: "What is 2+2? | 4\nCapital of France? | Paris" },
+  "calendar-event-generator": { options: { title: "Project kick-off", start: "2026-03-14 15:00" } },
+  "ssl-certificate-checker": { text: "https://example.com" },
+  "weather-lookup": { text: "London" },
   "spotify-link-info": { text: "https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC" },
 };
 
@@ -184,20 +363,56 @@ function fixtureFor(tool: ToolMeta, fx: Record<string, Fx>): Fx[] {
   const out: Fx[] = [];
   for (const t of types) {
     switch (t) {
-      case "any": out.push(...pick("txt")); break;
-      case "image": out.push(...pick("png", "jpg")); break;
-      case "video": out.push(...pick("mp4")); break;
-      case "audio": out.push(...pick("mp3", "wav")); break;
-      case "jpg": case "jpeg": out.push(...pick("jpg")); break;
-      case "png": out.push(...pick("png")); break;
-      case "webp": out.push(...pick("webp")); break;
-      case "doc": case "docx": case "odt": case "rtf": out.push(...pick("docx")); break;
-      case "txt": out.push(...pick("txt")); break;
-      case "xls": case "xlsx": out.push(...pick("xlsx")); break;
-      case "ppt": case "pptx": out.push(...pick("pptx")); break;
-      case "yml": case "yaml": out.push(...pick("yaml")); break;
-      case "vtt": case "ass": case "srt": out.push(...pick("srt")); break;
-      default: out.push(...pick(t));
+      case "any":
+        out.push(...pick("txt"));
+        break;
+      case "image":
+        out.push(...pick("png", "jpg"));
+        break;
+      case "video":
+        out.push(...pick("mp4"));
+        break;
+      case "audio":
+        out.push(...pick("mp3", "wav"));
+        break;
+      case "jpg":
+      case "jpeg":
+        out.push(...pick("jpg"));
+        break;
+      case "png":
+        out.push(...pick("png"));
+        break;
+      case "webp":
+        out.push(...pick("webp"));
+        break;
+      case "doc":
+      case "docx":
+      case "odt":
+      case "rtf":
+        out.push(...pick("docx"));
+        break;
+      case "txt":
+        out.push(...pick("txt"));
+        break;
+      case "xls":
+      case "xlsx":
+        out.push(...pick("xlsx"));
+        break;
+      case "ppt":
+      case "pptx":
+        out.push(...pick("pptx"));
+        break;
+      case "yml":
+      case "yaml":
+        out.push(...pick("yaml"));
+        break;
+      case "vtt":
+      case "ass":
+      case "srt":
+        out.push(...pick("srt"));
+        break;
+      default:
+        out.push(...pick(t));
     }
   }
   return out.length > 0 ? [out[0]!] : [];
@@ -228,7 +443,8 @@ const TEXT_INPUTS: Record<string, string> = {
   "url-encoder": "hello world & more",
   "url-decoder": "hello%20world%20%26%20more",
   "base64-decoder": "aGVsbG8gT25lU3RvcA==",
-  "jwt-decoder": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4ifQ.abc",
+  "jwt-decoder":
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4ifQ.abc",
 };
 
 /** Tools that reach the outside world, an account, or a local service this machine may not run;
@@ -240,7 +456,17 @@ const NEEDS_OUTSIDE = (tool: ToolMeta) =>
   tool.id === "ai-image-generator" ||
   tool.id === "ai-image-editor" ||
   // No fillable form in the generated PDF: refusing with a clear message is the right behaviour.
-  tool.id === "fill-pdf-forms";
+  tool.id === "fill-pdf-forms" ||
+  // Optional local programs (Piper, whisper.cpp, an Ollama vision model). Not installed here means
+  // a clear "install it" message; the tools' own tests prove that message, not a run.
+  [
+    "text-to-speech-reader",
+    "auto-subtitle-generator",
+    "ai-meeting-summarizer",
+    "ai-alt-text-generator",
+  ].includes(tool.id) ||
+  // The fixtures carry no GPS tags and no ruled tables, so refusing is the truthful answer.
+  ["photo-map-viewer", "pdf-table-extractor"].includes(tool.id);
 
 const results: { id: string; ok: boolean; note: string }[] = [];
 
@@ -285,26 +511,46 @@ describe("every registered tool runs for real", () => {
           toolId: tool.id,
           files,
           text: textIn,
-          options: { ...(OPTIONS[tool.id] ?? {}), ...(extra?.options ?? {}) },
+          options: {
+            ...(OPTIONS[tool.id] ?? {}),
+            ...(extra?.options ?? {}),
+            ...(tool.id === "logo-qr-code" && fx.png
+              ? { logo: `data:image/png;base64,${Buffer.from(fx.png.bytes).toString("base64")}` }
+              : {}),
+          },
           userId: null,
         });
         ok = outcome.ok;
-        const produced = outcome.files.length > 0 || (outcome.output !== undefined && outcome.output !== null && outcome.output !== "");
-        note = ok ? (produced ? (outcome.summary ?? "ok") : "OK BUT EMPTY") : (outcome.error?.message ?? "failed");
+        const produced =
+          outcome.files.length > 0 ||
+          (outcome.output !== undefined && outcome.output !== null && outcome.output !== "");
+        note = ok
+          ? produced
+            ? (outcome.summary ?? "ok")
+            : "OK BUT EMPTY"
+          : (outcome.error?.message ?? "failed");
         if (ok && !produced) ok = false;
-        for (const f of outcome.files) if (ok && f.size === 0) { ok = false; note = `empty file ${f.name}`; }
+        for (const f of outcome.files)
+          if (ok && f.size === 0) {
+            ok = false;
+            note = `empty file ${f.name}`;
+          }
       } catch (err) {
         note = `THREW: ${err instanceof Error ? err.message : String(err)}`;
       }
       results.push({ id: tool.id, ok, note: `${Date.now() - started}ms ${note}` });
       if (!ok && !NEEDS_OUTSIDE(tool)) failures.push(`${tool.id}: ${note}`);
-      if (!ok && NEEDS_OUTSIDE(tool) && /THREW/.test(note)) failures.push(`${tool.id}: crashed instead of failing politely: ${note}`);
+      if (!ok && NEEDS_OUTSIDE(tool) && /THREW/.test(note))
+        failures.push(`${tool.id}: crashed instead of failing politely: ${note}`);
     }
 
     const passed = results.filter((r) => r.ok).length;
     console.warn(`\nALL-TOOLS SWEEP: ${passed}/${results.length} ran OK`);
     for (const r of results.filter((r) => !r.ok)) console.warn(`  ✗ ${r.id}: ${r.note}`);
-    fs.writeFileSync(path.join(os.tmpdir(), "onestop-all-tools-report.json"), JSON.stringify(results, null, 2));
+    fs.writeFileSync(
+      path.join(os.tmpdir(), "onestop-all-tools-report.json"),
+      JSON.stringify(results, null, 2),
+    );
     expect(failures, failures.join("\n")).toEqual([]);
   });
 
