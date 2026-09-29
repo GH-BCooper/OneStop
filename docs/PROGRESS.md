@@ -910,6 +910,17 @@ Master plan §27 "The product should be" - every clause:
 
 (Anything ambiguous that needs a decision from the user rather than a guess.)
 
+- **Open (2026-09-30):** test runs before this date wrote job rows to the database `.env` points at
+  (the hosted one): a read-only count on 2026-09-30 found 1,613 rows in `jobs`, 1,605 with no user and
+  731 from the previous 24 hours. They hold tool ids, option values (secrets redacted) and file names,
+  never file contents. They could not be told apart from real guest runs on the hosted instance, so
+  nothing was deleted. If you want them gone, something like
+  `delete from jobs where "userId" is null and "createdAt" > '<the day you first ran the tests>'` after
+  checking the count is the shape of it — your call, since it also removes genuine guest history.
+- **Open (2026-09-30):** should running a tool be enforced on the server, or only on the page? Today
+  `POST /api/tools/run`, the assistant and workflow-run routes accept an anonymous caller when
+  accounts are configured; only the tool *page* says "Sign in required". See the QA-pass entry.
+
 - **Open (2026-09-22):** "Replace the buttons: 'Search tools' and 'Ask OneStop AI'" was read as
   _swap their places_ - "Ask OneStop AI" now sits beside the search box and hands over whatever was typed;
   "Search tools" sits underneath. If a different replacement was meant (new labels, icons, a different
@@ -1111,6 +1122,84 @@ Three pre-existing suites needed updating, all because the catalogue grew rather
 anything broke: the registry's hard-coded "non-stub" list became a derived assertion, two
 hard-coded category counts became derived ones, and phase 12's coverage test now scopes itself to
 phase 12 (phase 21's additions to those categories have their own list and their own suite).
+
+## Post-V1: end-to-end QA pass (2026-09-30, branch `newVersion`)
+
+The owner asked for the whole of phase 21 to be tested front to back and every bug fixed. Method:
+lint/typecheck/unit (with a real local Postgres, which the earlier runs did not have — 69 tests had
+been skipping), then a signed-in browser sweep of all 308 routes (console errors, failed requests,
+horizontal overflow, broken images) at desktop and phone width, **every one of the 285 tools driven
+through the real UI** with a matching input file, screenshots of the key pages in both themes and at
+390 px, the command palette, theme presets, personal access tokens and share links exercised by
+script, and the full Playwright suite.
+
+### Bugs found and fixed in the app
+
+- **Shared-result links did not work for anyone without an account.** `/s/**` was missing from the
+  route gate's public list, so a recipient was redirected to sign-in — the opposite of the feature.
+  (`/q/**`, the dynamic-QR redirect, was already public.) Fixed, with a test that also proves
+  `/settings` and `/status` stay gated.
+- **AI tools showed nothing when no AI runtime was set up.** The server answers `OFFLINE`; the page
+  rendered its "Internet connection required" panel, and the availability effect immediately
+  "unblocked" it because the connection was fine, so the click seemed to do nothing. It now shows the
+  server's own actionable message ("No local image model is configured…") unless the page really is
+  offline. Regression test fails without the fix.
+- **Flashcard Maker ignored uploaded CSV files** (its executor only read typed text although the
+  registry offers CSV input) and **misread comma-separated rows** (`Q,A` lines became one card).
+  Now reads files, handles quoted CSV and a heading row (its own export round-trips). Registry
+  output types corrected (CSV + HTML, not PDF).
+- **Subtitle Burner could not be used at all.** It needs a video plus a subtitle file, but the
+  registry declared video-only/single-file, so the upload zone refused the `.srt` and the pipeline
+  refused a second file.
+- **Pages prerendered at build time froze the build's environment into the HTML.** `/tools/<category>`,
+  `/settings`, `/workflows` and `/offline` were static, so a build made with a database and run
+  without one showed a dead "Sign in" button and no navigation (and the reverse). The root layout is
+  now `force-dynamic`; every route renders per request.
+- **AI Assistant was unusable at phone width**: the chat-history list took two thirds of a 390 px
+  screen and squeezed the conversation into a sliver. It now starts collapsed on phones (unless the
+  person has chosen), opens as a drawer laid over the chat, and its per-chat "⋯" menu — which was
+  hover-only, so unreachable by touch — is always visible on touch devices.
+- **A dark theme preset flipped to `data-theme="light"` on Settings** (the account's saved light/dark
+  choice was re-applied over the preset's own base). Fixed; the header light/dark button, which did
+  nothing visible while a preset was active, now hands control back to plain light/dark.
+- **A missing *option* was reported as an unsupported *input*** ("This input isn't supported …
+  Accepted: PDF") for every "Enter the pages to delete…" style prompt. The panel is now titled "We
+  couldn't use this input" and the "Accepted" list only appears for a genuine file-type mismatch.
+- Signup page said "An account is optional" although running any tool now needs one.
+- Four Status-page cards used `gap-*` on a block element, so the spacing they asked for never applied.
+
+### Tests: what was stale, and what was wrong with the way they ran
+
+- **Nothing about a test run was isolated from the database in `.env`.** With `DATABASE_URL` set the
+  job store is Postgres-backed, so the all-tools sweep and other suites wrote job rows to whatever
+  that URL pointed at — on the owner's machine, the hosted Neon database. When a `TEST_DATABASE_URL`
+  exists the plain URL is now removed from every test process (`tests/setup/env.ts`,
+  `db/testing.ts`, `scripts/e2e-shared.mjs`), and every server the e2e runner starts gets an explicit
+  URL (a schema of the test database, or an empty one). **Rows already written were not touched** —
+  see Open Questions.
+- The e2e suite predated the sign-in gate (commit `7b34d45`) and the emailed sign-up code, so 40 of
+  120 tests failed. `npm run test:e2e:shared` now runs two servers: an *account* server on a test
+  schema, and a *guest* server with no database (a supported deployment: no gating, history on the
+  device). Guest-mode files use `tests/e2e/guest.ts`; signed-in tests seed a user
+  (`tests/e2e/accounts.ts`) and sign in through the real form; the sign-up test drives the emailed
+  code end to end. `ALLOW_CONSOLE_MAIL=1` is the explicit, opt-in way for those test servers to use
+  the console mailer in production mode.
+- The all-tools sweep now feeds the phase-21 tools real inputs (bookmarked PDF for the chapter
+  splitter, an encrypted file for the decryptor, a logo for the QR logo tool …); tools that need an
+  optional local program (Piper, whisper.cpp, an Ollama vision model) may refuse, politely.
+- A unit test that skipped itself unless `.env` configured accounts now sets up its own environment.
+
+### Found, deliberately not changed
+
+- **Sign-in gating is a page-level rule, not an API rule.** `POST /api/tools/run` (and the assistant
+  and workflow-run routes) still run for an anonymous caller; only the page says "Sign in required".
+  That looks intentional (the assistant is meant to be open, and the rate limiter covers the rest), so
+  it was left alone — but "using a tool needs an account" is not enforced anywhere a script can't
+  step around. Needs a product decision.
+- **FFmpeg start-up is slow on the owner's machine, not in the app.** The app adds ~60 ms per run;
+  the `.tools` FFmpeg pinned by `.env` takes ~1.3 s to *launch* (two launches per run: ffprobe, then
+  ffmpeg), another install took 4–12 s on first launch — the 100–220 MB static binaries and the OS
+  scanning them. Excluding `.tools\` from real-time antivirus scanning is the cheap fix.
 
 ## Next Up
 
