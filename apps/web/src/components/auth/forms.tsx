@@ -236,7 +236,7 @@ export function SignupForm({ googleEnabled = false, available = true }: AuthForm
   return (
     <AuthForm
       title="Create an account"
-      description="An account is optional - it only adds saved history, favourites and workflows. We will email you a code to confirm your address."
+      description="An account is free and lets you run tools, with saved history, favourites and workflows. We will email you a code to confirm your address."
       submitLabel="Send verification code"
       pendingLabel="Sending your code…"
       fields={[

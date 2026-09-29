@@ -5,7 +5,7 @@
 // because the pre-paint init script has to read it synchronously. That stays exactly as it is.
 // What this file adds is the *preference* ("system" is a preference, "dark" is a resolution) plus
 // the small extras, and the two-way sync with `UserSettings` in Postgres for a signed-in user.
-import { isThemeMode, THEME_STORAGE_KEY, type ThemeMode } from "@onestop/ui";
+import { isThemeMode, THEME_STORAGE_KEY, themePreset, type ThemeMode } from "@onestop/ui";
 import type { ThemePreference, UserSettings } from "@onestop/types";
 
 export const THEME_PREFERENCE_KEY = "onestop-theme-preference";
@@ -233,7 +233,14 @@ export function resolveTheme(preference: ThemePreference): ThemeMode {
  */
 export function applyThemePreference(preference: ThemePreference): ThemeMode {
   const resolved = resolveTheme(preference);
-  if (typeof document !== "undefined") document.documentElement.dataset.theme = resolved;
+  if (typeof document !== "undefined") {
+    // While a preset is chosen it owns the palette, and `data-theme` has to stay on the mode that
+    // preset is built on (Terminal green is dark). Re-applying the account's light/dark choice
+    // here - which Settings does on every load - would otherwise flip a dark preset to "light":
+    // the colours would stay right but native controls, scrollbars and `dark:` styles would not.
+    const active = themePreset(document.documentElement.dataset.preset);
+    document.documentElement.dataset.theme = active ? active.base : resolved;
+  }
   try {
     localStorage.setItem(THEME_PREFERENCE_KEY, preference);
     if (preference === "system") localStorage.removeItem(THEME_STORAGE_KEY);

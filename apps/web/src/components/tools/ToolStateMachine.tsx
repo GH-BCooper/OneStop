@@ -1,6 +1,6 @@
 // The generic tool-page state machine (master plan §20): every tool moves through the same eight
 // states, so the UI for each state is defined once here and reused by every tool page.
-import type { FileRef, OutputFileRef } from "@onestop/types";
+import { ERROR_MESSAGES, type FileRef, type OutputFileRef } from "@onestop/types";
 import { Button, buttonClasses, Card } from "@onestop/ui";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -132,7 +132,7 @@ const titles: Record<ToolStateName, string> = {
   success: "Done",
   failed: "Something went wrong",
   unavailable: "Unavailable",
-  unsupported: "This input isn't supported",
+  unsupported: "We couldn't use this input",
 };
 
 const unavailableTitles: Record<UnavailableReason, string> = {
@@ -230,9 +230,11 @@ export function ToolStateView({
           state.status === "unsupported" ||
           state.status === "unavailable") &&
           state.message && <p className="text-sm">{state.message}</p>}
-        {state.status === "unsupported" && acceptedTypes && (
-          <p className="text-sm text-fg-muted">Accepted: {acceptedTypes}.</p>
-        )}
+        {state.status === "unsupported" &&
+          acceptedTypes &&
+          state.message === ERROR_MESSAGES.unsupportedType && (
+            <p className="text-sm text-fg-muted">Accepted: {acceptedTypes}.</p>
+          )}
       </div>
 
       {(state.status === "validating" || state.status === "processing") && (
@@ -271,7 +273,9 @@ export function ToolStateView({
           )}
           {showPreview && previewFiles.length > 0 && (
             <div className="flex flex-wrap gap-3" data-testid="result-preview">
-              {beforeImageUrl && previewFiles.length === 1 && previewFiles[0]!.mimeType.startsWith("image/") ? (
+              {beforeImageUrl &&
+              previewFiles.length === 1 &&
+              previewFiles[0]!.mimeType.startsWith("image/") ? (
                 <CompareSlider
                   beforeSrc={beforeImageUrl}
                   afterSrc={previewFiles[0]!.url}

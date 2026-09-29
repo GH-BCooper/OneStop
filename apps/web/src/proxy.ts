@@ -7,8 +7,12 @@ import { getToken } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
 import { authIsConfigured, authSecret } from "@/lib/auth-config";
 
-/** Reachable without an account. `/tools/**` shows the catalogue; running a tool is gated in-page. */
-const PUBLIC_PREFIXES = ["/tools", "/auth", "/q", "/offline"];
+/**
+ * Reachable without an account. `/tools/**` shows the catalogue; running a tool is gated in-page.
+ * `/q/**` (a printed dynamic QR code) and `/s/**` (a shared result link) exist precisely so that
+ * someone with no account can follow them, so they can never be behind sign-in.
+ */
+const PUBLIC_PREFIXES = ["/tools", "/auth", "/q", "/s", "/offline"];
 
 /** Sign-in / sign-up: pointless (and confusing) once signed in. Password reset stays reachable. */
 const GUEST_ONLY = ["/auth/login", "/auth/signup"];
@@ -50,7 +54,8 @@ export async function proxy(req: NextRequest) {
 
   if (guestOnly && signedIn) {
     const next = req.nextUrl.searchParams.get("next");
-    const safe = next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/auth");
+    const safe =
+      next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/auth");
     return NextResponse.redirect(new URL(safe ? next : "/", req.url));
   }
   if (!publicPath && !signedIn) {

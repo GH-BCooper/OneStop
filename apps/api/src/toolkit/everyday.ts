@@ -12,7 +12,7 @@ import {
   optNumber,
   optString,
   plural,
-  requireText,
+  readTextish,
   round,
   runToolkitTool,
   textFile,
@@ -26,10 +26,37 @@ export interface Flashcard {
   back: string;
 }
 
+/** One CSV line into fields, honouring "quoted, values" and "" escapes. */
+function splitCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let cur = "";
+  let quoted = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i]!;
+    if (quoted) {
+      if (ch === '"' && line[i + 1] === '"') {
+        cur += '"';
+        i += 1;
+      } else if (ch === '"') quoted = false;
+      else cur += ch;
+    } else if (ch === '"' && cur === "") quoted = true;
+    else if (ch === ",") {
+      fields.push(cur.trim());
+      cur = "";
+    } else cur += ch;
+  }
+  fields.push(cur.trim());
+  return fields;
+}
+
 /** Accepts "Q | A" per line, "Q -- A", a two-column CSV, or Q and A on alternating lines. */
 export function parseFlashcards(text: string): Flashcard[] {
-  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter((l) => l !== "");
-  if (lines.length === 0) throw unsupported('Add some cards, one per line, like "Question | Answer".');
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l !== "");
+  if (lines.length === 0)
+    throw unsupported('Add some cards, one per line, like "Question | Answer".');
   const delimited = lines.filter((l) => /\s\|\s|\t|\s--\s/.test(l));
   if (delimited.length >= Math.max(1, Math.floor(lines.length / 2))) {
     return delimited.map((line) => {
@@ -37,8 +64,24 @@ export function parseFlashcards(text: string): Flashcard[] {
       return { front: front!.trim(), back: rest.join(" ").trim() };
     });
   }
+  // A CSV: the first column is the question and the rest the answer. A "Front,Back" heading row (which
+  // is what this tool's own CSV export starts with) is not a card.
+  const csvRows = lines.map(splitCsvLine);
+  if (csvRows.every((r) => r.length >= 2)) {
+    const [head] = csvRows;
+    const hasHeading =
+      head !== undefined &&
+      /^(front|question|q|term)$/i.test(head[0] ?? "") &&
+      /^(back|answer|a|definition)$/i.test(head[1] ?? "");
+    const rows = hasHeading ? csvRows.slice(1) : csvRows;
+    if (rows.length === 0)
+      throw unsupported('Add some cards, one per line, like "Question | Answer".');
+    return rows.map(([front, ...rest]) => ({ front: front!, back: rest.join(", ") }));
+  }
   if (lines.length % 2 !== 0) {
-    throw unsupported('Use "Question | Answer" on each line, or an even number of lines (question, answer, question, answer…).');
+    throw unsupported(
+      'Use "Question | Answer" on each line, or an even number of lines (question, answer, question, answer…).',
+    );
   }
   const cards: Flashcard[] = [];
   for (let i = 0; i < lines.length; i += 2) cards.push({ front: lines[i]!, back: lines[i + 1]! });
@@ -72,9 +115,9 @@ export function flashcardHtml(cards: Flashcard[], title: string, showBacks: bool
 </style></head><body>${pages.join("")}</body></html>`;
 }
 
-export const flashcardMakerExecutor: Executor = (input, options) =>
+export const flashcardMakerExecutor: Executor = (input, options, ctx) =>
   runToolkitTool("flashcard-maker", async () => {
-    const cards = parseFlashcards(requireText(input, "your questions and answers"));
+    const cards = parseFlashcards(await readTextish(input, ctx, "your questions and answers"));
     const shuffle = optBool(options, "shuffle", false);
     const showBacks = optBool(options, "printBacks", true);
     const title = optString(options, "title", "Flashcards") || "Flashcards";
@@ -104,7 +147,11 @@ export const flashcardMakerExecutor: Executor = (input, options) =>
  * scores the result it reports. Words-per-minute is the standard five-characters-to-a-word measure,
  * so a result here is comparable with every other typing test.
  */
-export function scoreTyping(typed: string, target: string, seconds: number): {
+export function scoreTyping(
+  typed: string,
+  target: string,
+  seconds: number,
+): {
   wpm: number;
   accuracy: number;
   correctChars: number;
@@ -134,7 +181,8 @@ export const TYPING_PASSAGES: readonly string[] = [
 
 export const typingSpeedTestExecutor: Executor = (input, options) =>
   runToolkitTool("typing-speed-test", async () => {
-    const target = optString(options, "passage", "") || TYPING_PASSAGES[randomInt(TYPING_PASSAGES.length)]!;
+    const target =
+      optString(options, "passage", "") || TYPING_PASSAGES[randomInt(TYPING_PASSAGES.length)]!;
     const typed = typeof input === "string" ? input : "";
     const seconds = optNumber(options, "seconds", 0, { min: 0, max: 3600 });
     if (typed.trim() === "" || seconds <= 0) {
@@ -147,7 +195,14 @@ export const typingSpeedTestExecutor: Executor = (input, options) =>
       };
     }
     const score = scoreTyping(typed, target, seconds);
-    const band = score.netWpm < 25 ? "beginner" : score.netWpm < 45 ? "average" : score.netWpm < 70 ? "fast" : "very fast";
+    const band =
+      score.netWpm < 25
+        ? "beginner"
+        : score.netWpm < 45
+          ? "average"
+          : score.netWpm < 70
+            ? "fast"
+            : "very fast";
     return {
       ok: true,
       output: { ...score, seconds, band, result: `${score.netWpm} WPM` },
@@ -188,7 +243,14 @@ export function zoneOffsetMinutes(zone: string, at: Date): number {
     second: "2-digit",
   }).formatToParts(at);
   const get = (type: string) => Number(parts.find((p) => p.type === type)?.value);
-  const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour") % 24, get("minute"), get("second"));
+  const asUtc = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour") % 24,
+    get("minute"),
+    get("second"),
+  );
   return Math.round((asUtc - Math.floor(at.getTime() / 1000) * 1000) / 60_000);
 }
 
@@ -237,7 +299,9 @@ export const worldClockExecutor: Executor = (input, options) =>
     } else {
       const parsed = new Date(raw);
       if (Number.isNaN(parsed.getTime())) {
-        throw unsupported(`"${raw}" is not a date and time. Try 2026-03-14 15:00, or leave it blank for now.`);
+        throw unsupported(
+          `"${raw}" is not a date and time. Try 2026-03-14 15:00, or leave it blank for now.`,
+        );
       }
       at = parsed;
     }
@@ -247,15 +311,32 @@ export const worldClockExecutor: Executor = (input, options) =>
       try {
         offset = zoneOffsetMinutes(zone, at);
       } catch {
-        throw unsupported(`"${zone}" is not a known time zone. Use an IANA name like Europe/London.`);
+        throw unsupported(
+          `"${zone}" is not a known time zone. Use an IANA name like Europe/London.`,
+        );
       }
-      return { zone, local: formatInZone(zone, at), offset: offsetLabel(offset), offsetMinutes: offset };
+      return {
+        zone,
+        local: formatInZone(zone, at),
+        offset: offsetLabel(offset),
+        offsetMinutes: offset,
+      };
     });
     return {
       ok: true,
-      output: { instant: at.toISOString(), fromZone, zones: rows, result: rows.map((r) => `${r.zone}: ${r.local}`).join("\n") },
+      output: {
+        instant: at.toISOString(),
+        fromZone,
+        zones: rows,
+        result: rows.map((r) => `${r.zone}: ${r.local}`).join("\n"),
+      },
       summary: `${at.toISOString().replace("T", " ").slice(0, 16)} UTC across ${plural(rows.length, "time zone")}.`,
-      files: [csvFile("world-clock.csv", [["Time zone", "Local time", "UTC offset"], ...rows.map((r) => [r.zone, r.local, r.offset])])],
+      files: [
+        csvFile("world-clock.csv", [
+          ["Time zone", "Local time", "UTC offset"],
+          ...rows.map((r) => [r.zone, r.local, r.offset]),
+        ]),
+      ],
     };
   });
 
@@ -263,7 +344,11 @@ export const worldClockExecutor: Executor = (input, options) =>
 
 /** RFC 5545 folds lines at 75 octets and escapes , ; \ and newlines. */
 export function icsEscape(text: string): string {
-  return text.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+  return text
+    .replace(/\\/g, "\\\\")
+    .replace(/;/g, "\\;")
+    .replace(/,/g, "\\,")
+    .replace(/\r?\n/g, "\\n");
 }
 
 export function foldIcsLine(line: string): string {
@@ -332,11 +417,14 @@ const EMAIL_RE = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
 
 export const calendarEventExecutor: Executor = (input, options) =>
   runToolkitTool("calendar-event-generator", async () => {
-    const title = (typeof input === "string" && input.trim() !== "" ? input : optString(options, "title", "")).trim();
+    const title = (
+      typeof input === "string" && input.trim() !== "" ? input : optString(options, "title", "")
+    ).trim();
     if (title === "") throw unsupported("Give the event a title first.");
     const allDay = optBool(options, "allDay", false);
     const startText = optString(options, "start", "").trim();
-    const start = startText === "" ? new Date(Date.now() + 3_600_000) : new Date(startText.replace(" ", "T"));
+    const start =
+      startText === "" ? new Date(Date.now() + 3_600_000) : new Date(startText.replace(" ", "T"));
     if (Number.isNaN(start.getTime())) {
       throw unsupported(`"${startText}" is not a date and time. Use 2026-03-14 15:00.`);
     }
@@ -349,7 +437,8 @@ export const calendarEventExecutor: Executor = (input, options) =>
     const bad = attendees.find((a) => !EMAIL_RE.test(a));
     if (bad) throw unsupported(`"${bad}" is not an email address.`);
     const organizer = optString(options, "organizer", "").trim();
-    if (organizer !== "" && !EMAIL_RE.test(organizer)) throw unsupported(`"${organizer}" is not an email address.`);
+    if (organizer !== "" && !EMAIL_RE.test(organizer))
+      throw unsupported(`"${organizer}" is not an email address.`);
 
     const event: IcsEvent = {
       title: title.slice(0, 300),
@@ -362,11 +451,22 @@ export const calendarEventExecutor: Executor = (input, options) =>
       organizer,
       attendees,
       reminderMinutes: optNumber(options, "reminderMinutes", 10, { min: 0, max: 10_080 }),
-      repeat: optEnum(options, "repeat", ["none", "daily", "weekly", "monthly", "yearly"] as const, "none"),
+      repeat: optEnum(
+        options,
+        "repeat",
+        ["none", "daily", "weekly", "monthly", "yearly"] as const,
+        "none",
+      ),
       uid: `${Date.now().toString(36)}-${randomInt(1e9).toString(36)}@onestop.local`,
     };
     const ics = buildIcs(event);
-    const stem = (title.replace(/[^A-Za-z0-9 -]+/g, "").trim().replace(/\s+/g, "-").toLowerCase() || "event").slice(0, 60);
+    const stem = (
+      title
+        .replace(/[^A-Za-z0-9 -]+/g, "")
+        .trim()
+        .replace(/\s+/g, "-")
+        .toLowerCase() || "event"
+    ).slice(0, 60);
     return {
       ok: true,
       output: {
@@ -432,16 +532,29 @@ export function countdownHtml(title: string, targetIso: string, message: string)
 
 export const countdownPageExecutor: Executor = (input, options) =>
   runToolkitTool("countdown-page-generator", async () => {
-    const title = ((typeof input === "string" && input.trim() !== "" ? input : optString(options, "title", "")) || "Countdown").trim();
+    const title = (
+      (typeof input === "string" && input.trim() !== ""
+        ? input
+        : optString(options, "title", "")) || "Countdown"
+    ).trim();
     const targetText = optString(options, "target", "").trim();
-    const target = targetText === "" ? new Date(Date.now() + 7 * 86_400_000) : new Date(targetText.replace(" ", "T"));
+    const target =
+      targetText === ""
+        ? new Date(Date.now() + 7 * 86_400_000)
+        : new Date(targetText.replace(" ", "T"));
     if (Number.isNaN(target.getTime())) {
       throw unsupported(`"${targetText}" is not a date and time. Use 2026-12-31 23:59.`);
     }
     const message = optString(options, "message", "").slice(0, 300);
     const html = countdownHtml(title.slice(0, 120), target.toISOString(), message);
     const days = Math.round((target.getTime() - Date.now()) / 86_400_000);
-    const stem = (title.replace(/[^A-Za-z0-9 -]+/g, "").trim().replace(/\s+/g, "-").toLowerCase() || "countdown").slice(0, 60);
+    const stem = (
+      title
+        .replace(/[^A-Za-z0-9 -]+/g, "")
+        .trim()
+        .replace(/\s+/g, "-")
+        .toLowerCase() || "countdown"
+    ).slice(0, 60);
     return {
       ok: true,
       output: { title, target: target.toISOString(), daysAway: days, result: target.toISOString() },
@@ -471,10 +584,19 @@ export function makeTeams<T>(items: readonly T[], teamCount: number): T[][] {
 
 export const decisionMakerExecutor: Executor = (input, options) =>
   runToolkitTool("decision-maker", async () => {
-    const mode = optEnum(options, "mode", ["pick", "shuffle", "teams", "dice", "coin"] as const, "pick");
+    const mode = optEnum(
+      options,
+      "mode",
+      ["pick", "shuffle", "teams", "dice", "coin"] as const,
+      "pick",
+    );
     const items =
       typeof input === "string"
-        ? input.split(/[\n,]/).map((s) => s.trim()).filter(Boolean).slice(0, 2000)
+        ? input
+            .split(/[\n,]/)
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .slice(0, 2000)
         : [];
 
     if (mode === "coin") {
@@ -484,7 +606,10 @@ export const decisionMakerExecutor: Executor = (input, options) =>
       return {
         ok: true,
         output: { flips, heads, tails: count - heads, result: flips.join(", ") },
-        summary: count === 1 ? `${flips[0]![0]!.toUpperCase()}${flips[0]!.slice(1)}.` : `${heads} heads, ${count - heads} tails out of ${count} flips.`,
+        summary:
+          count === 1
+            ? `${flips[0]![0]!.toUpperCase()}${flips[0]!.slice(1)}.`
+            : `${heads} heads, ${count - heads} tails out of ${count} flips.`,
         files: [],
       };
     }
@@ -535,7 +660,10 @@ export const decisionMakerExecutor: Executor = (input, options) =>
     return {
       ok: true,
       output: { chosen, fromCount: items.length, result: chosen.join("\n") },
-      summary: pick === 1 ? `Picked "${chosen[0]}" out of ${items.length}.` : `Picked ${plural(pick, "item")} out of ${items.length}.`,
+      summary:
+        pick === 1
+          ? `Picked "${chosen[0]}" out of ${items.length}.`
+          : `Picked ${plural(pick, "item")} out of ${items.length}.`,
       files: [],
     };
   });

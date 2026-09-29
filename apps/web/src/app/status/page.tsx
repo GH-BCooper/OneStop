@@ -77,7 +77,7 @@ export default async function StatusPage() {
         <h2 id="how-offline-heading" className="text-xl font-semibold">
           How offline works here
         </h2>
-        <Card className="gap-2 text-sm text-fg-muted">
+        <Card className="flex flex-col gap-2 text-sm text-fg-muted">
           <p>
             <span className="font-medium text-fg">The app shell is cached.</span> After your first
             visit, OneStop opens with no connection: the pages you have visited come from the cache,

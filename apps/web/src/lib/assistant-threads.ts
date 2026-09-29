@@ -169,7 +169,11 @@ export function deleteThread(id: string): void {
 
 export function readSidebarCollapsed(): boolean {
   try {
-    return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "1";
+    const stored = localStorage.getItem(SIDEBAR_COLLAPSED_KEY);
+    if (stored !== null) return stored === "1";
+    // Nobody has chosen yet. On a phone an open chat list would take most of the screen and squeeze
+    // the conversation into a sliver, so start closed there; everywhere else start open.
+    return window.matchMedia("(max-width: 767px)").matches;
   } catch {
     return false;
   }

@@ -19,6 +19,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import Link from "next/link";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CommandPalette, openCommandPalette } from "@/components/layout/CommandPalette";
+import { ThemeToggle } from "@/components/layout/ThemeToggle";
 import { CompareSlider } from "@/components/tools/CompareSlider";
 import { EmptyState } from "@/components/fx/EmptyState";
 import { BentoGrid, BentoTile } from "@/components/home/BentoGrid";
@@ -31,6 +32,7 @@ import {
   readThemePresetPreference,
 } from "@/lib/appearance";
 import { groupResults, isPaletteShortcut, paletteResults } from "@/lib/command-palette";
+import { applyThemePreference } from "@/lib/preferences";
 
 const push = vi.fn();
 vi.mock("next/navigation", () => ({
@@ -52,11 +54,21 @@ afterEach(() => {
 
 describe("command palette search", () => {
   it("recognises the shortcut on both platforms, and nothing else", () => {
-    expect(isPaletteShortcut({ key: "k", ctrlKey: true, metaKey: false, altKey: false })).toBe(true);
-    expect(isPaletteShortcut({ key: "K", ctrlKey: false, metaKey: true, altKey: false })).toBe(true);
-    expect(isPaletteShortcut({ key: "/", ctrlKey: true, metaKey: false, altKey: false })).toBe(true);
-    expect(isPaletteShortcut({ key: "k", ctrlKey: false, metaKey: false, altKey: false })).toBe(false);
-    expect(isPaletteShortcut({ key: "k", ctrlKey: true, metaKey: false, altKey: true })).toBe(false);
+    expect(isPaletteShortcut({ key: "k", ctrlKey: true, metaKey: false, altKey: false })).toBe(
+      true,
+    );
+    expect(isPaletteShortcut({ key: "K", ctrlKey: false, metaKey: true, altKey: false })).toBe(
+      true,
+    );
+    expect(isPaletteShortcut({ key: "/", ctrlKey: true, metaKey: false, altKey: false })).toBe(
+      true,
+    );
+    expect(isPaletteShortcut({ key: "k", ctrlKey: false, metaKey: false, altKey: false })).toBe(
+      false,
+    );
+    expect(isPaletteShortcut({ key: "k", ctrlKey: true, metaKey: false, altKey: true })).toBe(
+      false,
+    );
   });
 
   it("finds tools by name and by what they do", () => {
@@ -67,17 +79,29 @@ describe("command palette search", () => {
   });
 
   it("shows recents and favourites when nothing is typed", () => {
-    const results = paletteResults("", { recentIds: ["merge-pdf"], favoriteIds: ["image-resizer"] });
+    const results = paletteResults("", {
+      recentIds: ["merge-pdf"],
+      favoriteIds: ["image-resizer"],
+    });
     const tools_ = results.filter((i) => i.group === "Tools");
     expect(tools_[0]?.label).toBe("Merge PDF");
     expect(tools_[0]?.detail).toBe("Recently used");
-    expect(tools_.some((i) => i.label === "Image Resizer" && i.badges?.includes("Favourite"))).toBe(true);
+    expect(tools_.some((i) => i.label === "Image Resizer" && i.badges?.includes("Favourite"))).toBe(
+      true,
+    );
   });
 
   it("includes workflows, history, pages and quick actions", () => {
     const results = paletteResults("", {
       workflows: [{ id: "w1", name: "Shrink and zip", steps: [{ toolId: "image-resizer" }] }],
-      history: [{ id: "j1", toolId: "merge-pdf", createdAt: "2026-01-01T00:00:00Z", summary: "Merged 3 files" }],
+      history: [
+        {
+          id: "j1",
+          toolId: "merge-pdf",
+          createdAt: "2026-01-01T00:00:00Z",
+          summary: "Merged 3 files",
+        },
+      ],
     });
     const groups = groupResults(results).map((g) => g.group);
     expect(groups).toContain("Workflows");
@@ -161,7 +185,9 @@ describe("command palette component", () => {
     openCommandPalette();
     const input = await screen.findByRole("combobox");
     fireEvent.change(input, { target: { value: "toggle light" } });
-    const option = (await screen.findAllByRole("option")).find((el) => /Toggle light/.test(el.textContent ?? ""));
+    const option = (await screen.findAllByRole("option")).find((el) =>
+      /Toggle light/.test(el.textContent ?? ""),
+    );
     expect(option).toBeDefined();
     fireEvent.click(option!);
     expect(document.documentElement.dataset.theme).toBe("dark");
@@ -173,7 +199,9 @@ describe("command palette component", () => {
     openCommandPalette();
     const input = await screen.findByRole("combobox");
     fireEvent.change(input, { target: { value: "zzzzqqqq" } });
-    expect(await screen.findByText(/Nothing matched/)).toBeTruthy();
+    // A generous budget: this only proves the message appears, and a machine running the whole
+    // suite at once can take longer than findBy's default second to re-render the palette.
+    expect(await screen.findByText(/Nothing matched/, {}, { timeout: 10_000 })).toBeTruthy();
   });
 });
 
@@ -198,7 +226,8 @@ describe("theme presets", () => {
     expect(css).toContain(TEXT_ADJUST_CSS);
     // Every preset has to define every token, or a switch would leave a variable unset.
     const tokens = Object.keys(THEME_PRESETS[0]!.colors);
-    for (const preset of THEME_PRESETS) expect(Object.keys(preset.colors).sort()).toEqual([...tokens].sort());
+    for (const preset of THEME_PRESETS)
+      expect(Object.keys(preset.colors).sort()).toEqual([...tokens].sort());
   });
 
   it("keeps body text above WCAG AA in every preset", () => {
@@ -209,7 +238,9 @@ describe("theme presets", () => {
     const luminance = (hex: string) =>
       0.2126 * channel(hex, 1) + 0.7152 * channel(hex, 3) + 0.0722 * channel(hex, 5);
     for (const preset of THEME_PRESETS) {
-      const [hi, lo] = [luminance(preset.colors.fg), luminance(preset.colors.bg)].sort((a, b) => b - a);
+      const [hi, lo] = [luminance(preset.colors.fg), luminance(preset.colors.bg)].sort(
+        (a, b) => b - a,
+      );
       const ratio = (hi! + 0.05) / (lo! + 0.05);
       expect(ratio, `${preset.id} body contrast`).toBeGreaterThanOrEqual(4.5);
     }
@@ -232,10 +263,37 @@ describe("theme presets", () => {
     expect(readThemePresetPreference()).toBeNull();
   });
 
+  it("keeps a preset's own light/dark base when the saved theme preference is re-applied", () => {
+    // Settings re-applies the account's light/dark choice on every load. That must not flip a
+    // dark preset (Terminal green) to "light" behind the palette's back.
+    applyThemePreset("terminal");
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: false }));
+    applyThemePreference("light");
+    expect(document.documentElement.dataset.theme).toBe("dark");
+    expect(document.documentElement.dataset.preset).toBe("terminal");
+    // ...and once the preset is cleared, the saved preference is in charge again.
+    applyThemePreset(null);
+    applyThemePreference("light");
+    expect(document.documentElement.dataset.theme).toBe("light");
+    vi.unstubAllGlobals();
+  });
+
+  it("hands control back to plain light/dark when the header toggle is used with a preset chosen", () => {
+    applyThemePreset("terminal");
+    render(<ThemeToggle />);
+    fireEvent.click(screen.getByRole("button", { name: /switch to light theme/i }));
+    expect(document.documentElement.dataset.preset).toBeUndefined();
+    expect(document.documentElement.dataset.theme).toBe("light");
+  });
+
   it("restores the preset before paint, without a flash", () => {
     vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: false }));
     localStorage.setItem("onestop-theme-preset", "paper");
-    localStorage.setItem("onestop-text-preferences", JSON.stringify({ text: "dyslexic", dataSaver: true }));
+    localStorage.setItem(
+      "onestop-text-preferences",
+      JSON.stringify({ text: "dyslexic", dataSaver: true }),
+    );
     // The init script is what the <head> runs; evaluating it here is exactly what the browser does.
     new Function(themeInitScript())();
     expect(document.documentElement.dataset.preset).toBe("paper");
@@ -290,7 +348,17 @@ describe("before/after compare slider", () => {
   beforeEach(() => {
     // jsdom gives every element a zero-size box, which a drag test needs to fake.
     Element.prototype.getBoundingClientRect = function () {
-      return { x: 0, y: 0, top: 0, left: 0, right: 200, bottom: 100, width: 200, height: 100, toJSON: () => ({}) };
+      return {
+        x: 0,
+        y: 0,
+        top: 0,
+        left: 0,
+        right: 200,
+        bottom: 100,
+        width: 200,
+        height: 100,
+        toJSON: () => ({}),
+      };
     };
   });
 
@@ -316,7 +384,14 @@ describe("before/after compare slider", () => {
   });
 
   it("labels both images so the comparison is not visual-only", () => {
-    render(<CompareSlider beforeSrc="/a.png" afterSrc="/b.png" beforeLabel="Original" afterLabel="Result" />);
+    render(
+      <CompareSlider
+        beforeSrc="/a.png"
+        afterSrc="/b.png"
+        beforeLabel="Original"
+        afterLabel="Result"
+      />,
+    );
     expect(screen.getByAltText("Original")).toBeTruthy();
     expect(screen.getByAltText("Result")).toBeTruthy();
   });

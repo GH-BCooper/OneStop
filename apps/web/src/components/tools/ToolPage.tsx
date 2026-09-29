@@ -256,7 +256,18 @@ export function ToolPage({ tool, initialState }: ToolPageProps) {
       if (code === "NOT_IMPLEMENTED") {
         dispatch({ type: "UNAVAILABLE", reason: "not-implemented", message });
       } else if (code === "OFFLINE") {
-        dispatch({ type: "UNAVAILABLE", reason: "offline", message: OFFLINE_MESSAGE });
+        // The server says OFFLINE for more than a dead connection: an AI tool with no runtime set
+        // up, or no local image model, answers the same way. The "Internet connection required"
+        // panel is right only when the page really is offline; otherwise it would be un-blocked by
+        // the availability effect the moment it appeared, leaving the visitor with no answer at
+        // all. Show the server's own actionable message instead, and let a re-probe upgrade it to
+        // the offline panel if the connection really is down.
+        void connectivity.recheck();
+        dispatch(
+          availability.available
+            ? { type: "FAIL", message }
+            : { type: "UNAVAILABLE", reason: "offline", message: OFFLINE_MESSAGE },
+        );
       } else if (code === "AUTH_REQUIRED") {
         dispatch({ type: "UNAVAILABLE", reason: "auth-required", message });
       } else if (code === "UNSUPPORTED_INPUT") {

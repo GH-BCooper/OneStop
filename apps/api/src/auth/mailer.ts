@@ -62,9 +62,14 @@ export function selectedTransport(env: NodeJS.ProcessEnv = process.env): MailTra
  * Whether an email sent now can actually reach a person. The console transport is a fine stand-in
  * for a developer at a terminal, but on a production server it silently delivers to nobody - so
  * flows that *need* the email (sign-up codes) refuse up front instead of pretending.
+ *
+ * `ALLOW_CONSOLE_MAIL=1` is the one deliberate exception: the end-to-end suite runs the production
+ * build and reads sign-up codes and reset links back out of the server's own log. It has to be set
+ * explicitly, so a real deployment can never get it by accident.
  */
 export function canDeliverMail(env: NodeJS.ProcessEnv = process.env): boolean {
   if (mailTransports(env).some((t) => t !== "console")) return true;
+  if (env.ALLOW_CONSOLE_MAIL === "1") return true;
   return env.NODE_ENV !== "production";
 }
 

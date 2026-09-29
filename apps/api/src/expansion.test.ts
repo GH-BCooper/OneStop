@@ -21,8 +21,16 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import "./file-processing/index.ts";
 import "./index.ts";
+import { runPipeline } from "./index.ts";
 import { makeDocx, makePptx } from "./documents/fixtures.ts";
-import { docxToMarkdown, formatReference, parseMarkdownSlides, parseReferences, parseResume, resolveRevisions } from "./documents/expansion.ts";
+import {
+  docxToMarkdown,
+  formatReference,
+  parseMarkdownSlides,
+  parseReferences,
+  parseResume,
+  resolveRevisions,
+} from "./documents/expansion.ts";
 import { diffTables, inferSchema, parseFieldSpec } from "./data/dataDiff.ts";
 import { aggregate, buildPivot, findColumn } from "./data/pivot.ts";
 import { readSeries, renderChartSvg } from "./data/chart.ts";
@@ -30,24 +38,106 @@ import { makeTable } from "./data/common.ts";
 import { decodeJwt } from "./dev-utils/jwt.ts";
 import { buildPalette, judgeContrast, parseColor, rgbToHsl } from "./dev-utils/colors.ts";
 import { explainCron, nextRuns, parseCron } from "./dev-utils/cron.ts";
-import { analyseReadability, convertCase, convertUnit, countSyllables, splitWords } from "./dev-utils/transforms.ts";
+import {
+  analyseReadability,
+  convertCase,
+  convertUnit,
+  countSyllables,
+  splitWords,
+} from "./dev-utils/transforms.ts";
 import { scanText, shannonEntropy } from "./dev-utils/secrets.ts";
-import { hammingDistance, kMeansPalette, perceptualHash, simplifyPath, traceContours } from "./images/analysis.ts";
-import { applyNamePattern, buildIco, sanitizeFileName, SOCIAL_PRESETS } from "./images/batchTools.ts";
+import {
+  hammingDistance,
+  kMeansPalette,
+  perceptualHash,
+  simplifyPath,
+  traceContours,
+} from "./images/analysis.ts";
+import {
+  applyNamePattern,
+  buildIco,
+  sanitizeFileName,
+  SOCIAL_PRESETS,
+} from "./images/batchTools.ts";
 import { makePng, makeStructuredPdf, makeTextPdf } from "./pdf/fixtures.ts";
-import { bookletOrder, parseBookmarkList, parseFieldSpecs, parseRedactionBoxes, readOutline, writeOutline } from "./pdf/expansion.ts";
+import {
+  bookletOrder,
+  parseBookmarkList,
+  parseFieldSpecs,
+  parseRedactionBoxes,
+  readOutline,
+  writeOutline,
+} from "./pdf/expansion.ts";
 import { loadPdf, savePdf } from "./pdf/document.ts";
-import { code128Checksum, eanCheckDigit, encodeCode128, encodeEan, encodeItf14 } from "./qr/expansion.ts";
+import {
+  code128Checksum,
+  eanCheckDigit,
+  encodeCode128,
+  encodeEan,
+  encodeItf14,
+} from "./qr/expansion.ts";
 import { diffSequences, inlineDiff, toLines, unifiedDiff } from "./shared/diff.ts";
-import { base32Decode, base32Encode, decryptBytes, encryptBytes, scorePassword, totp } from "./toolkit/security.ts";
-import { amortize, parseInvoiceLines, projectGrowth, _clearRateCache, _seedRateCache } from "./toolkit/finance.ts";
-import { buildIcs, foldIcsLine, makeTeams, parseFlashcards, scoreTyping, zoneOffsetMinutes } from "./toolkit/everyday.ts";
+import {
+  base32Decode,
+  base32Encode,
+  decryptBytes,
+  encryptBytes,
+  scorePassword,
+  totp,
+} from "./toolkit/security.ts";
+import {
+  amortize,
+  parseInvoiceLines,
+  projectGrowth,
+  _clearRateCache,
+  _seedRateCache,
+} from "./toolkit/finance.ts";
+import {
+  buildIcs,
+  flashcardMakerExecutor,
+  foldIcsLine,
+  makeTeams,
+  parseFlashcards,
+  scoreTyping,
+  zoneOffsetMinutes,
+} from "./toolkit/everyday.ts";
 import { summariseYear } from "./toolkit/wrapup.ts";
-import { parseChapterList, parseSilenceDetect, parseSrt, cuesToVtt, chunkForSpeech, assColor } from "./media/expansion.ts";
-import { gradeHeaders, hostMatchesName, parseHeaderLines, parseRobots, parseSitemap, EMAIL_SYNTAX } from "./network/httpTools.ts";
-import { clozeCards, compareKeywords, guessLanguage, parseFlashcardAnswer, transcriptToProse } from "./ai/expansion.ts";
-import { encodeHeader, isValidTopic, ntfyServer, readNtfyPreference, sendNtfy } from "./automation/outbound.ts";
-import { generateToken, hashToken, looksLikeAccessToken, tokenFromHeaders } from "./auth/accessTokens.ts";
+import {
+  parseChapterList,
+  parseSilenceDetect,
+  parseSrt,
+  cuesToVtt,
+  chunkForSpeech,
+  assColor,
+} from "./media/expansion.ts";
+import {
+  gradeHeaders,
+  hostMatchesName,
+  parseHeaderLines,
+  parseRobots,
+  parseSitemap,
+  EMAIL_SYNTAX,
+} from "./network/httpTools.ts";
+import {
+  clozeCards,
+  compareKeywords,
+  guessLanguage,
+  parseFlashcardAnswer,
+  transcriptToProse,
+} from "./ai/expansion.ts";
+import {
+  encodeHeader,
+  isValidTopic,
+  ntfyServer,
+  readNtfyPreference,
+  sendNtfy,
+} from "./automation/outbound.ts";
+import {
+  generateToken,
+  hashToken,
+  looksLikeAccessToken,
+  tokenFromHeaders,
+} from "./auth/accessTokens.ts";
 import { generateSlug, sharePath } from "./file-processing/sharedResults.ts";
 import { findSpeech, setSpeechLocator, speechStatus } from "./media/speechCheck.ts";
 import { recordOfflineCoverage } from "../../../tests/offline/coverage.ts";
@@ -141,9 +231,15 @@ describe("TOTP", () => {
     // The RFC's shared secret is the ASCII "12345678901234567890".
     const secret = enc("12345678901234567890");
     expect(totp(secret, { time: 59_000, digits: 8, algorithm: "sha1" })).toBe("94287082");
-    expect(totp(secret, { time: 1_111_111_109_000, digits: 8, algorithm: "sha1" })).toBe("07081804");
-    expect(totp(secret, { time: 1_234_567_890_000, digits: 8, algorithm: "sha1" })).toBe("89005924");
-    expect(totp(secret, { time: 2_000_000_000_000, digits: 8, algorithm: "sha1" })).toBe("69279037");
+    expect(totp(secret, { time: 1_111_111_109_000, digits: 8, algorithm: "sha1" })).toBe(
+      "07081804",
+    );
+    expect(totp(secret, { time: 1_234_567_890_000, digits: 8, algorithm: "sha1" })).toBe(
+      "89005924",
+    );
+    expect(totp(secret, { time: 2_000_000_000_000, digits: 8, algorithm: "sha1" })).toBe(
+      "69279037",
+    );
   });
 
   it("rejects a secret that is not base32", () => {
@@ -153,9 +249,15 @@ describe("TOTP", () => {
   it("verifies a code and reports clock drift", async () => {
     const secret = base32Encode(enc("12345678901234567890"));
     const code = totp(enc("12345678901234567890"), { time: Date.now() });
-    const result = expectOk(await run("totp-code-generator", secret, { mode: "verify", code }), "totp");
+    const result = expectOk(
+      await run("totp-code-generator", secret, { mode: "verify", code }),
+      "totp",
+    );
     expect((result.output as { valid: boolean }).valid).toBe(true);
-    const wrong = expectOk(await run("totp-code-generator", secret, { mode: "verify", code: "000000" }), "totp");
+    const wrong = expectOk(
+      await run("totp-code-generator", secret, { mode: "verify", code: "000000" }),
+      "totp",
+    );
     expect((wrong.output as { valid: boolean }).valid).toBe(false);
   });
 });
@@ -176,7 +278,9 @@ describe("file encryption", () => {
   });
 
   it("refuses a file it did not write", () => {
-    expect(() => decryptBytes(enc("just some text"), "password123")).toThrow(/not encrypted by OneStop/);
+    expect(() => decryptBytes(enc("just some text"), "password123")).toThrow(
+      /not encrypted by OneStop/,
+    );
   });
 
   it("encrypts and decrypts through the executors", async () => {
@@ -229,14 +333,19 @@ describe("loan and growth maths", () => {
   });
 
   it("splits a bill and reports the rounding surplus", async () => {
-    const result = expectOk(await run("tip-splitter", null, { bill: 100, tipPercent: 15, people: 3, rounding: "up" }), "tip");
+    const result = expectOk(
+      await run("tip-splitter", null, { bill: 100, tipPercent: 15, people: 3, rounding: "up" }),
+      "tip",
+    );
     const output = result.output as { each: number; extra: number };
     expect(output.each).toBe(39);
     expect(output.extra).toBeCloseTo(2, 5);
   });
 
   it("parses invoice lines and refuses a malformed one", () => {
-    expect(parseInvoiceLines("Design | 2 | 100")).toEqual([{ description: "Design", quantity: 2, unitPrice: 100 }]);
+    expect(parseInvoiceLines("Design | 2 | 100")).toEqual([
+      { description: "Design", quantity: 2, unitPrice: 100 },
+    ]);
     expect(() => parseInvoiceLines("Design | lots | 100")).toThrow(/line item/);
   });
 
@@ -248,7 +357,10 @@ describe("loan and growth maths", () => {
       throw new Error("offline");
     }) as typeof fetch;
     try {
-      const result = expectOk(await run("currency-converter", "10", { from: "USD", to: "EUR" }), "currency");
+      const result = expectOk(
+        await run("currency-converter", "10", { from: "USD", to: "EUR" }),
+        "currency",
+      );
       expect((result.output as { converted: number; stale: boolean }).converted).toBeCloseTo(9, 5);
       expect((result.output as { stale: boolean }).stale).toBe(true);
       expect(result.summary).toMatch(/may be out of date/);
@@ -281,7 +393,12 @@ describe("calendar and time", () => {
     const long = `SUMMARY:${"x".repeat(200)}`;
     const folded = foldIcsLine(long);
     expect(folded.split("\r\n")[0]!.length).toBe(75);
-    expect(folded.split("\r\n").slice(1).every((l) => l.startsWith(" "))).toBe(true);
+    expect(
+      folded
+        .split("\r\n")
+        .slice(1)
+        .every((l) => l.startsWith(" ")),
+    ).toBe(true);
     const ics = buildIcs({
       title: "Lunch; with, Ada",
       start: new Date("2026-03-14T12:00:00Z"),
@@ -331,12 +448,40 @@ describe("calendar and time", () => {
     expect(() => parseFlashcards("just one line, odd count\nsecond\nthird")).toThrow(/Question/);
   });
 
+  it("reads a two-column CSV, quotes and heading row included, and round-trips its own export", () => {
+    expect(parseFlashcards("Q1,A1\nQ2,A2")).toEqual([
+      { front: "Q1", back: "A1" },
+      { front: "Q2", back: "A2" },
+    ]);
+    expect(
+      parseFlashcards('"Capital of France, the country",Paris\n"He said ""hi""",Greeting'),
+    ).toEqual([
+      { front: "Capital of France, the country", back: "Paris" },
+      { front: 'He said "hi"', back: "Greeting" },
+    ]);
+    // The maker's own CSV starts with a Front,Back row, which is a heading and not a card.
+    expect(parseFlashcards("Front,Back\r\nOne,1\r\nTwo,2\r\n")).toHaveLength(2);
+    expect(() => parseFlashcards("Front,Back")).toThrow(/cards/);
+  });
+
+  it("makes flashcards from an uploaded CSV file, not only from typed text", async () => {
+    const csv = new TextEncoder().encode("Front,Back\nHola,Hello\nAdios,Goodbye\n");
+    const ref = { id: "f1", name: "cards.csv", size: csv.length, mimeType: "text/csv" };
+    const result = await flashcardMakerExecutor([ref] as never, {}, {
+      readFile: async () => csv,
+    } as never);
+    expect(result.ok).toBe(true);
+    if (result.ok) expect((result.output as { count: number }).count).toBe(2);
+  });
+
   it("splits into teams of nearly equal size with nobody lost or duplicated", () => {
     const names = ["a", "b", "c", "d", "e", "f", "g"];
     const teams = makeTeams(names, 3);
     expect(teams).toHaveLength(3);
     expect(teams.flat().sort()).toEqual([...names].sort());
-    expect(Math.max(...teams.map((t) => t.length)) - Math.min(...teams.map((t) => t.length))).toBeLessThanOrEqual(1);
+    expect(
+      Math.max(...teams.map((t) => t.length)) - Math.min(...teams.map((t) => t.length)),
+    ).toBeLessThanOrEqual(1);
   });
 
   it("summarises a year from job rows without inventing anything", () => {
@@ -391,7 +536,10 @@ describe("diff engine", () => {
 
   it("normalises lines only when asked", () => {
     expect(toLines("a\nb\n")).toEqual(["a", "b"]);
-    expect(toLines("  A  \n\nb", { trim: true, ignoreCase: true, ignoreBlank: true })).toEqual(["a", "b"]);
+    expect(toLines("  A  \n\nb", { trim: true, ignoreCase: true, ignoreBlank: true })).toEqual([
+      "a",
+      "b",
+    ]);
   });
 });
 
@@ -399,10 +547,16 @@ describe("diff engine", () => {
 
 describe("JWT decoder", () => {
   const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
-  const payload = Buffer.from(JSON.stringify({ sub: "42", exp: 2_000_000_000, iat: 1_700_000_000 })).toString("base64url");
+  const payload = Buffer.from(
+    JSON.stringify({ sub: "42", exp: 2_000_000_000, iat: 1_700_000_000 }),
+  ).toString("base64url");
 
   it("decodes header and claims and reads the expiry", () => {
-    const report = decodeJwt(`${header}.${payload}.signature`, "", Date.parse("2026-01-01T00:00:00Z"));
+    const report = decodeJwt(
+      `${header}.${payload}.signature`,
+      "",
+      Date.parse("2026-01-01T00:00:00Z"),
+    );
     expect(report.algorithm).toBe("HS256");
     expect(report.payload.sub).toBe("42");
     expect(report.expired).toBe(false);
@@ -411,7 +565,9 @@ describe("JWT decoder", () => {
 
   it("verifies an HMAC signature when given the secret", async () => {
     const { createHmac } = await import("node:crypto");
-    const signature = createHmac("sha256", "s3cret").update(`${header}.${payload}`).digest("base64url");
+    const signature = createHmac("sha256", "s3cret")
+      .update(`${header}.${payload}`)
+      .digest("base64url");
     expect(decodeJwt(`${header}.${payload}.${signature}`, "s3cret").signature).toBe("valid");
     expect(decodeJwt(`${header}.${payload}.${signature}`, "wrong").signature).toBe("invalid");
   });
@@ -451,7 +607,9 @@ describe("colour converter", () => {
 
   it("computes WCAG contrast to the published values", () => {
     // Black on white is exactly 21:1 — the ceiling of the scale.
-    expect(judgeContrast({ r: 0, g: 0, b: 0, a: 1 }, { r: 255, g: 255, b: 255, a: 1 }).ratio).toBe(21);
+    expect(judgeContrast({ r: 0, g: 0, b: 0, a: 1 }, { r: 255, g: 255, b: 255, a: 1 }).ratio).toBe(
+      21,
+    );
     // #767676 is the classic "just passes AA on white" grey: 4.54:1.
     const grey = judgeContrast({ r: 118, g: 118, b: 118, a: 1 }, { r: 255, g: 255, b: 255, a: 1 });
     expect(grey.ratio).toBeGreaterThanOrEqual(4.5);
@@ -475,13 +633,18 @@ describe("cron", () => {
 
   it("works out the next runs in UTC", () => {
     const runs = nextRuns(parseCron("0 9 * * 1"), new Date("2026-03-11T00:00:00Z"), 2);
-    expect(runs.map((d) => d.toISOString())).toEqual(["2026-03-16T09:00:00.000Z", "2026-03-23T09:00:00.000Z"]);
+    expect(runs.map((d) => d.toISOString())).toEqual([
+      "2026-03-16T09:00:00.000Z",
+      "2026-03-23T09:00:00.000Z",
+    ]);
   });
 
   it("applies POSIX's OR rule when both day fields are restricted", () => {
     const spec = parseCron("0 0 13 * 5");
     // Friday the 13th of March 2026 satisfies both; the 6th satisfies only the weekday.
-    const runs = nextRuns(spec, new Date("2026-03-01T00:00:00Z"), 3).map((d) => d.toISOString().slice(0, 10));
+    const runs = nextRuns(spec, new Date("2026-03-01T00:00:00Z"), 3).map((d) =>
+      d.toISOString().slice(0, 10),
+    );
     expect(runs).toContain("2026-03-06");
     expect(runs).toContain("2026-03-13");
     expect(explainCron(spec)).toMatch(/or/);
@@ -518,11 +681,16 @@ describe("text transforms", () => {
     expect(convertUnit(-40, "f", "c", "temperature")).toBeCloseTo(-40, 6);
     expect(convertUnit(0, "c", "k", "temperature")).toBeCloseTo(273.15, 6);
     expect(convertUnit(1, "GiB", "MiB", "data")).toBe(1024);
-    expect(() => convertUnit(1, "furlongs-per-fortnight", "m", "length")).toThrow(/not a length unit/);
+    expect(() => convertUnit(1, "furlongs-per-fortnight", "m", "length")).toThrow(
+      /not a length unit/,
+    );
   });
 
   it("reads a shorthand conversion typed in the box", async () => {
-    const result = expectOk(await run("unit-converter", "12 km to mi", { family: "length" }), "units");
+    const result = expectOk(
+      await run("unit-converter", "12 km to mi", { family: "length" }),
+      "units",
+    );
     expect((result.output as { converted: number }).converted).toBeCloseTo(7.4565, 3);
   });
 
@@ -582,7 +750,11 @@ describe("secrets scanner", () => {
   });
 
   it("ignores obvious placeholders", () => {
-    const findings = scanText("readme.md", 'API_KEY = "your-api-key-here"\nTOKEN = "xxxxxxxxxxxx"', { entropy: true });
+    const findings = scanText(
+      "readme.md",
+      'API_KEY = "your-api-key-here"\nTOKEN = "xxxxxxxxxxxx"',
+      { entropy: true },
+    );
     expect(findings).toEqual([]);
   });
 
@@ -661,8 +833,24 @@ describe("pivot and charts", () => {
 });
 
 describe("data diff and schema", () => {
-  const left = makeTable("a", ["id", "name", "score"], [[1, "Ada", 10], [2, "Alan", 20], [3, "Grace", 30]]);
-  const right = makeTable("b", ["id", "name", "score"], [[1, "Ada", 10], [2, "Alan", 25], [4, "Katherine", 40]]);
+  const left = makeTable(
+    "a",
+    ["id", "name", "score"],
+    [
+      [1, "Ada", 10],
+      [2, "Alan", 20],
+      [3, "Grace", 30],
+    ],
+  );
+  const right = makeTable(
+    "b",
+    ["id", "name", "score"],
+    [
+      [1, "Ada", 10],
+      [2, "Alan", 25],
+      [4, "Katherine", 40],
+    ],
+  );
 
   it("matches rows on a key so a change is one change", () => {
     const report = diffTables(left, right, { keyColumn: 0, ignoreCase: false, trim: true });
@@ -681,7 +869,9 @@ describe("data diff and schema", () => {
   });
 
   it("reports identical tables as identical", () => {
-    expect(diffTables(left, left, { keyColumn: 0, ignoreCase: false, trim: true }).identical).toBe(true);
+    expect(diffTables(left, left, { keyColumn: 0, ignoreCase: false, trim: true }).identical).toBe(
+      true,
+    );
   });
 
   it("infers a schema, marking a field absent from one sample as optional", () => {
@@ -714,7 +904,11 @@ describe("data diff and schema", () => {
 
   it("generates only unreachable contact details", async () => {
     const result = expectOk(
-      await run("sample-data-generator", null, { fields: "email:email, phone:phone, ip:ipv4", rows: 12, format: "json" }),
+      await run("sample-data-generator", null, {
+        fields: "email:email, phone:phone, ip:ipv4",
+        rows: 12,
+        format: "json",
+      }),
       "sample-data",
     );
     const rows = (result.output as { rows: Record<string, string>[] }).rows;
@@ -756,18 +950,24 @@ describe("image analysis", () => {
   it("hashes perceptually: a resize stays close, a different picture does not", async () => {
     const sharp = (await import("sharp")).default;
     const gradient = Buffer.alloc(32 * 32);
-    for (let y = 0; y < 32; y += 1) for (let x = 0; x < 32; x += 1) gradient[y * 32 + x] = (x * 8) % 256;
+    for (let y = 0; y < 32; y += 1)
+      for (let x = 0; x < 32; x += 1) gradient[y * 32 + x] = (x * 8) % 256;
     const inverted = Buffer.alloc(32 * 32);
-    for (let y = 0; y < 32; y += 1) for (let x = 0; x < 32; x += 1) inverted[y * 32 + x] = 255 - ((x * 8) % 256);
+    for (let y = 0; y < 32; y += 1)
+      for (let x = 0; x < 32; x += 1) inverted[y * 32 + x] = 255 - ((x * 8) % 256);
     const a = perceptualHash(gradient);
     const b = perceptualHash(inverted);
     expect(a).toHaveLength(16);
     expect(hammingDistance(a, a)).toBe(0);
     expect(hammingDistance(a, b)).toBeGreaterThan(8);
     // A JPEG round trip of the same picture must stay close.
-    const png = await sharp(gradient, { raw: { width: 32, height: 32, channels: 1 } }).png().toBuffer();
+    const png = await sharp(gradient, { raw: { width: 32, height: 32, channels: 1 } })
+      .png()
+      .toBuffer();
     const recompressed = await sharp(png).jpeg({ quality: 60 }).toBuffer();
-    const again = perceptualHash(await sharp(recompressed).resize(32, 32, { fit: "fill" }).greyscale().raw().toBuffer());
+    const again = perceptualHash(
+      await sharp(recompressed).resize(32, 32, { fit: "fill" }).greyscale().raw().toBuffer(),
+    );
     expect(hammingDistance(a, again)).toBeLessThanOrEqual(8);
   });
 
@@ -787,7 +987,13 @@ describe("image analysis", () => {
 
 describe("batch image tools", () => {
   it("expands a rename pattern and pads the counter", () => {
-    const at = { name: "photo", index: 7, ext: "jpg", total: 120, date: new Date("2026-03-14T12:00:00Z") };
+    const at = {
+      name: "photo",
+      index: 7,
+      ext: "jpg",
+      total: 120,
+      date: new Date("2026-03-14T12:00:00Z"),
+    };
     expect(applyNamePattern("{name}-{n}", at)).toBe("photo-007");
     expect(applyNamePattern("{n:2}_{name}", at)).toBe("07_photo");
     expect(applyNamePattern("{date}-{name}", at)).toBe("2026-03-14-photo");
@@ -815,7 +1021,9 @@ describe("batch image tools", () => {
     expect(view.readUInt8(6)).toBe(16);
     // The first frame's data must start where its directory entry says it does.
     const offset = view.readUInt32LE(6 + 12);
-    expect(view.subarray(offset, offset + frames[0]!.png.length)).toEqual(Buffer.from(frames[0]!.png));
+    expect(view.subarray(offset, offset + frames[0]!.png.length)).toEqual(
+      Buffer.from(frames[0]!.png),
+    );
   });
 
   it("knows the social sizes it claims to", () => {
@@ -847,7 +1055,12 @@ describe("PDF additions", () => {
   it("round-trips an outline through write and read", async () => {
     const doc = await loadPdf(await makeTextPdf({ pages: 4 }));
     const count = writeOutline(doc, [
-      { title: "One", page: 1, depth: 0, children: [{ title: "One a", page: 2, depth: 1, children: [] }] },
+      {
+        title: "One",
+        page: 1,
+        depth: 0,
+        children: [{ title: "One a", page: 2, depth: 1, children: [] }],
+      },
       { title: "Two", page: 3, depth: 0, children: [] },
     ]);
     expect(count).toBe(3);
@@ -871,7 +1084,10 @@ describe("PDF additions", () => {
     ]);
     expect(() => parseRedactionBoxes("1: 50,600", 2)).toThrow(/not a region/);
     expect(() => parseRedactionBoxes("9: 1,1,1,1", 2)).toThrow(/does not exist/);
-    const fields = parseFieldSpecs("text | Name | 1 | 10,20,100,20\ntext | Name | 1 | 10,50,100,20", 1);
+    const fields = parseFieldSpecs(
+      "text | Name | 1 | 10,20,100,20\ntext | Name | 1 | 10,50,100,20",
+      1,
+    );
     // Duplicate labels must not become duplicate field names, or readers tie the fields together.
     expect(fields[0]!.name).not.toBe(fields[1]!.name);
     expect(() => parseFieldSpecs("dropdown | Pick | 1 | 1,1,1,1", 1)).not.toThrow();
@@ -888,10 +1104,15 @@ describe("PDF additions", () => {
       "redaction",
     );
     const out = redacted.files![0]!.bytes;
-    const text = expectOk(await run("pdf-to-text", [f("redacted.pdf", out, "application/pdf")]), "pdf-to-text");
-    expect(String((text.output as { text?: string }).text ?? dec(text.files?.[0]?.bytes ?? new Uint8Array()))).not.toContain(
-      "Quarterly",
+    const text = expectOk(
+      await run("pdf-to-text", [f("redacted.pdf", out, "application/pdf")]),
+      "pdf-to-text",
     );
+    expect(
+      String(
+        (text.output as { text?: string }).text ?? dec(text.files?.[0]?.bytes ?? new Uint8Array()),
+      ),
+    ).not.toContain("Quarterly");
   });
 
   it("tells the user to OCR first when there is no text to search", async () => {
@@ -917,7 +1138,9 @@ describe("PDF additions", () => {
     ]);
     const withOutline = await savePdf(doc);
     const split = expectOk(
-      await run("pdf-chapter-splitter", [f("book.pdf", withOutline, "application/pdf")], { packaging: "files" }),
+      await run("pdf-chapter-splitter", [f("book.pdf", withOutline, "application/pdf")], {
+        packaging: "files",
+      }),
       "chapter-splitter",
     );
     expect(split.files).toHaveLength(2);
@@ -926,12 +1149,20 @@ describe("PDF additions", () => {
 
   it("grades accessibility and names the real problems", async () => {
     const result = expectOk(
-      await run("pdf-accessibility-checker", [f("plain.pdf", await makeTextPdf({ pages: 1 }), "application/pdf")]),
+      await run("pdf-accessibility-checker", [
+        f("plain.pdf", await makeTextPdf({ pages: 1 }), "application/pdf"),
+      ]),
       "accessibility",
     );
-    const report = result.output as { tagged: boolean; issues: { rule: string; severity: string }[]; score: number };
+    const report = result.output as {
+      tagged: boolean;
+      issues: { rule: string; severity: string }[];
+      score: number;
+    };
     expect(report.tagged).toBe(false);
-    expect(report.issues.some((i) => /Tagged content/.test(i.rule) && i.severity === "error")).toBe(true);
+    expect(report.issues.some((i) => /Tagged content/.test(i.rule) && i.severity === "error")).toBe(
+      true,
+    );
     expect(report.issues.some((i) => /Reading order/.test(i.rule))).toBe(true);
     expect(report.score).toBeLessThan(100);
   });
@@ -939,14 +1170,22 @@ describe("PDF additions", () => {
   it("reports two identical PDFs as identical and a changed one as different", async () => {
     const a = await makeTextPdf({ pages: 1, title: "A" });
     const same = expectOk(
-      await run("pdf-visual-diff", [f("a.pdf", a, "application/pdf"), f("b.pdf", a, "application/pdf")], { dpi: 72 }),
+      await run(
+        "pdf-visual-diff",
+        [f("a.pdf", a, "application/pdf"), f("b.pdf", a, "application/pdf")],
+        { dpi: 72 },
+      ),
       "visual-diff-same",
     );
     expect((same.output as { identical: boolean }).identical).toBe(true);
 
     const b = await makeTextPdf({ pages: 1, title: "B" });
     const changed = expectOk(
-      await run("pdf-visual-diff", [f("a.pdf", a, "application/pdf"), f("b.pdf", b, "application/pdf")], { dpi: 72 }),
+      await run(
+        "pdf-visual-diff",
+        [f("a.pdf", a, "application/pdf"), f("b.pdf", b, "application/pdf")],
+        { dpi: 72 },
+      ),
       "visual-diff-changed",
     );
     // Same visible text, different metadata title: the pixels are the same, and it says so.
@@ -955,10 +1194,14 @@ describe("PDF additions", () => {
 
   it("extracts a table into CSV", async () => {
     const result = expectOk(
-      await run("pdf-table-extractor", [f("report.pdf", await makeStructuredPdf(), "application/pdf")], {
-        format: "csv",
-        separateFiles: false,
-      }),
+      await run(
+        "pdf-table-extractor",
+        [f("report.pdf", await makeStructuredPdf(), "application/pdf")],
+        {
+          format: "csv",
+          separateFiles: false,
+        },
+      ),
       "table-extractor",
     );
     const csv = dec(result.files![0]!.bytes);
@@ -968,13 +1211,20 @@ describe("PDF additions", () => {
 
   it("adds fillable fields that Fill PDF Forms can then see", async () => {
     const built = expectOk(
-      await run("pdf-form-designer", [f("blank.pdf", await makeTextPdf({ pages: 1 }), "application/pdf")], {
-        fields: "text | Full name | 1 | 60,700,220,22\ncheckbox | Agree | 1 | 60,660,16,16",
-      }),
+      await run(
+        "pdf-form-designer",
+        [f("blank.pdf", await makeTextPdf({ pages: 1 }), "application/pdf")],
+        {
+          fields: "text | Full name | 1 | 60,700,220,22\ncheckbox | Agree | 1 | 60,660,16,16",
+        },
+      ),
       "form-designer",
     );
     const doc = await loadPdf(built.files![0]!.bytes);
-    const names = doc.getForm().getFields().map((field) => field.getName());
+    const names = doc
+      .getForm()
+      .getFields()
+      .map((field) => field.getName());
     expect(names).toContain("Full_name");
     expect(names).toContain("Agree");
   });
@@ -985,8 +1235,8 @@ describe("PDF additions", () => {
 describe("Word and PowerPoint additions", () => {
   it("accepts tracked insertions and drops tracked deletions", () => {
     const xml =
-      "<w:p><w:ins w:id=\"1\"><w:r><w:t>added </w:t></w:r></w:ins>" +
-      "<w:del w:id=\"2\"><w:r><w:delText>removed </w:delText></w:r></w:del>" +
+      '<w:p><w:ins w:id="1"><w:r><w:t>added </w:t></w:r></w:ins>' +
+      '<w:del w:id="2"><w:r><w:delText>removed </w:delText></w:r></w:del>' +
       "<w:r><w:t>kept</w:t></w:r></w:p>";
     const accepted = resolveRevisions(xml, true);
     expect(accepted.xml).toContain("added");
@@ -1036,12 +1286,16 @@ describe("Word and PowerPoint additions", () => {
     const byHeading = parseMarkdownSlides("## One\n- a\n## Two\n- b", 2);
     expect(byHeading.map((s) => s.title)).toEqual(["One", "Two"]);
     expect(byHeading[0]!.bullets[0]!.text).toBe("a");
-    expect(parseMarkdownSlides("## Talk\nnotes: remember to breathe", 2)[0]!.notes).toBe("remember to breathe");
+    expect(parseMarkdownSlides("## Talk\nnotes: remember to breathe", 2)[0]!.notes).toBe(
+      "remember to breathe",
+    );
     expect(() => parseMarkdownSlides("   ", 2)).toThrow(/No slides/);
   });
 
   it("formats a reference in every style it offers", () => {
-    const [ref] = parseReferences("Lovelace, A. (1843). Notes on the Analytical Engine. Taylor's Scientific Memoirs, 3, 666-731.");
+    const [ref] = parseReferences(
+      "Lovelace, A. (1843). Notes on the Analytical Engine. Taylor's Scientific Memoirs, 3, 666-731.",
+    );
     expect(ref!.year).toBe("1843");
     expect(ref!.authors[0]).toMatch(/Lovelace/);
     expect(formatReference(ref!, "apa")).toMatch(/\(1843\)/);
@@ -1052,14 +1306,23 @@ describe("Word and PowerPoint additions", () => {
   });
 
   it("reads Field: value reference blocks too", () => {
-    const refs = parseReferences("author: Ada Lovelace\ntitle: Notes\nyear: 1843\njournal: Memoirs");
+    const refs = parseReferences(
+      "author: Ada Lovelace\ntitle: Notes\nyear: 1843\njournal: Memoirs",
+    );
     expect(refs).toHaveLength(1);
     expect(refs[0]).toMatchObject({ year: "1843", title: "Notes", container: "Memoirs" });
   });
 
   it("parses a resume form into sections", () => {
     const data = parseResume(
-      ["Name: Ada Lovelace", "Headline: Mathematician", "Email: ada@example.com", "Experience:", "- Analytical Engine notes", "Skills: maths, logic"].join("\n"),
+      [
+        "Name: Ada Lovelace",
+        "Headline: Mathematician",
+        "Email: ada@example.com",
+        "Experience:",
+        "- Analytical Engine notes",
+        "Skills: maths, logic",
+      ].join("\n"),
     );
     expect(data.name).toBe("Ada Lovelace");
     expect(data.experience).toEqual(["Analytical Engine notes"]);
@@ -1068,12 +1331,18 @@ describe("Word and PowerPoint additions", () => {
   });
 
   it("builds a real .pptx from Markdown", async () => {
-    const result = expectOk(await run("markdown-to-slides", "# One\n- a\n\n---\n\n# Two\n- b"), "md-slides");
+    const result = expectOk(
+      await run("markdown-to-slides", "# One\n- a\n\n---\n\n# Two\n- b"),
+      "md-slides",
+    );
     const file = result.files![0]!;
     expect(file.name.endsWith(".pptx")).toBe(true);
     // A .pptx is a ZIP: the local-file-header magic is the cheapest proof it really is one.
     expect(Array.from(file.bytes.subarray(0, 2))).toEqual([0x50, 0x4b]);
-    const slides = expectOk(await run("powerpoint-to-text", [f("deck.pptx", file.bytes)]), "pptx-to-text");
+    const slides = expectOk(
+      await run("powerpoint-to-text", [f("deck.pptx", file.bytes)]),
+      "pptx-to-text",
+    );
     expect(dec(slides.files![0]!.bytes)).toMatch(/One/);
   });
 
@@ -1124,7 +1393,10 @@ describe("barcodes", () => {
   });
 
   it("generates a barcode as SVG with a quiet zone", async () => {
-    const result = expectOk(await run("barcode-generator", "4006381333931", { symbology: "ean13", format: "svg" }), "barcode");
+    const result = expectOk(
+      await run("barcode-generator", "4006381333931", { symbology: "ean13", format: "svg" }),
+      "barcode",
+    );
     const svg = dec(result.files![0]!.bytes);
     expect(svg.startsWith("<svg")).toBe(true);
     expect(svg).toContain("4006381333931");
@@ -1133,7 +1405,10 @@ describe("barcodes", () => {
 
   it("makes a logo QR that it has actually decoded to check", async () => {
     const logo = `data:image/png;base64,${Buffer.from(await makePng(60, 60)).toString("base64")}`;
-    const result = expectOk(await run("logo-qr-code", "https://example.com/hello", { logo, logoScale: 22 }), "logo-qr");
+    const result = expectOk(
+      await run("logo-qr-code", "https://example.com/hello", { logo, logoScale: 22 }),
+      "logo-qr",
+    );
     const output = result.output as { scanned: boolean; logoScale: number };
     expect(output.scanned).toBe(true);
     expect(output.logoScale).toBeLessThanOrEqual(0.22);
@@ -1142,7 +1417,10 @@ describe("barcodes", () => {
 
   it("mail-merges a CSV column into many codes", async () => {
     const csv = "name,url\nAda,https://example.com/a\nAlan,https://example.com/b";
-    const result = expectOk(await run("batch-qr-generator", [f("rows.csv", csv, "text/csv")], { column: "url" }), "batch-qr");
+    const result = expectOk(
+      await run("batch-qr-generator", [f("rows.csv", csv, "text/csv")], { column: "url" }),
+      "batch-qr",
+    );
     expect((result.output as { count: number }).count).toBe(2);
     expect(result.files![0]!.name).toBe("qr-codes.zip");
   });
@@ -1174,7 +1452,8 @@ describe("media helpers", () => {
   });
 
   it("round-trips subtitles through SRT and VTT", () => {
-    const srt = "1\n00:00:01,000 --> 00:00:03,500\nHello there\n\n2\n00:00:04,000 --> 00:00:05,000\nSecond line\n";
+    const srt =
+      "1\n00:00:01,000 --> 00:00:03,500\nHello there\n\n2\n00:00:04,000 --> 00:00:05,000\nSecond line\n";
     const cues = parseSrt(srt);
     expect(cues).toHaveLength(2);
     expect(cues[0]).toMatchObject({ start: 1, end: 3.5, text: "Hello there" });
@@ -1188,6 +1467,34 @@ describe("media helpers", () => {
     expect(chunks.length).toBeGreaterThan(1);
     for (const chunk of chunks) expect(chunk.length).toBeLessThanOrEqual(260);
     expect(chunks.join(" ")).toContain("Final one.");
+  });
+
+  it("lets the Subtitle Burner take a video and its subtitle file together", async () => {
+    // Its executor needs both, so the registry has to let both in: it once declared video only, and
+    // the upload zone refused the .srt while the pipeline refused a second file - the tool could
+    // not be used at all from the page.
+    const tool = getTool("subtitle-burner")!;
+    expect(tool.supportsBatch).toBe(true);
+    expect(tool.inputTypes).toEqual(expect.arrayContaining(["video", "srt", "vtt", "ass"]));
+    const outcome = await runPipeline({
+      toolId: "subtitle-burner",
+      files: [
+        {
+          name: "clip.mp4",
+          mimeType: "video/mp4",
+          bytes: new TextEncoder().encode("not a real video"),
+        },
+        {
+          name: "subs.srt",
+          mimeType: "application/x-subrip",
+          bytes: new TextEncoder().encode("1\n00:00:01,000 --> 00:00:02,000\nHi\n"),
+        },
+      ],
+      options: {},
+      userId: null,
+    });
+    // It fails on the fake video, but never on the number of files.
+    expect(outcome.error?.message ?? "").not.toMatch(/one file at a time/);
   });
 
   it("writes ASS colours in the reversed byte order the format wants", () => {
@@ -1217,7 +1524,9 @@ describe("optional local speech engines", () => {
     try {
       // Whichever prerequisite is missing first (FFmpeg or whisper.cpp), the failure has to be a
       // sentence a person can act on, never a crash and never a stack trace.
-      const subtitles = await run("auto-subtitle-generator", [f("clip.mp3", "not really audio", "audio/mpeg")]);
+      const subtitles = await run("auto-subtitle-generator", [
+        f("clip.mp3", "not really audio", "audio/mpeg"),
+      ]);
       expect(subtitles.ok).toBe(false);
       if (!subtitles.ok) {
         expect(subtitles.message.length).toBeGreaterThan(20);
@@ -1276,18 +1585,29 @@ describe("network additions", () => {
     // A CSP with frame-ancestors makes X-Frame-Options redundant, not missing.
     expect(good.checks.find((c) => c.header === "X-Frame-Options")!.earned).toBeGreaterThan(0);
     // unsafe-inline halves the CSP's value rather than earning it in full.
-    const unsafe = gradeHeaders({ "content-security-policy": "default-src 'self' 'unsafe-inline'" }, true);
+    const unsafe = gradeHeaders(
+      { "content-security-policy": "default-src 'self' 'unsafe-inline'" },
+      true,
+    );
     expect(unsafe.checks[0]!.earned).toBeLessThan(good.checks[0]!.earned);
     // Plain HTTP is penalised, because none of it can be trusted in transit.
     expect(gradeHeaders({}, false).extras.join(" ")).toMatch(/plain HTTP/);
   });
 
   it("lints robots.txt and a sitemap", () => {
-    const robots = parseRobots("User-agent: *\nDisallow: /admin\nSitemap: https://example.com/sitemap.xml", "u", 200);
+    const robots = parseRobots(
+      "User-agent: *\nDisallow: /admin\nSitemap: https://example.com/sitemap.xml",
+      "u",
+      200,
+    );
     expect(robots.groups[0]!.disallow).toEqual(["/admin"]);
     expect(robots.sitemaps).toEqual(["https://example.com/sitemap.xml"]);
-    expect(parseRobots("Disallow: /", "u", 200).problems.join(" ")).toMatch(/before any User-agent/);
-    expect(parseRobots("User-agent: *\nDisallow: /", "u", 200).problems.join(" ")).toMatch(/whole site/);
+    expect(parseRobots("Disallow: /", "u", 200).problems.join(" ")).toMatch(
+      /before any User-agent/,
+    );
+    expect(parseRobots("User-agent: *\nDisallow: /", "u", 200).problems.join(" ")).toMatch(
+      /whole site/,
+    );
 
     const sitemap = parseSitemap(
       '<?xml version="1.0"?><urlset><url><loc>https://example.com/</loc><lastmod>2026-01-01</lastmod></url></urlset>',
@@ -1297,10 +1617,16 @@ describe("network additions", () => {
     expect(sitemap.kind).toBe("urlset");
     expect(sitemap.urlCount).toBe(1);
     expect(sitemap.problems).toEqual([]);
-    expect(parseSitemap("<html></html>", "u", 200).problems.join(" ")).toMatch(/does not look like a sitemap/);
-    expect(parseSitemap('<?xml version="1.0"?><urlset><url><loc>http://x.test/</loc></url></urlset>', "u", 200).problems.join(" ")).toMatch(
-      /plain http/,
+    expect(parseSitemap("<html></html>", "u", 200).problems.join(" ")).toMatch(
+      /does not look like a sitemap/,
     );
+    expect(
+      parseSitemap(
+        '<?xml version="1.0"?><urlset><url><loc>http://x.test/</loc></url></urlset>',
+        "u",
+        200,
+      ).problems.join(" "),
+    ).toMatch(/plain http/);
   });
 
   it("checks email syntax without being silly about it", () => {
@@ -1311,7 +1637,9 @@ describe("network additions", () => {
   });
 
   it("drops headers that cannot be forwarded", () => {
-    const { headers, ignored } = parseHeaderLines("Accept: application/json\nHost: evil.test\nnot a header\nContent-Length: 9");
+    const { headers, ignored } = parseHeaderLines(
+      "Accept: application/json\nHost: evil.test\nnot a header\nContent-Length: 9",
+    );
     expect(headers.accept).toBe("application/json");
     expect(headers.host).toBeUndefined();
     expect(headers["content-length"]).toBeUndefined();
@@ -1323,7 +1651,9 @@ describe("network additions", () => {
 
 describe("AI additions", () => {
   it("reads flashcards out of JSON or Q/A prose", () => {
-    expect(parseFlashcardAnswer('[{"question":"Q1","answer":"A1"}]')).toEqual([{ question: "Q1", answer: "A1" }]);
+    expect(parseFlashcardAnswer('[{"question":"Q1","answer":"A1"}]')).toEqual([
+      { question: "Q1", answer: "A1" },
+    ]);
     expect(parseFlashcardAnswer("Q: What is 2+2?\nA: 4\nQ: Capital?\nA: Paris")).toHaveLength(2);
     expect(parseFlashcardAnswer("Front | Back")).toEqual([{ question: "Front", answer: "Back" }]);
   });
@@ -1372,7 +1702,8 @@ describe("AI additions", () => {
   });
 
   it("strips subtitle timing so a transcript reads as prose", () => {
-    const vtt = "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHello there\n\n00:00:02.000 --> 00:00:03.000\nHello there\n";
+    const vtt =
+      "WEBVTT\n\n00:00:01.000 --> 00:00:02.000\nHello there\n\n00:00:02.000 --> 00:00:03.000\nHello there\n";
     const prose = transcriptToProse(vtt);
     expect(prose).toBe("Hello there");
     expect(prose).not.toContain("-->");
@@ -1380,7 +1711,9 @@ describe("AI additions", () => {
 
   it("marks a decorative image as needing empty alt text, with no model at all", async () => {
     const result = expectOk(
-      await run("ai-alt-text-generator", [f("divider.png", await makePng(), "image/png")], { purpose: "decorative" }),
+      await run("ai-alt-text-generator", [f("divider.png", await makePng(), "image/png")], {
+        purpose: "decorative",
+      }),
       "alt-text",
     );
     expect((result.output as { results: { altText: string }[] }).results[0]!.altText).toBe("");
@@ -1419,7 +1752,11 @@ describe("outbound push (ntfy)", () => {
   });
 
   it("does not send when it is switched off, and reports a failure without throwing", async () => {
-    const off = await sendNtfy({ enabled: false, topic: "onestop-abc123" }, { title: "hi" }, async () => new Response("", { status: 200 }));
+    const off = await sendNtfy(
+      { enabled: false, topic: "onestop-abc123" },
+      { title: "hi" },
+      async () => new Response("", { status: 200 }),
+    );
     expect(off.sent).toBe(false);
 
     const failed = await sendNtfy(
@@ -1479,7 +1816,9 @@ describe("access tokens and share links", () => {
 
   it("reads a token from either header, and nothing else", () => {
     const { token } = generateToken();
-    const headers = (map: Record<string, string>) => ({ get: (k: string) => map[k.toLowerCase()] ?? null });
+    const headers = (map: Record<string, string>) => ({
+      get: (k: string) => map[k.toLowerCase()] ?? null,
+    });
     expect(tokenFromHeaders(headers({ authorization: `Bearer ${token}` }))).toBe(token);
     expect(tokenFromHeaders(headers({ "x-onestop-token": token }))).toBe(token);
     expect(tokenFromHeaders(headers({ authorization: "Basic abc123" }))).toBeNull();
@@ -1507,7 +1846,13 @@ describe("offline", () => {
     const trap = () => {
       throw new Error("network access attempted");
     };
-    const saved = { fetch: globalThis.fetch, hg: http.get, hr: http.request, sg: https.get, sr: https.request };
+    const saved = {
+      fetch: globalThis.fetch,
+      hg: http.get,
+      hr: http.request,
+      sg: https.get,
+      sr: https.request,
+    };
 
     const pdf = await makeStructuredPdf();
     const outlined = await (async () => {
@@ -1544,7 +1889,10 @@ describe("offline", () => {
       "countdown-page-generator": ["Launch", { target: "2030-01-01 00:00" }],
       // Fun & Personal
       "decision-maker": ["a\nb\nc"],
-      "year-in-onestop": [null, { localHistory: '[{"toolId":"merge-pdf","createdAt":"2026-01-02T00:00:00Z"}]' }],
+      "year-in-onestop": [
+        null,
+        { localHistory: '[{"toolId":"merge-pdf","createdAt":"2026-01-02T00:00:00Z"}]' },
+      ],
       // Developer / utility
       "jwt-decoder": [
         `${Buffer.from('{"alg":"HS256"}').toString("base64url")}.${Buffer.from('{"sub":"1"}').toString("base64url")}.sig`,
@@ -1558,9 +1906,18 @@ describe("offline", () => {
       "secrets-scanner": [[f("config.ts", `const k = "${FAKE.aws}";`)]],
       "readability-score-checker": ["The cat sat on the mat. The dog ran fast."],
       // Data
-      "pivot-table-builder": [[f("sales.csv", csv, "text/csv")], { rows: "Region", values: "Revenue", aggregate: "sum" }],
-      "chart-generator": [[f("sales.csv", csv, "text/csv")], { labels: "Region", values: "Revenue" }],
-      "data-diff": [[f("a.csv", csv, "text/csv"), f("b.csv", csv.replace("100", "110"), "text/csv")], { key: "Region" }],
+      "pivot-table-builder": [
+        [f("sales.csv", csv, "text/csv")],
+        { rows: "Region", values: "Revenue", aggregate: "sum" },
+      ],
+      "chart-generator": [
+        [f("sales.csv", csv, "text/csv")],
+        { labels: "Region", values: "Revenue" },
+      ],
+      "data-diff": [
+        [f("a.csv", csv, "text/csv"), f("b.csv", csv.replace("100", "110"), "text/csv")],
+        { key: "Region" },
+      ],
       "json-schema-generator": ['[{"id":1,"name":"Ada"}]'],
       "sample-data-generator": [null, { rows: 3 }],
       // Images
@@ -1568,21 +1925,33 @@ describe("offline", () => {
       "image-to-ascii-art": [[f("a.png", png, "image/png")], { columns: 24 }],
       "favicon-set-generator": [[f("a.png", png, "image/png")]],
       "social-media-preset-resizer": [[f("a.png", png, "image/png")], { presets: "open-graph" }],
-      "collage-maker": [[f("a.png", png, "image/png"), f("b.png", png, "image/png")], { cellSize: 48 }],
+      "collage-maker": [
+        [f("a.png", png, "image/png"), f("b.png", png, "image/png")],
+        { cellSize: 48 },
+      ],
       "batch-image-renamer": [[f("a.png", png, "image/png")], { pattern: "shot-{n}" }],
       "sprite-sheet-generator": [[f("a.png", png, "image/png"), f("b.png", png, "image/png")]],
       "near-duplicate-image-finder": [[f("a.png", png, "image/png"), f("b.png", png, "image/png")]],
       "color-blindness-simulator": [[f("a.png", png, "image/png")]],
       "image-vectorizer": [[f("a.png", png, "image/png")], { detail: 90, minArea: 0 }],
       // PDF
-      "pdf-redaction": [[f("r.pdf", pdf, "application/pdf")], { mode: "text", terms: "Quarterly", dpi: 72 }],
+      "pdf-redaction": [
+        [f("r.pdf", pdf, "application/pdf")],
+        { mode: "text", terms: "Quarterly", dpi: 72 },
+      ],
       "pdf-bookmark-editor": [[f("o.pdf", outlined, "application/pdf")]],
       "pdf-chapter-splitter": [[f("o.pdf", outlined, "application/pdf")]],
       "pdf-booklet-layout": [[f("r.pdf", pdf, "application/pdf")]],
       "pdf-table-extractor": [[f("r.pdf", pdf, "application/pdf")]],
       "pdf-accessibility-checker": [[f("r.pdf", pdf, "application/pdf")]],
-      "pdf-visual-diff": [[f("a.pdf", pdf, "application/pdf"), f("b.pdf", pdf, "application/pdf")], { dpi: 72, includeUnchanged: true }],
-      "pdf-form-designer": [[f("r.pdf", pdf, "application/pdf")], { fields: "text | Name | 1 | 10,20,100,20" }],
+      "pdf-visual-diff": [
+        [f("a.pdf", pdf, "application/pdf"), f("b.pdf", pdf, "application/pdf")],
+        { dpi: 72, includeUnchanged: true },
+      ],
+      "pdf-form-designer": [
+        [f("r.pdf", pdf, "application/pdf")],
+        { fields: "text | Name | 1 | 10,20,100,20" },
+      ],
       // Word / PowerPoint
       "track-changes-cleaner": [[f("a.docx", docx)]],
       "markdown-to-word": ["# Hello\n\nBody."],
@@ -1607,7 +1976,10 @@ describe("offline", () => {
     try {
       for (const [id, [input, options]] of Object.entries(cases)) {
         const result = await run(id, input, options ?? {});
-        expect(result.ok, `${id} failed offline: ${result.ok ? "" : `${result.code} — ${result.message}`}`).toBe(true);
+        expect(
+          result.ok,
+          `${id} failed offline: ${result.ok ? "" : `${result.code} — ${result.message}`}`,
+        ).toBe(true);
       }
     } finally {
       globalThis.fetch = saved.fetch;

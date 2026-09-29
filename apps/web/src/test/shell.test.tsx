@@ -4,13 +4,12 @@ import { THEME_STORAGE_KEY, themeCss, themeInitScript } from "@onestop/ui";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { computeAccessibleName } from "dom-accessibility-api";
 import type { ReactElement } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { Dashboard } from "@/components/home/Dashboard";
 import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
 import { Nav } from "@/components/layout/Nav";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
-import { authIsConfigured } from "@/lib/auth-config";
 import { isNavItemActive, primaryNav } from "@/lib/nav";
 import { routeCases } from "./routes";
 import { navigation } from "./setup";
@@ -142,25 +141,28 @@ describe("theme", () => {
 describe("home page", () => {
   const home = routeCases[0]!;
 
-  // "/" renders the marketing Landing page for a guest, or the personalized Dashboard for anyone
-  // else (a signed-in visitor, or every visitor on an instance with no accounts at all). Which of
-  // the two a *guest* sees therefore depends on whether this machine's own .env configures
-  // accounts - exactly the same environment dependency `/account`'s tests above already document
-  // and tolerate - so the content checks below run only when that is true, the way it is on every
-  // machine this suite is normally run on.
-  it.skipIf(!authIsConfigured())(
-    "guest sees the marketing Landing page, with Get Started and the category cards",
-    async () => {
+  // "/" renders the marketing Landing page for a guest on an instance that has accounts, or the
+  // personalised Dashboard for anyone else (a signed-in visitor, or every visitor on an instance with
+  // no accounts at all). Which of the two a *guest* sees therefore depends on the environment, so the
+  // test sets the one it means: an instance with accounts. The database URL is never connected to (a
+  // guest has no session to look up); it only has to exist for `authIsConfigured()` to be true. This
+  // used to skip itself unless the machine's own .env happened to configure accounts.
+  it("guest sees the marketing Landing page, with Get Started and the category cards", async () => {
+    vi.stubEnv("DATABASE_URL", "postgresql://guest:guest@127.0.0.1:1/unused");
+    vi.stubEnv("NEXTAUTH_SECRET", "test-only-secret-value-for-the-landing-page");
+    try {
       await renderRoute(home);
-      expect(screen.getByRole("heading", { level: 1, name: /onestop/i })).toBeTruthy();
-      expect(screen.getAllByRole("link", { name: /get started/i }).length).toBeGreaterThan(0);
-      const categoryLinks = screen
-        .getAllByRole("link")
-        .filter((l) => /^\/tools\/[^/]+$/.test(l.getAttribute("href") ?? ""));
-      // One link per catalogue group, whatever that number is today (phase 21 added two groups).
+    } finally {
+      vi.unstubAllEnvs();
+    }
+    expect(screen.getByRole("heading", { level: 1, name: /onestop/i })).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: /get started/i }).length).toBeGreaterThan(0);
+    const categoryLinks = screen
+      .getAllByRole("link")
+      .filter((l) => /^\/tools\/[^/]+$/.test(l.getAttribute("href") ?? ""));
+    // One link per catalogue group, whatever that number is today (phase 21 added two groups).
     expect(categoryLinks).toHaveLength(GROUPS.length);
-    },
-  );
+  });
 
   // The Dashboard itself (as opposed to which of it-or-Landing "/" picks) does not depend on a
   // real session: it is a plain component that takes the visitor's name as a prop. `page.tsx`

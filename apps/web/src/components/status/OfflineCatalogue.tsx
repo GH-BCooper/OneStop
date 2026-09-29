@@ -105,7 +105,7 @@ export function OfflineCatalogue({
           { label: "Need the Internet", value: totals.onlineOnly, tone: "text-danger" },
           { label: "Not verified offline", value: totals.unverified, tone: "text-fg-muted" },
         ].map((tile) => (
-          <Card key={tile.label} className="gap-1">
+          <Card key={tile.label} className="flex flex-col gap-1">
             <dt className="text-xs uppercase tracking-wide text-fg-muted">{tile.label}</dt>
             <dd className={`text-2xl font-bold ${tile.tone}`}>{tile.value}</dd>
           </Card>
@@ -115,7 +115,7 @@ export function OfflineCatalogue({
       <ul className="flex flex-col gap-3">
         {groups.map((group) => (
           <li key={group.id}>
-            <Card className="gap-3" data-testid={`status-group-${group.id}`}>
+            <Card className="flex flex-col gap-3" data-testid={`status-group-${group.id}`}>
               <div className="flex flex-wrap items-center gap-2">
                 <span aria-hidden="true" className="text-xl">
                   {group.icon}

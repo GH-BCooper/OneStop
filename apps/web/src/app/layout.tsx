@@ -40,6 +40,16 @@ export const viewport: Viewport = {
   ],
 };
 
+// Whether this instance has accounts at all is decided from environment variables, and the layout
+// reads it (`authIsConfigured()` below) to choose the header, and the pages read it to choose their
+// wording. Left to Next.js, every page without a per-request dependency (`/tools/<category>`,
+// `/settings`, `/workflows`, `/offline`) would be prerendered during `next build`, freezing whatever
+// the environment looked like *then* into the HTML: a build made with a database and run without
+// one shows a dead "Sign in" button and no navigation on the catalogue pages, and the reverse
+// shows an account menu that cannot work. Rendering per request costs a few milliseconds and makes
+// the running server's own configuration the one that counts.
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     // The init script sets data-theme before hydration, so the attribute differs from the server render.

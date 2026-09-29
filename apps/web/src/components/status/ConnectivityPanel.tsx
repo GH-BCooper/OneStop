@@ -55,7 +55,7 @@ export function ConnectivityPanel() {
       <h2 id="connection-heading" className="text-xl font-semibold">
         This device right now
       </h2>
-      <Card className="gap-4" data-testid="connectivity-panel" data-reach={reach}>
+      <Card className="flex flex-col gap-4" data-testid="connectivity-panel" data-reach={reach}>
         <div className="flex flex-wrap items-center gap-3">
           <Badge tone={described.tone}>{described.label}</Badge>
           <p className="min-w-0 text-sm">{described.detail}</p>

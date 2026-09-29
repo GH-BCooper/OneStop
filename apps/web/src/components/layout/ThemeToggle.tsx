@@ -2,6 +2,7 @@
 
 import { isThemeMode, THEME_STORAGE_KEY, type ThemeMode } from "@onestop/ui";
 import { useEffect, useState } from "react";
+import { applyThemePreset } from "@/lib/appearance";
 
 function currentTheme(): ThemeMode {
   const attr = document.documentElement.dataset.theme;
@@ -30,6 +31,9 @@ export function ThemeToggle() {
     <button
       type="button"
       onClick={() => {
+        // A chosen preset owns the palette, so on its own this button would change the icon and
+        // nothing else. Picking light or dark is the person asking for the plain themes back.
+        if (document.documentElement.dataset.preset) applyThemePreset(null);
         applyTheme(next);
         setMode(next);
       }}

@@ -5,9 +5,9 @@ import { ThreadSidebar } from "@/components/assistant/ThreadSidebar";
 
 export default function AssistantLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="flex gap-4">
+    <div className="relative flex gap-4">
       <ThreadSidebar />
-      <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">{children}</div>
+      <div className="mx-auto flex w-full min-w-0 max-w-3xl flex-col gap-6">{children}</div>
     </div>
   );
 }

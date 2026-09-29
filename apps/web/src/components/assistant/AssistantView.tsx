@@ -56,11 +56,31 @@ const ANY_FILE = { name: "the assistant", inputTypes: ["any"], supportsBatch: tr
 
 const EXAMPLES = [
   { icon: "🔗", title: "Make a QR code", text: "Make a QR code for https://example.com" },
-  { icon: "🔐", title: "Hash & encode", text: "Hash the text OneStop with SHA-256, then Base64 encode the hash" },
-  { icon: "📄", title: "Chain PDF tools", text: "Merge these PDFs, remove page 2, then compress the result" },
-  { icon: "🔁", title: "Build a workflow", text: "Create a workflow that converts a PDF to Word and compresses it, call it PDF Shrinker" },
-  { icon: "📊", title: "Clean my data", text: "Convert this CSV to JSON and tell me who the oldest person is" },
-  { icon: "🧭", title: "Find the right tool", text: "How do I resize an image? Which options do I get?" },
+  {
+    icon: "🔐",
+    title: "Hash & encode",
+    text: "Hash the text OneStop with SHA-256, then Base64 encode the hash",
+  },
+  {
+    icon: "📄",
+    title: "Chain PDF tools",
+    text: "Merge these PDFs, remove page 2, then compress the result",
+  },
+  {
+    icon: "🔁",
+    title: "Build a workflow",
+    text: "Create a workflow that converts a PDF to Word and compresses it, call it PDF Shrinker",
+  },
+  {
+    icon: "📊",
+    title: "Clean my data",
+    text: "Convert this CSV to JSON and tell me who the oldest person is",
+  },
+  {
+    icon: "🧭",
+    title: "Find the right tool",
+    text: "How do I resize an image? Which options do I get?",
+  },
 ];
 
 interface PlanResponse {
@@ -218,7 +238,10 @@ function AssistantTurn({
   if (turn.agent && turn.status !== "failed") {
     return (
       <Bubble from="assistant">
-        <AgentTurnView data={turn.agent} live={turn.status === "planning" || turn.status === "running"} />
+        <AgentTurnView
+          data={turn.agent}
+          live={turn.status === "planning" || turn.status === "running"}
+        />
       </Bubble>
     );
   }
@@ -473,14 +496,17 @@ export function AssistantView() {
     const load = async () => {
       try {
         const list = userId ? await fetchWorkflows() : readLocalWorkflows();
-        if (!cancelled) setWorkflowSummaries(list.map((w) => ({
-            id: w.id,
-            name: w.name,
-            favorite: w.favorite,
-            useCount: w.useCount,
-            lastUsedAt: w.lastUsedAt,
-            steps: w.steps,
-          })));
+        if (!cancelled)
+          setWorkflowSummaries(
+            list.map((w) => ({
+              id: w.id,
+              name: w.name,
+              favorite: w.favorite,
+              useCount: w.useCount,
+              lastUsedAt: w.lastUsedAt,
+              steps: w.steps,
+            })),
+          );
       } catch {
         if (!cancelled) setWorkflowSummaries([]);
       }
@@ -825,7 +851,9 @@ export function AssistantView() {
     updateTurn(id, { status: "running" });
 
     const form = new FormData();
-    form.set("plan", JSON.stringify(turn.plan.plan.steps));
+    // The whole plan, `{ steps, explanation }`: that is the shape the run route re-validates.
+    // Sending only the steps array made every Run answer "The plan could not be read."
+    form.set("plan", JSON.stringify(turn.plan.plan));
     if (provider) form.set("provider", provider);
     for (const file of turn.files) form.append("files", file);
 

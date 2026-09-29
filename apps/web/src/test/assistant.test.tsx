@@ -298,6 +298,46 @@ describe("the assistant workspace", () => {
     expect(fetchMock.mock.calls.every(([url]) => !String(url).includes("/run"))).toBe(true);
   });
 
+  it("runs a plan by sending the whole plan, steps and explanation, in the shape the server reads", async () => {
+    // The run route insists on `{ steps, explanation }`. The chat redesign once sent only the steps
+    // array, so every Run answered "The plan could not be read." and the assistant could plan but
+    // never do - including with no AI runtime, where this built-in planner is all there is.
+    fetchMock.mockImplementation((url: string) =>
+      Promise.resolve(
+        String(url).includes("/status")
+          ? respond({ ok: true, status: LOCAL_STATUS })
+          : String(url).includes("/assistant/run")
+            ? respond({ ok: true, run: { ok: true, steps: [], files: [], durationMs: 1 } })
+            : respond({ ok: true, plan: PLAN }),
+      ),
+    );
+    const { container } = render(<AssistantView />);
+    // Run stays disabled until the file the plan needs has been attached, as it should.
+    fireEvent.change(container.querySelector('input[type="file"]')!, {
+      target: { files: [new File(["%PDF-1.4"], "report.pdf", { type: "application/pdf" })] },
+    });
+    fireEvent.change(screen.getByTestId("assistant-request"), {
+      target: { value: "Convert this PDF to Excel, remove the first 2 pages, then compress it" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /send/i }));
+    fireEvent.click(await screen.findByTestId("assistant-run"));
+
+    await waitFor(() =>
+      expect(fetchMock.mock.calls.some(([url]) => String(url).includes("/assistant/run"))).toBe(
+        true,
+      ),
+    );
+    const call = fetchMock.mock.calls.find(([url]) => String(url).includes("/assistant/run"))!;
+    const sent = JSON.parse(String((call[1] as { body: FormData }).body.get("plan")));
+    expect(Array.isArray(sent)).toBe(false);
+    expect(sent.steps.map((s: { toolId: string }) => s.toolId)).toEqual([
+      "delete-pdf-pages",
+      "pdf-to-excel",
+      "file-compressor",
+    ]);
+    expect(typeof sent.explanation).toBe("string");
+  });
+
   it("answers an impossible request with grouped Free and Paid recommendations", async () => {
     fetchMock.mockImplementation((url: string) =>
       Promise.resolve(

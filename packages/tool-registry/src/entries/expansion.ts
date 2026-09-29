@@ -89,7 +89,7 @@ export const videoExpansionTools = defineCategory(
   [
     { src: ["8.16"], name: "Video Stabilizer", in: ["video"], out: ["video"], pop: 35, kw: ["stabilise", "shaky", "smooth", "vidstab", "handheld"], desc: "Smooth out shaky handheld footage." },
     { src: ["8.17"], name: "Video Contact Sheet", in: ["video"], out: ["png", "jpg"], pop: 35, kw: ["thumbnail grid", "storyboard", "contact sheet", "preview", "frames"], desc: "One image showing a grid of frames sampled across a video." },
-    { src: ["8.18"], name: "Subtitle Burner", in: ["video"], out: ["video"], pop: 40, kw: ["hardsub", "burn in", "captions", "srt", "vtt", "ass"], desc: "Burn a subtitle file permanently into the video picture." },
+    { src: ["8.18"], name: "Subtitle Burner", in: ["video", "srt", "vtt", "ass"], out: ["video"], batch: true, pop: 40, kw: ["hardsub", "burn in", "captions", "srt", "vtt", "ass"], desc: "Burn a subtitle file permanently into the video picture." },
   ],
 );
 
@@ -180,7 +180,7 @@ export const educationTools = defineCategory(
   "education",
   { phase: "21", sub: "Education & Reference", status: "available" },
   [
-    { src: ["12.45"], name: "Flashcard Maker", in: ["text", "csv"], out: ["csv", "pdf", "json"], pop: 30, kw: ["flashcards", "study", "anki", "revision", "cards", "print"], desc: "Turn a question-and-answer list into printable flashcards." },
+    { src: ["12.45"], name: "Flashcard Maker", in: ["text", "csv"], out: ["csv", "html", "json"], pop: 30, kw: ["flashcards", "study", "anki", "revision", "cards", "print"], desc: "Turn a question-and-answer list into printable flashcards." },
     { src: ["12.46"], name: "Typing Speed Test", in: [], out: ["json"], pop: 35, kw: ["wpm", "typing", "speed", "accuracy", "practice"], desc: "Measure your typing speed and accuracy in your browser." },
   ],
 );

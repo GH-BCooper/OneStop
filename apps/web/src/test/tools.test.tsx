@@ -325,7 +325,7 @@ describe("tool state machine", () => {
       success: /done/i,
       failed: /something went wrong/i,
       unavailable: /internet connection required/i,
-      unsupported: /isn't supported/i,
+      unsupported: /couldn't use this input/i,
     };
     expect(region.textContent).toMatch(expected[status]!);
     if (status === "validating" || status === "processing") {
@@ -462,6 +462,33 @@ describe("tool options", () => {
       mode: "each-page",
       packaging: "zip",
     });
+  });
+
+  it("shows the server's own message when it says OFFLINE for a reason that is not the connection", async () => {
+    // An AI tool with no runtime set up answers OFFLINE. The page is online, so the "Internet
+    // connection required" panel would be un-blocked the instant it appeared and the visitor would
+    // see nothing at all; the real, actionable message has to stay on screen instead.
+    const message =
+      "No local image model is configured. Set AI_IMAGE_URL to use the AI image tools.";
+    const fetchMock = mockRun({
+      ok: false,
+      job: { id: "j", status: "failed" },
+      error: { code: "OFFLINE", message },
+    });
+    render(
+      <ToolPage
+        tool={byId("ai-image-generator")}
+        initialState={{ status: "selected", input: { kind: "text", value: "a cat in a hat" } }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /run ai image generator/i }));
+
+    await waitFor(() => expect(sentBody(fetchMock)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(message)).toBeTruthy());
+    // And it stays there: nothing resets it back to "Ready".
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.getByText(message)).toBeTruthy();
+    expect(screen.queryByText(/^ready$/i)).toBeNull();
   });
 
   it("no longer shows the coming-soon banner for a tool this phase built", () => {
