@@ -6,6 +6,11 @@
 // acceptance criterion "the app remains 100% functional with no external AI API configured" is
 // kept honest — the AI tools are not a separate app that needs a server, they are the same tools
 // with a better engine when one is available.
+import {
+  damagedInputMessage,
+  looksLikeDamagedInput,
+  unexpectedFailureMessage,
+} from "../shared/failure.ts";
 import type { ExecErrorCode, ExecResult, OutputFile } from "@onestop/types";
 import { PdfToolError } from "../pdf/errors.ts";
 import { AiError, chat, type ChatMessage, type ChatOptions } from "./modelRuntime.ts";
@@ -58,7 +63,10 @@ export async function runAi(toolId: string, body: () => Promise<ExecResult>): Pr
       return { ok: false, code: err.code as ExecErrorCode, message: err.message };
     }
     console.error(`[ai:${toolId}] unexpected failure`, err);
-    return { ok: false, code: "FAILED", message: "That could not be completed. Please try again." };
+    if (looksLikeDamagedInput(err)) {
+      return { ok: false, code: "UNSUPPORTED_INPUT", message: damagedInputMessage("file") };
+    }
+    return { ok: false, code: "FAILED", message: unexpectedFailureMessage("input") };
   }
 }
 

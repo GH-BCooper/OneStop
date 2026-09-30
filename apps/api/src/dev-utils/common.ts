@@ -4,6 +4,11 @@
 // phases 05-11 — every user-actionable failure is a `PdfToolError`, and `runUtilTool` turns each
 // throw into the pipeline's `ExecResult`, so no stack trace reaches the UI), reading an input
 // that may be a file *or* pasted text, and writing a text result out as a downloadable file.
+import {
+  damagedInputMessage,
+  looksLikeDamagedInput,
+  unexpectedFailureMessage,
+} from "../shared/failure.ts";
 import type { ExecErrorCode, ExecResult, ExecContext, FileRef, OutputFile } from "@onestop/types";
 import { PdfToolError } from "../pdf/errors.ts";
 import { baseName, decodeText, extOf } from "../documents/common.ts";
@@ -48,7 +53,10 @@ export async function runUtilTool(
       };
     }
     console.error(`[dev-utils:${toolId}] unexpected failure`, err);
-    return { ok: false, code: "FAILED", message: "This could not be processed. Please try again." };
+    if (looksLikeDamagedInput(err)) {
+      return { ok: false, code: "UNSUPPORTED_INPUT", message: damagedInputMessage("file") };
+    }
+    return { ok: false, code: "FAILED", message: unexpectedFailureMessage("input") };
   }
 }
 

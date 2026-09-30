@@ -27,6 +27,8 @@ import {
 } from "./common.ts";
 
 export const MAX_FRAMES = 300;
+/** How many FFmpeg processes grab frames at the same time. */
+const FRAME_WORKERS = 4;
 
 /** The timestamps (seconds) to grab, from the options. */
 export function frameTimes(m: MediaInput, options: Record<string, unknown>): number[] {
@@ -110,18 +112,40 @@ export const extractFramesExecutor: Executor = (input_, options, ctx) =>
       const format = optEnum(options, "format", ["png", "jpg"], "png");
       const width = optNumber(options, "width", 0, { min: 0, max: 7680 });
       const times = frameTimes(m!, options);
-      const files: OutputFile[] = [];
-      for (const [i, t] of times.entries()) {
-        throwIfAborted(ctx!.signal);
-        const bytes = await grab(m!, dir, t, format, width, `frame-${i}.${format}`, ctx!.signal);
-        files.push(
-          outFile(
-            `${baseName(m!.ref.name)}-${String(i + 1).padStart(3, "0")}-${stamp(t)}.${format}`,
-            format,
-            bytes,
-          ),
-        );
-      }
+      // FFmpeg is one process per frame and a process is slow to start (a second or more on a
+      // machine that scans new executables), so a few run at once instead of ten in a row. Each frame
+      // has its own output name, so they cannot collide; the first failure stops the rest.
+      const grabbed: Uint8Array[] = new Array(times.length);
+      let next = 0;
+      let failed = false;
+      const worker = async () => {
+        while (!failed && next < times.length) {
+          const i = next++;
+          try {
+            throwIfAborted(ctx!.signal);
+            grabbed[i] = await grab(
+              m!,
+              dir,
+              times[i]!,
+              format,
+              width,
+              `frame-${i}.${format}`,
+              ctx!.signal,
+            );
+          } catch (err) {
+            failed = true;
+            throw err;
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(FRAME_WORKERS, times.length) }, worker));
+      const files: OutputFile[] = times.map((t, i) =>
+        outFile(
+          `${baseName(m!.ref.name)}-${String(i + 1).padStart(3, "0")}-${stamp(t)}.${format}`,
+          format,
+          grabbed[i]!,
+        ),
+      );
       return {
         ok: true,
         output: { frames: times.map((t, i) => ({ time: t, name: files[i]!.name })) },

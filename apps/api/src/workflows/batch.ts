@@ -3,6 +3,7 @@
 //
 // The contract that matters is isolation: one bad file reports its own specific failure and the
 // other N-1 still finish. Nothing here aborts the batch.
+import { unexpectedFailureMessage } from "../shared/failure.ts";
 import type { BatchFileResult, BatchProgress, BatchRunResult, WorkflowStep } from "@onestop/types";
 import { sanitizeFileName } from "../file-processing/validate.ts";
 import type { PipelineFileInput } from "../file-processing/pipeline.ts";
@@ -67,7 +68,7 @@ async function runOne(
       ok: false,
       files: [],
       steps: [],
-      error: "This file could not be processed. Please try again.",
+      error: unexpectedFailureMessage("file"),
       durationMs: Date.now() - startedAt,
     };
   }

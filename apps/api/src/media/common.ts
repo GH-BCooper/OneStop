@@ -5,6 +5,11 @@
 // FFmpeg needs real files, so each run gets a fresh `onestop-media-*` directory. Inputs are written
 // there as `in-<n>.<ext>` — the uploaded name never becomes part of a path or an argument — and the
 // directory is always removed, so phase 04's "temp files are deleted" guarantee still holds.
+import {
+  damagedInputMessage,
+  looksLikeDamagedInput,
+  unexpectedFailureMessage,
+} from "../shared/failure.ts";
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -81,11 +86,10 @@ export async function runMediaTool(
       return { ok: false, ...ffmpegFailure(err) };
     }
     console.error(`[media:${toolId}] unexpected failure`, err);
-    return {
-      ok: false,
-      code: "FAILED",
-      message: "This file could not be processed. Please try again.",
-    };
+    if (looksLikeDamagedInput(err)) {
+      return { ok: false, code: "UNSUPPORTED_INPUT", message: damagedInputMessage("file") };
+    }
+    return { ok: false, code: "FAILED", message: unexpectedFailureMessage("file") };
   }
 }
 
@@ -563,7 +567,8 @@ export function scaledProgress(
   ctx: ExecContext & { index: number; total: number },
 ): ((fraction: number) => void) | undefined {
   if (!ctx.reportProgress) return undefined;
-  return (fraction) => ctx.reportProgress!((ctx.index + Math.max(0, Math.min(1, fraction))) / ctx.total);
+  return (fraction) =>
+    ctx.reportProgress!((ctx.index + Math.max(0, Math.min(1, fraction))) / ctx.total);
 }
 
 /**
@@ -600,7 +605,9 @@ export function eachMedia(
         const results: MediaResult[] = [];
         for (const [index, media] of inputs.entries()) {
           throwIfAborted(ctx!.signal);
-          results.push(await perFile(media, options, { ...ctx!, dir, index, total: inputs.length }));
+          results.push(
+            await perFile(media, options, { ...ctx!, dir, index, total: inputs.length }),
+          );
         }
         const notes = [
           ...new Set(results.map((r) => r.note).filter((n): n is string => Boolean(n))),

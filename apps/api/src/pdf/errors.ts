@@ -3,6 +3,11 @@
 // Every PDF module throws `PdfToolError` for anything the user can act on — a protected file, a
 // page number that does not exist, a document too damaged to read. `runPdfTool` turns it into the
 // `ExecResult` shape the pipeline expects, so no stack trace ever reaches the UI (CLAUDE.md §7).
+import {
+  damagedInputMessage,
+  looksLikeDamagedInput,
+  unexpectedFailureMessage,
+} from "../shared/failure.ts";
 import type { ExecErrorCode, ExecResult } from "@onestop/types";
 
 export class PdfToolError extends Error {
@@ -70,11 +75,10 @@ export async function runPdfTool(
       return { ok: false, code: mapped.code, message: mapped.message };
     }
     console.error(`[pdf:${toolId}] unexpected failure`, err);
-    return {
-      ok: false,
-      code: "FAILED",
-      message: "This PDF could not be processed. Please try again.",
-    };
+    if (looksLikeDamagedInput(err)) {
+      return { ok: false, code: "UNSUPPORTED_INPUT", message: damagedInputMessage("PDF") };
+    }
+    return { ok: false, code: "FAILED", message: unexpectedFailureMessage("PDF") };
   }
 }
 

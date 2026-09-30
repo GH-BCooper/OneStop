@@ -4,6 +4,11 @@
 // These tools are small and almost all pure computation, so the shared part is only the error
 // contract (identical to every phase before it) and a couple of output helpers. Nothing here
 // reaches the network, and nothing here needs a dependency that was not already installed.
+import {
+  damagedInputMessage,
+  looksLikeDamagedInput,
+  unexpectedFailureMessage,
+} from "../shared/failure.ts";
 import type { ExecErrorCode, ExecResult, OutputFile } from "@onestop/types";
 import { PdfToolError } from "../pdf/errors.ts";
 
@@ -41,7 +46,10 @@ export async function runToolkitTool(
       return { ok: false, code: err.code as ExecErrorCode, message: err.message };
     }
     console.error(`[toolkit:${toolId}] unexpected failure`, err);
-    return { ok: false, code: "FAILED", message: "This could not be processed. Please try again." };
+    if (looksLikeDamagedInput(err)) {
+      return { ok: false, code: "UNSUPPORTED_INPUT", message: damagedInputMessage("file") };
+    }
+    return { ok: false, code: "FAILED", message: unexpectedFailureMessage("input") };
   }
 }
 

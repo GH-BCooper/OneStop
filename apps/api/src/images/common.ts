@@ -4,6 +4,7 @@
 // Error handling follows phases 05–08: anything the user can act on is a `PdfToolError` (the
 // shared "tool error" type — the name is historical) and `runImageTool` turns every throw into the
 // pipeline's `ExecResult`, so no stack trace ever reaches the UI (CLAUDE.md §7).
+import { looksLikeDamagedInput, unexpectedFailureMessage } from "../shared/failure.ts";
 import { createRequire } from "node:module";
 import sharp, { type Metadata, type Sharp } from "sharp";
 import type { ExecErrorCode, ExecResult } from "@onestop/types";
@@ -72,21 +73,17 @@ export async function runImageTool(
         message: "This image is too large to process. Try a smaller image (under 120 megapixels).",
       };
     }
-    if (/unsupported image format|corrupt|premature end|bad seek|input buffer|vips/i.test(text)) {
+    if (looksLikeDamagedInput(err)) {
       console.error(`[images:${toolId}]`, err);
       return {
         ok: false,
         code: "UNSUPPORTED_INPUT",
         message:
-          "This image could not be read. It may be damaged or in a format OneStop can't open.",
+          "This image could not be read. It may be damaged, incomplete or in a format OneStop can't open.",
       };
     }
     console.error(`[images:${toolId}] unexpected failure`, err);
-    return {
-      ok: false,
-      code: "FAILED",
-      message: "This image could not be processed. Please try again.",
-    };
+    return { ok: false, code: "FAILED", message: unexpectedFailureMessage("image") };
   }
 }
 

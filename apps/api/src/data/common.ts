@@ -5,6 +5,11 @@
 // Error handling follows phases 05–07: anything the user can act on is a `PdfToolError` (the
 // shared "tool error" type — the name is historical) and `runDataTool` turns every throw into the
 // pipeline's `ExecResult`, so no stack trace ever reaches the UI (CLAUDE.md §7).
+import {
+  damagedInputMessage,
+  looksLikeDamagedInput,
+  unexpectedFailureMessage,
+} from "../shared/failure.ts";
 import type { ExecErrorCode, ExecResult } from "@onestop/types";
 import type { ExecContext, FileRef, OutputFile } from "@onestop/types";
 import { PdfToolError } from "../pdf/errors.ts";
@@ -255,11 +260,10 @@ export async function runDataTool(
       };
     }
     console.error(`[data:${toolId}] unexpected failure`, err);
-    return {
-      ok: false,
-      code: "FAILED",
-      message: "This file could not be processed. Please try again.",
-    };
+    if (looksLikeDamagedInput(err)) {
+      return { ok: false, code: "UNSUPPORTED_INPUT", message: damagedInputMessage("file") };
+    }
+    return { ok: false, code: "FAILED", message: unexpectedFailureMessage("file") };
   }
 }
 

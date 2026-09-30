@@ -4,6 +4,11 @@
 // Error handling mirrors the PDF tools: anything the user can act on is a `PdfToolError` (the
 // shared "tool error" type — the name is historical), and `runDocTool` turns every throw into the
 // pipeline's `ExecResult`, so no stack trace reaches the UI (CLAUDE.md §7).
+import {
+  damagedInputMessage,
+  looksLikeDamagedInput,
+  unexpectedFailureMessage,
+} from "../shared/failure.ts";
 import type { ExecErrorCode, ExecResult } from "@onestop/types";
 import type { ExecContext, FileRef, OutputFile } from "@onestop/types";
 import mammoth from "mammoth";
@@ -54,11 +59,10 @@ export async function runDocTool(
       return { ok: false, code: "UNSUPPORTED_INPUT", message: err.message };
     }
     console.error(`[documents:${toolId}] unexpected failure`, err);
-    return {
-      ok: false,
-      code: "FAILED",
-      message: "This document could not be processed. Please try again.",
-    };
+    if (looksLikeDamagedInput(err)) {
+      return { ok: false, code: "UNSUPPORTED_INPUT", message: damagedInputMessage("document") };
+    }
+    return { ok: false, code: "FAILED", message: unexpectedFailureMessage("document") };
   }
 }
 
