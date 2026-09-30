@@ -11,8 +11,11 @@ import { runPipeline, type PipelineDeps } from "../file-processing/pipeline.ts";
 import { parseSteps } from "../workflows/model.ts";
 import { computeNextRun } from "./schedule.ts";
 import { pushNotification } from "./notifications.ts";
+import { pruneExpired } from "./maintenance.ts";
 
 const TICK_MS = 60_000;
+/** Expired sign-up codes, reset tokens and the like are swept once an hour. */
+const MAINTENANCE_MS = 60 * 60_000;
 
 interface DueRow {
   id: string;
@@ -119,6 +122,11 @@ export function startScheduler(): void {
   };
   setInterval(tick, TICK_MS).unref?.();
   tick();
+  const sweep = () => {
+    pruneExpired(requirePrisma()).catch((err) => console.error("[maintenance] sweep failed", err));
+  };
+  setInterval(sweep, MAINTENANCE_MS).unref?.();
+  sweep();
 }
 
 let lastKick = 0;

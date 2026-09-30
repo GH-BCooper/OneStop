@@ -149,6 +149,15 @@ export const authConfig: NextAuthConfig = {
   pages: { signIn: "/auth/login", newUser: "/", error: "/auth/login" },
   providers: providers(),
   callbacks: {
+    // Google accounts are linked to an existing account with the same email (so someone who signed up
+    // with a password can also use the Google button). That is only safe if Google vouches for the
+    // address, so an unverified one is turned away instead of being handed someone else's account.
+    async signIn({ account, profile }) {
+      if (account?.provider === "google") {
+        return (profile as { email_verified?: boolean } | undefined)?.email_verified === true;
+      }
+      return true;
+    },
     async jwt({ token, user, trigger, session }) {
       if (user?.id) token.sub = user.id;
       // The profile page calls `useSession().update()` right after a name or avatar change, so

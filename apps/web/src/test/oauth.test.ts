@@ -38,6 +38,21 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+describe("Google sign-in only links a verified email address", () => {
+  it("accepts a verified Google profile, refuses an unverified one, and leaves other providers alone", async () => {
+    const { authConfig } = await loadAuth(GOOGLE_ENV);
+    const signIn = authConfig.callbacks!.signIn!;
+    const google = { provider: "google", type: "oidc", providerAccountId: "1" } as never;
+    const call = (account: unknown, profile: unknown) =>
+      signIn({ user: { id: "u" }, account, profile } as never);
+    expect(await call(google, { email_verified: true })).toBe(true);
+    expect(await call(google, { email_verified: false })).toBe(false);
+    expect(await call(google, {})).toBe(false);
+    expect(await call(google, undefined)).toBe(false);
+    expect(await call({ provider: "credentials", type: "credentials" }, undefined)).toBe(true);
+  });
+});
+
 describe("the Google provider is registered from the environment", () => {
   it("is absent when no Google project is configured", async () => {
     const { authConfig } = await loadAuth({
