@@ -192,10 +192,23 @@ export async function changePassword(
   });
 }
 
-/** Deletes the account and everything that cascades from it (jobs are unlinked, not deleted). */
+/**
+ * Deletes the account and everything that belongs to it. The schema keeps a job (and a dynamic QR
+ * code) when its user goes, unlinking it rather than deleting it - which is right for a guest run,
+ * and wrong here: a job records the tool, the options and the file names, and an ownerless QR code
+ * would go on redirecting for ever with nobody able to change or retire it. So both are removed
+ * with the person, in one transaction, before the user row (whose cascades take the rest).
+ */
 export async function deleteAccount(
   userId: string,
   prisma: PrismaClient = requirePrisma(),
 ): Promise<void> {
-  await prisma.user.delete({ where: { id: userId } }).catch(() => null);
+  await prisma
+    .$transaction([
+      prisma.job.deleteMany({ where: { userId } }),
+      prisma.qrLink.deleteMany({ where: { userId } }),
+      prisma.user.delete({ where: { id: userId } }),
+    ])
+    // Already gone (a double click on "delete"): nothing left to do.
+    .catch(() => null);
 }

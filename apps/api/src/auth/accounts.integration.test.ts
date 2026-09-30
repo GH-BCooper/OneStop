@@ -143,6 +143,32 @@ describeDb("accounts (Postgres)", () => {
     expect(await findUserByEmail("ada@example.com", prisma)).toBeNull();
     expect(await prisma.userSettings.count()).toBe(0);
   });
+
+  it("takes the person's run history and dynamic QR codes with them, and nobody else's", async () => {
+    const ada = await signUp({ name: "Ada", email: "ada@example.com", password }, prisma);
+    const bob = await signUp({ name: "Bob", email: "bob@example.com", password }, prisma);
+    for (const owner of [ada.id, bob.id]) {
+      await prisma.job.create({
+        data: { toolId: "hash-generator", userId: owner, status: "success" },
+      });
+      await prisma.qrLink.create({
+        data: {
+          id: `qr${owner.slice(0, 8)}`,
+          userId: owner,
+          kind: "redirect",
+          title: "Poster",
+          target: "https://example.com/",
+        },
+      });
+    }
+    await deleteAccount(ada.id, prisma);
+    expect(await prisma.job.count({ where: { userId: ada.id } })).toBe(0);
+    expect(await prisma.job.count({ where: { userId: null } })).toBe(0);
+    expect(await prisma.job.count({ where: { userId: bob.id } })).toBe(1);
+    expect(await prisma.qrLink.count()).toBe(1);
+    // Deleting an account twice is harmless.
+    await expect(deleteAccount(ada.id, prisma)).resolves.toBeUndefined();
+  });
 });
 
 const RESET_SCHEMA = "test_password_reset";
