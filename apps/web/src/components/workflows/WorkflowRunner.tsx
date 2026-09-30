@@ -173,16 +173,6 @@ export function WorkflowRunner({ steps, name, workflowId = null, onSuccess }: Wo
         onReject={setError}
       />
 
-      {files.length > 0 ? (
-        <ul className="flex flex-col gap-1 text-sm text-fg-muted">
-          {files.map((file) => (
-            <li key={`${file.name}-${file.size}`}>
-              {file.name} · {formatBytes(file.size)}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-
       <div className="flex flex-wrap items-center gap-2">
         <Button disabled={running || files.length === 0} onClick={() => void start()}>
           {running ? "Running…" : "Run workflow"}
