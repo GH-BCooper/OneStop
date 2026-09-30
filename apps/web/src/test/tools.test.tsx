@@ -519,6 +519,7 @@ describe("the result panel shows what a tool produced", () => {
               url: "/api/files/f1",
               mimeType: "text/plain",
               size: 10,
+              expiresAt: "2030-01-01T00:00:00.000Z",
             },
           ],
         })}
@@ -558,7 +559,14 @@ describe("the result panel shows what a tool produced", () => {
           summary: "Done",
           output: { pages: 2 },
           files: [
-            { id: "f", name: "a.pdf", url: "/api/files/f", mimeType: "application/pdf", size: 1 },
+            {
+              id: "f",
+              name: "a.pdf",
+              url: "/api/files/f",
+              mimeType: "application/pdf",
+              size: 1,
+              expiresAt: "2030-01-01T00:00:00.000Z",
+            },
           ],
         })}
         toolName="Compress PDF"
@@ -583,7 +591,14 @@ describe("the result panel shows what a tool produced", () => {
         state={success({
           summary: "Done",
           files: [
-            { id: "p", name: "a.pdf", url: "/api/files/p", mimeType: "application/pdf", size: 8 },
+            {
+              id: "p",
+              name: "a.pdf",
+              url: "/api/files/p",
+              mimeType: "application/pdf",
+              size: 8,
+              expiresAt: "2030-01-01T00:00:00.000Z",
+            },
           ],
         })}
         toolName="Compress PDF"
@@ -606,7 +621,14 @@ describe("the result panel shows what a tool produced", () => {
         state={success({
           summary: "Done",
           files: [
-            { id: "p", name: "a.pdf", url: "/api/files/p", mimeType: "application/pdf", size: 8 },
+            {
+              id: "p",
+              name: "a.pdf",
+              url: "/api/files/p",
+              mimeType: "application/pdf",
+              size: 8,
+              expiresAt: "2030-01-01T00:00:00.000Z",
+            },
           ],
         })}
         toolName="Compress PDF"

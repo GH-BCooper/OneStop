@@ -29,6 +29,7 @@
 | 19  | 19-testing.md                    | Complete             | 2026-09-19   | Hardening only, no new tools. One gate: `npm run verify` (lint + typecheck + 1,014 unit/integration/contract checks + the offline-flag check). New tool-contract suite proves all 206 registry entries map to a real, non-stub executor; new offline ledger proves all 172 `offline: true` tools really ran with the network trapped (172/172) and fails the build otherwise; three cross-category workflows added to phase 15's four §8 examples; Google OAuth covered for the first time - which found and fixed a real bug (the Auth.js adapter could not create a Google user); a five-journey E2E suite; GitHub Actions `verify` workflow. The flaky-under-load question is settled (`maxWorkers: "50%"`).                    |
 | 20  | 20-deployment.md                 | Complete (see notes) | 2026-09-19   | Final `README.md`, `docs/LOCAL_SETUP.md` and `docs/DEPLOYMENT.md`; the §26/§27 QA checklist signed off below. Also closed the backlog phase 19 handed over: `document-translator` now runs on phase 16's model runtime (glossary fallback intact), `POST /api/tools/run` has a per-caller rate limit, and the E2E suite runs as one command against one shared server (`npm run test:e2e:shared`). Three of the four manual checklist items are now verified and two of them automated; five real defects were found by doing so. **See notes:** no hosted instance has actually been deployed - that step needs accounts outside this repository; see "Still open after this phase".                                              |     |
 | 21  | 21-roadmap-expansion.md          | Complete             | 2026-09-29   | The roadmap expansion: 79 new tools (206 -> 285), five new categories, the global command palette, theme presets + accessibility/reduced-data modes, shareable result links, personal access tokens, opt-in ntfy push, a shared diff engine, the before/after compare slider, inline-SVG empty states and a bento home. Zero new runtime dependencies. 162 new checks; 229/285 tools offline-verified. |
+| 22  | 22-everyday-utilities.md         | Complete             | 2026-09-30   | Seven everyday utilities found missing by the second QA pass: Word Counter, Line Sorter & Cleaner, HTML Entity Converter, Number Base Converter, Date Calculator, Percentage Calculator, YAML Formatter & Validator. Pure functions, no new dependency, each proved offline; 292 tools, 236 offline-verified. |
 
 Status values to use: `Not started` → `In progress` → `Complete`. If a phase is complete but with a known gap, use `Complete (see notes)` and explain in Notes / Known Issues below — never mark something Complete that silently doesn't meet its acceptance criteria.
 
@@ -917,9 +918,18 @@ Master plan §27 "The product should be" - every clause:
   nothing was deleted. If you want them gone, something like
   `delete from jobs where "userId" is null and "createdAt" > '<the day you first ran the tests>'` after
   checking the count is the shape of it — your call, since it also removes genuine guest history.
-- **Open (2026-09-30):** should running a tool be enforced on the server, or only on the page? Today
-  `POST /api/tools/run`, the assistant and workflow-run routes accept an anonymous caller when
-  accounts are configured; only the tool *page* says "Sign in required". See the QA-pass entry.
+- **Resolved (2026-09-30, second QA pass):** running a tool is now enforced on the server as well as
+  on the page. With accounts configured, `POST /api/tools/run`, `/api/workflows/run` and every
+  assistant route answer 401 to an anonymous caller (a valid personal access token still works for
+  `tools/run`); with no database — guest mode — nothing is gated. This was the conservative reading
+  of "the pages need an account". If the assistant was meant to stay open to guests, say so and that
+  one gate comes off; everything else stays.
+- **Open (2026-09-30, second QA pass):** during the audit a plain `npx prisma migrate deploy` was run
+  before the local database URL had been pinned, so it ran against the database `.env` points at (the
+  hosted Neon one). It applied the migrations that database had not yet seen — additive `CREATE
+  TABLE`/index statements only; no migration in the repository contains a `DROP`, `TRUNCATE` or
+  `DELETE` — and is the same command `npm run build` runs on Render's next deploy, so nothing was
+  lost. It is recorded here because it was not intended: the hosted schema is now ahead of `main`.
 
 - **Open (2026-09-22):** "Replace the buttons: 'Search tools' and 'Ask OneStop AI'" was read as
   _swap their places_ - "Ask OneStop AI" now sits beside the search box and hands over whatever was typed;
@@ -1191,19 +1201,126 @@ script, and the full Playwright suite.
 
 ### Found, deliberately not changed
 
-- **Sign-in gating is a page-level rule, not an API rule.** `POST /api/tools/run` (and the assistant
-  and workflow-run routes) still run for an anonymous caller; only the page says "Sign in required".
-  That looks intentional (the assistant is meant to be open, and the rate limiter covers the rest), so
-  it was left alone — but "using a tool needs an account" is not enforced anywhere a script can't
-  step around. Needs a product decision.
+- **Sign-in gating is a page-level rule, not an API rule.** *(Resolved in the second QA pass below:
+  the API now enforces it.)* `POST /api/tools/run` (and the assistant and workflow-run routes) still
+  ran for an anonymous caller; only the page said "Sign in required". It was left alone at the time
+  as a product decision.
 - **FFmpeg start-up is slow on the owner's machine, not in the app.** The app adds ~60 ms per run;
   the `.tools` FFmpeg pinned by `.env` takes ~1.3 s to *launch* (two launches per run: ffprobe, then
   ffmpeg), another install took 4–12 s on first launch — the 100–220 MB static binaries and the OS
   scanning them. Excluding `.tools\` from real-time antivirus scanning is the cheap fix.
 
+## Post-V1: second end-to-end QA pass (2026-09-30, branch `newVersion`)
+
+The owner asked for every page, route, API and integration to be run and every bug, weakness and gap
+fixed, and for the animated lines on the website to go. Method: the app was built and run against a
+throwaway local Postgres (never the hosted one) with console mail; every one of the 315 routes was
+driven at desktop and phone width; every API route was probed as an anonymous caller and as a second
+signed-in user; all 292 tools were fuzzed (no input, blank, hostile text, wrong-type garbage, and — the
+part that found things — *valid file, damaged body*: truncated and bit-flipped PDFs, images, Office
+files, ZIPs, audio and video); an axe-core audit ran over the signed-in and signed-out pages in both
+themes at both widths; the assistant was run on real prompts; the workflow, history, settings, share,
+QR and account flows were clicked through in a real browser; and the whole unit and end-to-end suites
+were re-run. The DOM-level sweep (console errors, failed requests, overflow, images, labels) came back
+clean on all 630 page loads — what turned up was in behaviour, not markup.
+
+### Security and data (found by acting as someone who should not have access)
+
+- **Anyone could re-point or delete anyone's dynamic QR code.** `PATCH`/`DELETE /api/qr/links/:id`
+  never asked who the caller was, and the id is printed into every scan URL. Only the owner may now;
+  a pre-accounts code is read-only once accounts exist; a guest no longer lists every user's codes.
+- **`GET /api/jobs/:id` handed any user's job — tool, options, file names, output file ids — to anyone,
+  signed in or not.** It now answers only its owner.
+- **The sign-in gate was only a page rule.** Tool runs, workflow runs and the whole assistant API ran for
+  anonymous callers, spending compute and the owner's free AI quota. They now answer 401 when accounts
+  are configured (guest mode with no database is unchanged). A malformed access token is a 401 rather
+  than a silent guest run.
+- **Rate limits could be dodged** by sending a fresh `X-Forwarded-For` with each request (the limiter used
+  the first, client-chosen entry). It now uses the address the trusted proxy appended
+  (`TRUSTED_PROXY_HOPS`, default 1); workflow runs and assistant runs had no limit at all and now share it.
+- **Unlimited password guessing, and a reset form that sent one email per click.** Wrong passwords are
+  limited per address (10) and per caller (40) for 15 minutes, a correct sign-in clears it, and the form
+  says so; reset and sign-up emails are one per address per minute and ten per caller per hour, answered
+  identically so nothing is learned about accounts. Failed sign-ins no longer print a stack trace.
+- **`/api/assistant/status` and `/greeting` spent the hosted-AI quota for anonymous callers.**
+- **No security headers at all.** Every response now carries `nosniff`, `frame-ancestors`, a referrer
+  policy, a permissions policy (camera/microphone kept to OneStop) and HSTS. A full script CSP was
+  deliberately not added: it would need per-request nonces, and one full of `unsafe-inline` protects nothing.
+- **Deleting an account left the person's run history and dynamic QR codes behind** (the schema unlinks
+  them). Both are now deleted with the account; another user's data is untouched.
+- **Abandoned sign-ups kept an email address and password hash for ever.** An hourly sweep removes expired
+  sign-up codes, reset tokens, email-change and deletion codes, and long-lapsed shares and tokens.
+- Google sign-in links to an existing account by email, which is only safe if Google vouches for it: an
+  unverified profile is now refused.
+
+### Things that were broken to use
+
+- **The PDF result "Preview" showed a blank white box.** The file route forces a download (`attachment` +
+  a sandbox policy) and a browser will not render that in an iframe. The PDF is now framed through a blob
+  URL (the route is unchanged, on purpose), with a plain message if it cannot be loaded.
+- **A damaged file got "could not be processed. Please try again."** — advice that never helps. A shared
+  helper recognises the libraries' own complaints and every tool family now says the file looks damaged.
+- **Text results were only reachable by download.** Case Converter, Hash, Line Sorter and friends now show
+  the text in the panel with a Copy button; calculators and counters open their details.
+- **Extract Frames took 15 s for ten frames of a two-second clip** (one FFmpeg process per frame, in a
+  row); four run at once now.
+- **Search ranked the wrong tool first**: "qr code" put four other QR tools above the generator, "speech to
+  text" offered Text to Speech first, "image to text" preferred ASCII Art to OCR, and "csv json" returned 90
+  results. Ranking now favours the tool people mean, penalises reversed "A to B" names, and trims the tail
+  of multi-word queries (never below five).
+- `/tools` drew all 285 cards (a 16,000 px page); it pages 48 at a time. Buttons use `min-height`, so a
+  wrapped label grows the pill instead of spilling out. The new-workflow form no longer opens with red
+  errors. The workflow runner listed the chosen files twice. On phones the collapsed chat-history rail is a
+  slim row above the chat instead of a strip beside it, and home tiles say what is in them.
+- The assistant's "what can you do?" listed raw ids (`dev-utility`); it now uses the ten groups the UI shows.
+- Stale copy: Settings promised an "animated background" that is gone; README/setup docs quoted 206 tools.
+
+### Accessibility
+
+axe-core found **no colour-contrast failures in either theme** and four real ones, all fixed: `/tools`,
+`/settings` and `/offline` jumped from `h1` to `h3` (`CardTitle` takes an `as` prop), the avatar file input had
+no name, and the new-workflow hint put a live-region role on list items.
+
+### The animated lines
+
+The full-page canvas of drifting dots joined by lines (plus the lines that chased the cursor) is removed;
+`PointerField` keeps only the card-spotlight listener. The static metal-sheen gradients in the theme
+backgrounds are not animation and were left; the slow hero glow and the wordmark sheen are also unchanged.
+If either of those was the "animated line" meant, say which and it goes too.
+
+### New tools (phase 22, `docs/build/22-everyday-utilities.md`)
+
+Word Counter, Line Sorter & Cleaner, HTML Entity Converter, Number Base Converter, Date Calculator,
+Percentage Calculator and YAML Formatter & Validator: 292 tools now, 236 proved offline. Writing their tests
+caught two bugs before they shipped (a date-difference borrow error, and the shared `optNumber` helper
+rounding 15.5 % to 16 %).
+
+### Tests
+
+New: `route-guards.test.ts` (who may call what), `client-ip.test.ts` (spoofed forwarding headers, the
+throttles), `failure.test.ts`, `dev-utils/extras.test.ts` (45 checks), `automation/maintenance.test.ts`,
+account-deletion and Google-verification cases, search regressions and result-panel cases. Verified:
+lint, typecheck, the full unit suite, the offline-coverage reconciliation, the PWA audit (26/26) and the
+end-to-end suite (see the entry's final line for the last run).
+
+### Found, deliberately not changed
+
+- **DNS rebinding in the outbound-URL guard.** `safeFetch` checks the resolved address and then `fetch`
+  resolves again; a hostile DNS answer that changes in between is not caught. Closing it needs a custom
+  undici dispatcher pinned to the checked address. It was already documented in `network/ssrf.ts`; every
+  tricky loopback/metadata form (decimal, hex, IPv6-mapped, redirects) was probed and is blocked.
+- **The sign-in lockout can be used to lock someone out for up to 15 minutes** by guessing at their email.
+  That is the standard trade-off against unlimited guessing, and the reset flow is unaffected.
+- **The assistant sometimes paraphrases a tool's output** when it writes its reply (`a,b` came back as `A,B`
+  in the chat text while the file was right). The tool result shown beneath the reply is the real one.
+- **Piper and whisper.cpp are not installed on this machine**, so Text-to-Speech, Auto Subtitle and the
+  Meeting Summarizer refuse with their (clear, actionable) install message; that is the design.
+- Rows the earlier test runs wrote to the hosted database are still there (see Open Questions).
+- `main` was not touched: this work is on `newVersion`. Render builds from `main`.
+
 ## Next Up
 
-**All 21 phases are complete.** `docs/build/` is finished; there is no next phase file.
+**All 22 phases are complete.** `docs/build/` is finished; there is no next phase file.
 Phase 21 (2026-09-29) took `docs/OneStop_Future_Roadmap.md` and built it — see the entry above.
 
 What a first real feature addition should look at, in the order it would pay off:
