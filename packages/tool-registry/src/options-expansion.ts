@@ -114,8 +114,8 @@ export const EXPANSION_TOOL_OPTIONS: Record<string, ToolOption[]> = {
   ],
   "date-calculator": [
     { id: "mode", type: "select", label: "What do you want to know?", default: "difference", choices: [choice("difference", "How many days between two dates"), choice("add", "Add or subtract time from a date"), choice("info", "What day is this date?")] },
-    { id: "start", type: "text", label: "Date", default: "", placeholder: "2026-03-15 (blank = today)", help: "Write it as 2026-03-15, 15 March 2026 or March 15, 2026." },
-    { id: "end", type: "text", label: "Second date", default: "", placeholder: "2026-12-25 (blank = today)", showWhen: { option: "mode", equals: ["difference"] } },
+    { id: "start", type: "text", label: "Start date", default: "", placeholder: "2026-03-15 (blank = today)", help: "The date to count from, add to or look up. Write it as 2026-03-15, 15 March 2026 or March 15, 2026." },
+    { id: "end", type: "text", label: "End date", default: "", placeholder: "2026-12-25 (blank = today)", showWhen: { option: "mode", equals: ["difference"] } },
     { id: "amount", type: "number", label: "Amount", default: 30, min: -100000, max: 100000, help: "Use a negative number to go back in time.", showWhen: { option: "mode", equals: ["add"] } },
     {
       id: "unit",

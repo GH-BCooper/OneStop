@@ -177,13 +177,109 @@ export function FilePreview({ file }: { file: OutputFileRef }) {
   if (file.mimeType.startsWith("audio/")) {
     return <audio src={file.url} controls className="w-full max-w-md" />;
   }
+  return <FramePreview file={file} />;
+}
+
+/**
+ * A result the browser shows in a frame (a PDF). The file route answers with `attachment` and a
+ * sandbox policy on purpose - a download is never allowed to run - and a browser will not render
+ * that inside an <iframe>, so the frame came up blank. Fetching the bytes and framing a `blob:`
+ * URL shows the same file with none of those headers, without loosening the route.
+ */
+function FramePreview({ file }: { file: OutputFileRef }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    let objectUrl: string | null = null;
+    setSrc(null);
+    setFailed(false);
+    fetch(file.url)
+      .then((response) => {
+        if (!response.ok) throw new Error(String(response.status));
+        return response.blob();
+      })
+      .then((blob) => {
+        if (cancelled) return;
+        objectUrl = URL.createObjectURL(new Blob([blob], { type: file.mimeType }));
+        setSrc(objectUrl);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [file.url, file.mimeType]);
+
+  if (failed) {
+    return (
+      <p className="w-full rounded-lg border border-border p-4 text-sm text-fg-muted">
+        This preview could not be loaded. Use Download instead.
+      </p>
+    );
+  }
+  if (!src) {
+    return (
+      <p
+        aria-busy="true"
+        className="flex h-24 w-full items-center justify-center rounded-lg border border-border text-sm text-fg-muted"
+      >
+        Loading preview…
+      </p>
+    );
+  }
   return (
     <iframe
-      src={file.url}
+      src={src}
       title={file.name}
       className="h-96 w-full rounded-lg border border-border bg-white"
     />
   );
+}
+
+/** The text a tool produced, shown where you can read it and copy it, instead of behind a download. */
+function ResultText({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const shown =
+    text.length > 20_000
+      ? `${text.slice(0, 20_000)}
+… (shortened here; download for the whole result)`
+      : text;
+  return (
+    <div className="flex flex-col gap-2" data-testid="result-text">
+      <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md border border-border bg-surface-muted p-3 font-mono text-sm">
+        {shown}
+      </pre>
+      <div>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            void navigator.clipboard
+              ?.writeText(text)
+              .then(() => {
+                setCopied(true);
+                window.setTimeout(() => setCopied(false), 2000);
+              })
+              .catch(() => undefined);
+          }}
+        >
+          {copied ? "Copied" : "Copy result"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** A tool's answer as text, when it gave one and it says more than the summary line already does. */
+export function resultTextOf(output: unknown, summary: string | undefined): string | null {
+  if (!output || typeof output !== "object") return null;
+  const result = (output as { result?: unknown }).result;
+  if (typeof result !== "string" || result.trim() === "") return null;
+  if (summary && result.trim() === summary.trim()) return null;
+  return result;
 }
 
 /** Renders the result/progress panel for the current state. */
@@ -202,6 +298,7 @@ export function ToolStateView({
     setShowPreview(false);
   }, [state.files]);
   const previewFiles = previewable(state.files);
+  const resultText = state.status === "success" ? resultTextOf(state.output, state.summary) : null;
   const title =
     state.status === "unavailable" && state.reason
       ? unavailableTitles[state.reason]
@@ -288,8 +385,13 @@ export function ToolStateView({
               )}
             </div>
           )}
+          {resultText !== null && <ResultText text={resultText} />}
           {state.output !== undefined && (
-            <details className="rounded-md bg-surface-muted p-3 text-xs">
+            <details
+              className="rounded-md bg-surface-muted p-3 text-xs"
+              // A calculator or counter has no file to download: its answer IS this, so it starts open.
+              open={!state.files?.length && resultText === null}
+            >
               <summary className="cursor-pointer select-none font-medium text-fg-muted">
                 Technical details
               </summary>

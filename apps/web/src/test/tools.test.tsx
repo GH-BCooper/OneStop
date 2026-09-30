@@ -496,3 +496,124 @@ describe("tool options", () => {
     expect(screen.queryByTestId("coming-soon")).toBeNull();
   });
 });
+
+describe("the result panel shows what a tool produced", () => {
+  const success = (over: Partial<ToolState>): ToolState => ({
+    status: "success",
+    input: { kind: "text", value: "x" },
+    ...over,
+  });
+
+  it("shows a text result inline with a Copy button, instead of only behind a download", async () => {
+    const writeText = vi.fn(async () => undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    render(
+      <ToolStateView
+        state={success({
+          summary: "Converted to camelCase.",
+          output: { result: "helloWorld" },
+          files: [
+            {
+              id: "f1",
+              name: "text-camel.txt",
+              url: "/api/files/f1",
+              mimeType: "text/plain",
+              size: 10,
+            },
+          ],
+        })}
+        toolName="Case Converter"
+      />,
+    );
+    expect(within(screen.getByTestId("result-text")).getByText("helloWorld")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /copy result/i }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("helloWorld"));
+    expect(await screen.findByRole("button", { name: /copied/i })).toBeTruthy();
+  });
+
+  it("does not repeat a result the summary line already says", () => {
+    render(
+      <ToolStateView
+        state={success({ summary: "42", output: { result: "42" } })}
+        toolName="Percentage Calculator"
+      />,
+    );
+    expect(screen.queryByTestId("result-text")).toBeNull();
+  });
+
+  it("opens the details for a tool with no file to download, since the details are its answer", () => {
+    const { container } = render(
+      <ToolStateView
+        state={success({ summary: "3 words", output: { words: 3 }, files: [] })}
+        toolName="Word Counter"
+      />,
+    );
+    expect(container.querySelector("details")?.open).toBe(true);
+  });
+
+  it("leaves the details closed when there is a file to download", () => {
+    const { container } = render(
+      <ToolStateView
+        state={success({
+          summary: "Done",
+          output: { pages: 2 },
+          files: [
+            { id: "f", name: "a.pdf", url: "/api/files/f", mimeType: "application/pdf", size: 1 },
+          ],
+        })}
+        toolName="Compress PDF"
+      />,
+    );
+    expect(container.querySelector("details")?.open).toBe(false);
+  });
+
+  it("frames a PDF result through a blob URL, because the file route forces a download", async () => {
+    const created: Blob[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(new Blob(["%PDF-1.4"]), { status: 200 })),
+    );
+    URL.createObjectURL = ((blob: Blob) => {
+      created.push(blob);
+      return "blob:preview-1";
+    }) as typeof URL.createObjectURL;
+    URL.revokeObjectURL = vi.fn();
+    render(
+      <ToolStateView
+        state={success({
+          summary: "Done",
+          files: [
+            { id: "p", name: "a.pdf", url: "/api/files/p", mimeType: "application/pdf", size: 8 },
+          ],
+        })}
+        toolName="Compress PDF"
+      />,
+    );
+    fireEvent.click(screen.getByTestId("preview-toggle"));
+    const frame = await screen.findByTitle("a.pdf");
+    expect(frame.getAttribute("src")).toBe("blob:preview-1");
+    expect(frame.getAttribute("src")).not.toBe("/api/files/p");
+    expect(created[0]?.type).toBe("application/pdf");
+  });
+
+  it("says so, rather than showing an empty frame, when the preview cannot be loaded", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response("gone", { status: 404 })),
+    );
+    render(
+      <ToolStateView
+        state={success({
+          summary: "Done",
+          files: [
+            { id: "p", name: "a.pdf", url: "/api/files/p", mimeType: "application/pdf", size: 8 },
+          ],
+        })}
+        toolName="Compress PDF"
+      />,
+    );
+    fireEvent.click(screen.getByTestId("preview-toggle"));
+    expect(await screen.findByText(/preview could not be loaded/i)).toBeTruthy();
+    expect(screen.queryByTitle("a.pdf")).toBeNull();
+  });
+});

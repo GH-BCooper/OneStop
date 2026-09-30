@@ -38,7 +38,7 @@ export default function OfflinePage() {
           <li key={item.href}>
             <Link href={item.href} className="block h-full rounded-lg">
               <Card interactive className="h-full">
-                <CardTitle>{item.title}</CardTitle>
+                <CardTitle as="h2">{item.title}</CardTitle>
                 <CardDescription>{item.detail}</CardDescription>
               </Card>
             </Link>
