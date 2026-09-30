@@ -346,6 +346,8 @@ const EXTRA: Record<
   "cron-expression-builder": { text: "30 6 * * 1-5" },
   "text-diff-viewer": { options: { against: "Hello OneStop, this is some other text 456." } },
   "totp-code-generator": { text: "JBSWY3DPEHPK3PXP" },
+  // Phase 22 (everyday utilities): only the number converter refuses the sweep's default prose.
+  "number-base-converter": { text: "0xFF" },
   "file-encryptor": { options: { password: "correct-horse-battery" } },
   "file-decryptor": { files: ["sealed"], options: { password: "correct-horse-battery" } },
   "invoice-generator": { options: { items: "Design work | 3 | 450" } },

@@ -46,6 +46,7 @@ export const dataExpansionTools = defineCategory(
     { src: ["3.22"], name: "Chart Generator", in: ["csv", "xls", "xlsx"], out: ["svg", "png"], pop: 40, kw: ["chart", "graph", "bar", "line", "pie", "visualise", "plot"], desc: "Turn two columns of a sheet into a bar, line or pie chart." },
     { src: ["4.19"], name: "Data Diff", sub: "Data Conversion", in: ["csv", "json", "xls", "xlsx"], out: ["json", "csv"], batch: true, pop: 35, kw: ["compare", "difference", "changes", "added", "removed"], desc: "Compare two CSV or JSON files row by row and list what changed." },
     { src: ["4.20"], name: "JSON Schema Generator", sub: "Data Conversion", in: ["json", "text"], out: ["json"], kw: ["schema", "infer", "json schema", "types", "validate"], desc: "Infer a JSON Schema from one or more sample JSON files." },
+    { src: ["4.22"], name: "YAML Formatter & Validator", phase: "22", sub: "Data Conversion", in: ["yaml", "text"], out: ["yaml"], pop: 40, kw: ["yaml", "yml", "lint", "prettify", "indent", "validate", "config", "kubernetes", "docker compose"], desc: "Check that YAML is valid, or tidy it with consistent indentation." },
     { src: ["4.21"], name: "Sample Data Generator", sub: "Data Conversion", in: [], out: ["csv", "json"], pop: 30, kw: ["fake data", "test data", "placeholder", "mock", "seed"], desc: "Generate realistic placeholder rows as CSV or JSON — no real personal data involved." },
   ],
 );
@@ -131,6 +132,10 @@ export const devExpansionTools = defineCategory(
     { src: ["12.30"], name: "Lorem Ipsum Generator", in: [], out: ["text", "json", "png"], pop: 35, kw: ["lorem", "placeholder", "dummy text", "filler", "mock"], desc: "Generate placeholder text, JSON or labelled placeholder images." },
     { src: ["12.31"], name: "API Request Tester", in: ["url"], out: ["json"], net: "required", pop: 40, kw: ["http", "rest", "postman", "curl", "headers", "request", "api"], desc: "Send an HTTP request and inspect the response." },
     { src: ["12.32"], name: "Secrets Scanner", in: ["zip", "any"], out: ["json", "txt"], batch: true, pop: 35, kw: ["api key", "token", "leak", "credentials", "entropy", "security"], desc: "Scan files or a ZIP for accidentally committed keys and tokens." },
+    { src: ["12.52"], name: "Word Counter", phase: "22", in: ["text", "txt", "md"], out: ["json"], pop: 60, kw: ["word count", "character count", "letter count", "sentences", "paragraphs", "reading time", "essay", "tweet length", "keyword density"], desc: "Count words, characters, sentences and paragraphs, and see how long a text takes to read." },
+    { src: ["12.53"], name: "Line Sorter & Cleaner", phase: "22", in: ["text", "txt"], out: ["txt"], pop: 45, kw: ["sort lines", "alphabetical", "remove duplicates", "unique lines", "dedupe", "reverse", "shuffle", "trim", "number lines", "list"], desc: "Sort, de-duplicate, trim, number or shuffle the lines of a list." },
+    { src: ["12.54"], name: "HTML Entity Converter", phase: "22", in: ["text", "txt"], out: ["txt"], pop: 30, kw: ["html entities", "escape html", "unescape", "encode html", "decode html", "special characters", "ampersand"], desc: "Encode text for safe use in HTML, or turn entities such as &amp; back into characters." },
+    { src: ["12.55"], name: "Number Base Converter", phase: "22", in: ["text"], out: ["json"], pop: 35, kw: ["binary", "hex", "hexadecimal", "octal", "decimal", "base 36", "roman numerals", "radix", "bits"], desc: "Convert a whole number between binary, octal, decimal, hexadecimal and Roman numerals." },
     { src: ["12.33"], name: "Readability Score Checker", in: ["text", "txt", "docx", "pdf"], out: ["json"], pop: 35, kw: ["flesch", "kincaid", "grade level", "reading ease", "readability"], desc: "Score how hard a piece of writing is to read." },
   ],
 );
@@ -171,6 +176,7 @@ export const financeTools = defineCategory(
     { src: ["12.41"], name: "Compound Interest Calculator", in: [], out: ["json", "csv"], pop: 35, kw: ["savings", "investment", "compound", "growth", "sip", "interest"], desc: "Project how savings grow with compound interest and regular contributions." },
     { src: ["12.42"], name: "Tip Splitter", in: [], out: ["json"], pop: 30, kw: ["tip", "bill", "split", "restaurant", "share"], desc: "Split a bill and tip between any number of people." },
     { src: ["12.43"], name: "Currency Converter", in: ["text"], out: ["json"], net: "required", pop: 45, kw: ["exchange rate", "forex", "usd", "eur", "convert money"], desc: "Convert between currencies at today's rate, with the last known rate as a fallback." },
+    { src: ["12.56"], name: "Percentage Calculator", phase: "22", in: [], out: ["json"], pop: 55, kw: ["percent", "percentage", "discount", "markup", "margin", "increase", "decrease", "vat", "sale price"], desc: "Work out X% of Y, what percent one number is of another, and percentage change." },
     { src: ["12.44"], name: "Invoice Generator", in: [], out: ["pdf", "docx"], pop: 40, kw: ["invoice", "bill", "freelance", "receipt", "tax"], desc: "Fill in a few fields and download a tidy invoice as PDF or Word." },
   ],
 );
@@ -190,6 +196,7 @@ export const timeTools = defineCategory(
   "time",
   { phase: "21", sub: "Calendar & Time", status: "available" },
   [
+    { src: ["12.57"], name: "Date Calculator", phase: "22", in: [], out: ["json"], pop: 50, kw: ["days between", "date difference", "add days", "weekday", "week number", "business days", "age", "countdown", "deadline"], desc: "Count the days between two dates, add or subtract time, or find a date's weekday and week number." },
     { src: ["12.47"], name: "World Clock Converter", in: ["text"], out: ["json"], pop: 40, kw: ["timezone", "time zone", "utc", "meeting", "world clock", "convert time"], desc: "See one moment in time across as many time zones as you like." },
     { src: ["12.48"], name: "Calendar Event Generator", in: [], out: ["ics"], pop: 35, kw: ["ics", "invite", "calendar", "event", "icalendar", "meeting"], desc: "Build a calendar invite you can send or import anywhere." },
     { src: ["12.49"], name: "Countdown Page Generator", in: [], out: ["html", "json"], pop: 30, kw: ["countdown", "timer", "launch", "shareable", "page"], desc: "Make a shareable countdown page — pair it with a QR code." },

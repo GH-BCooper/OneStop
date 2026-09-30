@@ -10,7 +10,7 @@ cp .env.example .env
 npm run dev          # http://localhost:3000
 ```
 
-That gets you a working instance with **229 of the 285 tools** working with no Internet. 26 more
+That gets you a working instance with **236 of the 292 tools** working with no Internet. 26 more
 need it by design, and a handful of the rest want an optional local program — all of it is listed below, and
 [http://localhost:3000/status](http://localhost:3000/status) tells you what this machine has.
 
@@ -189,7 +189,7 @@ database suites, the live Ollama suite, the live LibreOffice suite, and the live
 | Sign-in unavailable       | Set `DATABASE_URL` **and** `NEXTAUTH_SECRET`, then `npm run db:deploy`  |
 | A tool says "no Internet" | It is one of the 18 Internet-only tools — see `/status`                 |
 
-`/status` is the first place to look: it lists all 285 tools, which are offline-capable, and what
+`/status` is the first place to look: it lists all 292 tools, which are offline-capable, and what
 this server found (FFmpeg, LibreOffice, yt-dlp, the AI runtime, the database).
 
 ---

@@ -23,7 +23,8 @@ export const CATEGORY_IDS = [
 export type ToolCategory = (typeof CATEGORY_IDS)[number];
 
 /** Build phases that implement tools (file prefix in docs/build/). */
-export type ToolPhase = "05" | "06" | "07" | "08" | "09" | "10" | "11" | "12" | "16" | "17" | "21";
+export type ToolPhase =
+  "05" | "06" | "07" | "08" | "09" | "10" | "11" | "12" | "16" | "17" | "21" | "22";
 
 /**
  * Planned network needs. This is design intent, not a verified capability:
@@ -213,6 +214,7 @@ export const PHASE_FILES: Record<ToolPhase, string> = {
   "16": "16-ai-assistant.md",
   "17": "17-online-media-network-tools.md",
   "21": "21-roadmap-expansion.md",
+  "22": "22-everyday-utilities.md",
 };
 
 /** Items in docs/OneStop_Features.md that are platform features, not registry tools. */

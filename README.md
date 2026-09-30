@@ -4,7 +4,7 @@
 generate a QR code, trim a video, hash a file, format some JSON — or just describe what you want
 and let the assistant chain the tools together.
 
-**285 tools. 229 of them work with no Internet at all. Nothing costs anything.**
+**292 tools. 236 of them work with no Internet at all. Nothing costs anything.**
 
 ```bash
 npm install && cp .env.example .env && npm run dev     # http://localhost:3000

@@ -35,7 +35,7 @@ process sitting idle between requests to tick on, so a due automation instead ru
 any signed-in user's browser loads a page (`kickScheduler()` in `/api/notifications`) — it still
 works, just not on the dot.
 
-Whatever you pick, **`/status` on the deployed instance tells the truth**: it lists all 285 tools,
+Whatever you pick, **`/status` on the deployed instance tells the truth**: it lists all 292 tools,
 which are offline-capable, and which server-side programs this particular host actually has. A tool
 whose prerequisite is missing fails with one clear sentence — it is never silently broken.
 
@@ -190,7 +190,7 @@ requirement.
 
 ## 7. After deploying — check it
 
-1. Open `https://<your-url>/status`. It should list 285 tools and show what this host has.
+1. Open `https://<your-url>/status`. It should list 292 tools and show what this host has.
 2. Run **File Metadata Viewer** on any file. A report means upload → process → download works.
 3. Run **Password Generator**. Instant, no file, no dependency.
 4. If you set up a database: sign up, sign out, sign in, and check `/history` shows the run.

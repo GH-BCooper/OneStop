@@ -70,6 +70,87 @@ const sheet: TextOption = {
 };
 
 export const EXPANSION_TOOL_OPTIONS: Record<string, ToolOption[]> = {
+  "word-counter": [
+    { id: "keywords", type: "number", label: "Top keywords to list", default: 10, min: 0, max: 50, help: "The most-used words, ignoring everyday words such as “the” and “and”. Zero turns the list off." },
+    { id: "saveReport", type: "boolean", label: "Also save the report as a JSON file", default: false },
+  ],
+  "line-sorter-and-cleaner": [
+    { id: "trim", type: "boolean", label: "Trim spaces from each line", default: true },
+    { id: "removeEmpty", type: "boolean", label: "Remove empty lines", default: true },
+    { id: "dedupe", type: "boolean", label: "Remove duplicate lines", default: false, help: "The first copy of each line is kept." },
+    { id: "ignoreCase", type: "boolean", label: "Ignore capitalisation when comparing", default: false, help: "Applies to removing duplicates and to sorting." },
+    {
+      id: "sort",
+      type: "select",
+      label: "Order",
+      default: "none",
+      choices: [
+        choice("none", "Keep the original order"),
+        choice("az", "A to Z"),
+        choice("za", "Z to A"),
+        choice("natural", "Natural (file2 before file10)"),
+        choice("shortest", "Shortest first"),
+        choice("longest", "Longest first"),
+        choice("reverse", "Reverse the list"),
+        choice("shuffle", "Shuffle randomly"),
+      ],
+    },
+    { id: "prefix", type: "text", label: "Add to the start of every line", default: "", placeholder: "- " },
+    { id: "suffix", type: "text", label: "Add to the end of every line", default: "", placeholder: "," },
+    { id: "numberLines", type: "boolean", label: "Number the lines", default: false },
+  ],
+  "html-entity-converter": [
+    { id: "mode", type: "select", label: "Direction", default: "encode", choices: [choice("encode", "Text → HTML entities"), choice("decode", "HTML entities → text")] },
+    { id: "encodeNonAscii", type: "boolean", label: "Also encode accented and other non-ASCII characters", default: false, showWhen: { option: "mode", equals: ["encode"] }, help: "Off keeps them as they are. Turn it on for a file that must survive being saved as plain ASCII." },
+  ],
+  "number-base-converter": [
+    {
+      id: "from",
+      type: "select",
+      label: "The number is written in",
+      default: "auto",
+      choices: [choice("auto", "Detect (0x, 0b, 0o prefixes, otherwise decimal)"), choice("2", "Binary (base 2)"), choice("8", "Octal (base 8)"), choice("10", "Decimal (base 10)"), choice("16", "Hexadecimal (base 16)"), choice("36", "Base 36")],
+    },
+  ],
+  "date-calculator": [
+    { id: "mode", type: "select", label: "What do you want to know?", default: "difference", choices: [choice("difference", "How many days between two dates"), choice("add", "Add or subtract time from a date"), choice("info", "What day is this date?")] },
+    { id: "start", type: "text", label: "Date", default: "", placeholder: "2026-03-15 (blank = today)", help: "Write it as 2026-03-15, 15 March 2026 or March 15, 2026." },
+    { id: "end", type: "text", label: "Second date", default: "", placeholder: "2026-12-25 (blank = today)", showWhen: { option: "mode", equals: ["difference"] } },
+    { id: "amount", type: "number", label: "Amount", default: 30, min: -100000, max: 100000, help: "Use a negative number to go back in time.", showWhen: { option: "mode", equals: ["add"] } },
+    {
+      id: "unit",
+      type: "select",
+      label: "Unit",
+      default: "days",
+      choices: [choice("days", "Days"), choice("weeks", "Weeks"), choice("months", "Months"), choice("years", "Years"), choice("business-days", "Business days (Mon–Fri)")],
+      showWhen: { option: "mode", equals: ["add"] },
+    },
+  ],
+  "percentage-calculator": [
+    {
+      id: "mode",
+      type: "select",
+      label: "What do you want to work out?",
+      default: "of",
+      choices: [
+        choice("of", "X% of Y  (what is 15% of 240?)"),
+        choice("what-percent", "X is what percent of Y?"),
+        choice("change", "Percentage change from X to Y"),
+        choice("increase", "Y increased by X%"),
+        choice("decrease", "Y decreased by X%"),
+        choice("reverse", "X is P% of what number?"),
+      ],
+      help: "For “X is P% of what?” put the amount in X and the percentage in Y.",
+    },
+    { id: "a", type: "number", label: "X", default: 15, min: -1e15, max: 1e15, step: 0.01 },
+    { id: "b", type: "number", label: "Y", default: 240, min: -1e15, max: 1e15, step: 0.01 },
+    { id: "decimals", type: "number", label: "Decimal places", default: 2, min: 0, max: 10 },
+  ],
+  "yaml-formatter-and-validator": [
+    { id: "validateOnly", type: "boolean", label: "Only check that it is valid", default: false, help: "Nothing is rewritten; you just get a yes or the line and column of the first problem." },
+    { id: "indent", type: "select", label: "Indentation", default: "2", choices: [choice("2", "2 spaces"), choice("4", "4 spaces")], showWhen: { option: "validateOnly", equals: ["false"] } },
+    { id: "sortKeys", type: "boolean", label: "Sort keys A to Z", default: false },
+  ],
   // ---- PDF (roadmap §1.1) ----------------------------------------------------------------------
   "pdf-redaction": [
     {

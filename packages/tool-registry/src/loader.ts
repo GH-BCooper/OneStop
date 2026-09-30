@@ -259,6 +259,14 @@ export const VERIFIED_OFFLINE: readonly string[] = [
   "barcode-generator",
   "batch-qr-generator",
   "logo-qr-code",
+  // 22-everyday-utilities.md - apps/api/src/dev-utils/extras.test.ts "offline" suite.
+  "word-counter",
+  "line-sorter-and-cleaner",
+  "html-entity-converter",
+  "number-base-converter",
+  "date-calculator",
+  "percentage-calculator",
+  "yaml-formatter-and-validator",
 ];
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;

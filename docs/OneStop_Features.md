@@ -113,6 +113,7 @@ OneStop is an all-in-one utility platform combining document conversion, PDF pro
 19. Data Diff
 20. JSON Schema Generator
 21. Sample Data Generator
+22. YAML Formatter & Validator
 
 ## 5 PowerPoint Tools
 
@@ -332,6 +333,12 @@ A QR code can point to a OneStop-hosted page containing text, images, audio, lin
 49. Countdown Page Generator
 50. Decision Maker
 51. Year in OneStop
+52. Word Counter
+53. Line Sorter & Cleaner
+54. HTML Entity Converter
+55. Number Base Converter
+56. Percentage Calculator
+57. Date Calculator
 
 ## 13 Network / Information Utilities
 

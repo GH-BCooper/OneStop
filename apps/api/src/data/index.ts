@@ -2,6 +2,7 @@
 //
 // Importing this module registers every executor with the tool registry, following the phase-04
 // pattern: the registry never imports these files, they register themselves.
+import { yamlFormatterExecutor } from "./yamlFormatter.ts";
 import { registerExecutor } from "@onestop/tool-registry";
 
 import { chartGeneratorExecutor } from "./chart.ts";
@@ -52,7 +53,14 @@ export { validateJson, validateTable, validateXml } from "./validate.ts";
 export { chunkTable, groupTable, stackTables } from "./spreadsheet.ts";
 
 /** Every tool this phase owns, in the order the build file lists them. */
-export { AGGREGATIONS, aggregate, buildPivot, findColumn, pivotTableExecutor, type Aggregation } from "./pivot.ts";
+export {
+  AGGREGATIONS,
+  aggregate,
+  buildPivot,
+  findColumn,
+  pivotTableExecutor,
+  type Aggregation,
+} from "./pivot.ts";
 export {
   CHART_TYPES,
   SERIES_COLORS,
@@ -124,3 +132,7 @@ export const DATA_EXPANSION_EXECUTORS = [
 
 for (const [id, executor] of DATA_EXPANSION_EXECUTORS) registerExecutor(id, executor);
 
+/** Added after the end-to-end QA pass: a YAML formatter and validator to sit beside the JSON and XML ones. */
+export const DATA_EXTRAS_EXECUTORS = [["yaml-formatter-and-validator", yamlFormatterExecutor]] as const;
+
+for (const [id, executor] of DATA_EXTRAS_EXECUTORS) registerExecutor(id, executor);

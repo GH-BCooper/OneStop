@@ -42,6 +42,14 @@ import {
 } from "./transforms.ts";
 import { timestampConverterExecutor } from "./timestamps.ts";
 import { userAgentViewerExecutor } from "./userAgent.ts";
+import {
+  dateCalculatorExecutor,
+  htmlEntityExecutor,
+  lineToolsExecutor,
+  numberBaseExecutor,
+  percentageExecutor,
+  wordCounterExecutor,
+} from "./extras.ts";
 import { fileCompressorExecutor, zipCreatorExecutor, zipExtractorExecutor } from "./zip.ts";
 
 export {
@@ -143,7 +151,13 @@ export {
 } from "./duplicateDetector.ts";
 export { MIME as DEV_UTIL_MIME, safeStem, type UtilFile } from "./common.ts";
 // 21-roadmap-expansion.md additions.
-export { base64UrlDecode, base64UrlEncode, decodeJwt, type JwtReport, type SignatureState } from "./jwt.ts";
+export {
+  base64UrlDecode,
+  base64UrlEncode,
+  decodeJwt,
+  type JwtReport,
+  type SignatureState,
+} from "./jwt.ts";
 export {
   buildPalette,
   cmykToRgb,
@@ -235,3 +249,14 @@ export const DEV_UTIL_EXPANSION_EXECUTORS = [
 
 for (const [id, executor] of DEV_UTIL_EXPANSION_EXECUTORS) registerExecutor(id, executor);
 
+/** Everyday text, number and date utilities added after the end-to-end QA pass (see `extras.ts`). */
+export const DEV_UTIL_EXTRAS_EXECUTORS = [
+  ["word-counter", wordCounterExecutor],
+  ["line-sorter-and-cleaner", lineToolsExecutor],
+  ["html-entity-converter", htmlEntityExecutor],
+  ["number-base-converter", numberBaseExecutor],
+  ["date-calculator", dateCalculatorExecutor],
+  ["percentage-calculator", percentageExecutor],
+] as const;
+
+for (const [id, executor] of DEV_UTIL_EXTRAS_EXECUTORS) registerExecutor(id, executor);

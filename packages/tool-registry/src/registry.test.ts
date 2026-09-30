@@ -113,7 +113,7 @@ describe("registry contents", () => {
     // every entry points at a built phase". The stronger half of this — that each id really has a
     // registered executor behind it — needs both halves of the app in one process, so it lives in
     // tests/contract/tool-registry.test.ts.
-    const BUILT_PHASES = ["05", "06", "07", "08", "09", "10", "11", "12", "16", "17", "21"];
+    const BUILT_PHASES = ["05", "06", "07", "08", "09", "10", "11", "12", "16", "17", "21", "22"];
     expect([...new Set(tools.map((t) => t.phase))].sort()).toEqual([...BUILT_PHASES].sort());
     expect(tools.filter((t) => t.status === "stub").map((t) => t.id)).toEqual([]);
     for (const tool of tools) {
