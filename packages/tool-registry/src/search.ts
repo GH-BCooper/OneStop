@@ -331,10 +331,24 @@ export function scoreTool(tool: ToolMeta, query: string): number {
 
   const qKey = qTerms.join(" ");
   if (qKey === ix.nameKey) score += 20;
-  for (const phrase of ix.phrases) if (qKey.includes(phrase)) score += 4;
+  // A keyword that IS the whole query is the tool author's own synonym ("image to text" for OCR),
+  // which says more than the words happening to appear somewhere in a name or description.
+  for (const phrase of ix.phrases) {
+    // (Only when the name carries none of the words: if it already carries some, the keyword adds
+    // nothing, and it must not lift "URL to QR" over "QR Code Generator" for the query "qr code".)
+    if (qKey === phrase) score += nameHits === 0 ? 18 : 0;
+    else if (qKey.includes(phrase)) score += 4;
+  }
   score += 5 * (nameHits / Math.max(ix.nameCount, 1));
   // Penalise queries where most terms found nothing on this tool.
   score *= matched / qTerms.length;
+
+  // "speech to text" is not "text to speech": when a name has the same two words in the opposite
+  // order it is the reverse tool, and it must not outrank the right one just for sharing the words.
+  if (qTerms.length === 2 && tokenize(query).some((t) => t === "to" || t === "into")) {
+    const [a, b] = qTerms;
+    if (ix.nameKey.includes(`${b} ${a}`) && !ix.nameKey.includes(`${a} ${b}`)) score *= 0.3;
+  }
 
   const { source, target } = parseDirection(query);
   if (source && target) {
@@ -404,6 +418,17 @@ export function searchTools(tools: readonly ToolMeta[], options: SearchOptions =
     return true;
   });
 
+  // A several-word query ("csv json") should not list every tool that merely mentions one of the
+  // words in its description: with ninety results the two right answers are lost in the tail. Keep
+  // whatever scored at least a quarter of the best match, and never fewer than the top five. A single
+  // word is left alone - "pdf" is meant to be broad - and so is a short list.
+  if (query && filtered.length > 8 && new Set(terms(query)).size >= 2) {
+    const ranked = [...filtered].sort((x, y) => (scores.get(y) ?? 0) - (scores.get(x) ?? 0));
+    const floor = (scores.get(ranked[0]!) ?? 0) * 0.25;
+    const keep = new Set(ranked.filter((t, i) => i < 5 || (scores.get(t) ?? 0) >= floor));
+    filtered.splice(0, filtered.length, ...filtered.filter((t) => keep.has(t)));
+  }
+
   const byName = (a: ToolMeta, b: ToolMeta) => a.name.localeCompare(b.name);
   const usage = options.usageCounts ?? {};
   const runs = (t: ToolMeta) => usage[t.id] ?? 0;
@@ -431,9 +456,11 @@ export function searchTools(tools: readonly ToolMeta[], options: SearchOptions =
       };
       return filtered.sort(withFavorites((a, b) => rank(a) - rank(b) || byPopularity(a, b)));
     }
-    case "relevance":
-      return filtered.sort(
-        withFavorites((a, b) => (scores.get(b) ?? 0) - (scores.get(a) ?? 0) || byPopularity(a, b)),
-      );
+    case "relevance": {
+      // Popularity is a nudge, not a vote: between near-equal matches ("QR Code Generator" against
+      // "QR Code Analytics" for "qr code") the one people actually reach for comes first.
+      const rank = (t: ToolMeta) => (scores.get(t) ?? 0) + t.popularity / 12;
+      return filtered.sort(withFavorites((a, b) => rank(b) - rank(a) || byPopularity(a, b)));
+    }
   }
 }

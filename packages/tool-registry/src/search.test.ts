@@ -90,3 +90,39 @@ describe("filters and sorting", () => {
     expect(recent.slice(0, 2).map((t) => t.id)).toEqual(["dns-lookup", "merge-pdf"]);
   });
 });
+
+describe("search relevance (found in the end-to-end QA pass)", () => {
+  it.each([
+    ["qr code", "qr-code-generator"],
+    ["image to text", "ai-ocr"],
+    ["speech to text", "auto-subtitle-generator"],
+    ["excel to pdf", "excel-to-pdf"],
+  ])('"%s" → %s first', (query, id) => {
+    expect(top(query)).toBe(id);
+  });
+
+  it("does not offer the reverse tool ahead of the right one (speech to text vs text to speech)", () => {
+    const ids = searchTools(tools, { query: "speech to text" }).map((t) => t.id);
+    expect(ids.indexOf("auto-subtitle-generator")).toBeLessThan(
+      ids.indexOf("text-to-speech-reader") === -1 ? Infinity : ids.indexOf("text-to-speech-reader"),
+    );
+    const reverse = searchTools(tools, { query: "text to speech" }).map((t) => t.id);
+    expect(reverse[0]).toBe("text-to-speech-reader");
+  });
+
+  it("keeps a several-word query short instead of listing every tool that mentions one word", () => {
+    const results = searchTools(tools, { query: "csv json" });
+    expect(results.length).toBeLessThan(25);
+    expect(
+      results
+        .slice(0, 2)
+        .map((t) => t.id)
+        .sort(),
+    ).toEqual(["csv-to-json", "json-to-csv"]);
+  });
+
+  it("leaves a single broad word broad, and never trims below five", () => {
+    expect(searchTools(tools, { query: "pdf" }).length).toBeGreaterThan(30);
+    expect(searchTools(tools, { query: "speech to text" }).length).toBeGreaterThanOrEqual(5);
+  });
+});
