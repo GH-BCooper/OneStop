@@ -93,6 +93,12 @@ export function LoginForm({ googleEnabled = false, available = true }: AuthFormO
       onSubmit={async ({ email, password }) => {
         if (!available) return { formError: UNAVAILABLE };
         const result = await signIn("credentials", { email, password, redirect: false });
+        if (result?.code === "too_many_attempts") {
+          return {
+            formError:
+              "Too many wrong attempts. Wait a few minutes and try again, or reset your password.",
+          };
+        }
         if (!result || result.error) {
           return { formError: "That email or password is incorrect." };
         }

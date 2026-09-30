@@ -3,6 +3,7 @@
 // server restart. They never contain file contents, only metadata.
 import { getJobStore } from "@onestop/api";
 import { NextResponse } from "next/server";
+import { currentUserId } from "@/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +14,10 @@ export async function GET(
 ): Promise<Response> {
   const { id } = await params;
   const job = await getJobStore().get(id);
-  if (!job) {
+  // A job belongs to whoever ran it: it names the tool, the options and the output file ids, so it
+  // is answered only to its owner - and to nobody else, exactly as if it did not exist. A job with
+  // no owner is a guest run on an instance with no accounts, where there is nobody else to hide it from.
+  if (!job || (job.userId && job.userId !== (await currentUserId()))) {
     return NextResponse.json(
       { ok: false, error: { code: "NOT_FOUND", message: "This job is no longer available." } },
       { status: 404 },

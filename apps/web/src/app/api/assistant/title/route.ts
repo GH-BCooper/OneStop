@@ -5,6 +5,7 @@
 // Never a hard failure — a title is cosmetic, never a blocker.
 import { AiError, chat } from "@onestop/api";
 import { readAiCredentials } from "@/lib/ai-request";
+import { isRefusal, refusalResponse, resolveCaller } from "@/lib/caller";
 import { fail, ok, readJson } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
@@ -19,6 +20,8 @@ function fallbackTitle(text: string): string {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  const caller = await resolveCaller(request, "use the assistant");
+  if (isRefusal(caller)) return refusalResponse(caller);
   const body = await readJson(request);
   if (!body) return fail(400, "INVALID_INPUT", "That request could not be read.");
 
@@ -41,7 +44,10 @@ export async function POST(request: Request): Promise<Response> {
       { temperature: 0.3, maxTokens: 20 },
       credentials,
     );
-    const cleaned = answer.replace(/^["'“”]+|["'“”]+$/g, "").replace(/\s+/g, " ").trim();
+    const cleaned = answer
+      .replace(/^["'“”]+|["'“”]+$/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
     return ok({ title: cleaned !== "" ? cleaned.slice(0, 80) : fallbackTitle(clipped) });
   } catch (err) {
     if (err instanceof AiError) return ok({ title: fallbackTitle(clipped) });

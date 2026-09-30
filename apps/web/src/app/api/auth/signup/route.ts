@@ -5,9 +5,11 @@
 // `/api/auth/signup/verify`, so an address the person cannot read can never become an account.
 import {
   canDeliverMail,
+  clientIpOf,
   discardSignupCode,
   getPrisma,
   MAIL_NOT_CONFIGURED_MESSAGE,
+  mailRequestVerdict,
   requestSignupCode,
   SIGNUP_CODE_TTL_MINUTES,
   sendMail,
@@ -26,6 +28,17 @@ export async function POST(request: Request): Promise<Response> {
   if (!prisma) return fail(503, "DATABASE_UNAVAILABLE", NO_DATABASE_MESSAGE);
   // Nothing about the person is looked at yet: a server that cannot send email says so first.
   if (!canDeliverMail()) return fail(503, "MAIL_UNAVAILABLE", MAIL_NOT_CONFIGURED_MESSAGE);
+
+  // A cap per caller per hour so the form cannot be used to send codes to strangers in bulk.
+  // (The per-address cooldown lives in `requestSignupCode`, which knows about pending sign-ups.)
+  const verdict = mailRequestVerdict("signup", str(body, "email"), clientIpOf(request.headers));
+  if (verdict.verdict === "blocked") {
+    return fail(
+      429,
+      "RATE_LIMITED",
+      `Too many sign-up attempts. Try again in ${Math.ceil(verdict.retryAfterSeconds / 60)} minutes.`,
+    );
+  }
 
   try {
     const pending = await requestSignupCode(

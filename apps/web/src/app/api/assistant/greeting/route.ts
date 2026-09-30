@@ -6,12 +6,15 @@
 import { greetUser } from "@onestop/api";
 import { auth } from "@/auth";
 import { readAiCredentials } from "@/lib/ai-request";
+import { isRefusal, refusalResponse, resolveCaller } from "@/lib/caller";
 import { fail, ok } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request): Promise<Response> {
+  const caller = await resolveCaller(request, "use the assistant");
+  if (isRefusal(caller)) return refusalResponse(caller);
   const url = new URL(request.url);
   const credentials = readAiCredentials(request, url.searchParams.get("provider"));
 

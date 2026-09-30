@@ -10,9 +10,12 @@
 //   files       the input files
 //
 // Every step still goes through the phase-04 pipeline, so validation, size limits, job history and
-// temp-file retention are exactly the same as running the tool from its own page. A guest can run
-// any workflow: only *saving* one needs an account.
+// temp-file retention are exactly the same as running the tool from its own page. With accounts configured, running needs
+// a signed-in caller like every other tool run; only where there are no accounts at all does a guest
+// run one. Saving a workflow always needs an account.
 import {
+  clientIpOf,
+  consumeRate,
   describeIssues,
   endProgress,
   getPrisma,
@@ -20,6 +23,7 @@ import {
   loadFileCoreConfig,
   parseSteps,
   recordWorkflowUse,
+  RUN_RATE_LIMIT,
   runBatch,
   runWorkflow,
   setProgress,
@@ -28,7 +32,7 @@ import {
 } from "@onestop/api";
 import { ERROR_MESSAGES, type WorkflowStep } from "@onestop/types";
 import { NextResponse } from "next/server";
-import { currentUserId } from "@/auth";
+import { isRefusal, refusalResponse, resolveCaller } from "@/lib/caller";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,6 +57,16 @@ function problem(status: number, code: string, message: string) {
 export async function POST(request: Request): Promise<Response> {
   const config = loadFileCoreConfig();
 
+  const caller = await resolveCaller(request, "run workflows");
+  if (isRefusal(caller)) return refusalResponse(caller);
+  const wait = consumeRate(
+    `workflows-run:${clientIpOf(request.headers) ?? "local"}`,
+    RUN_RATE_LIMIT,
+  );
+  if (wait !== null) {
+    return problem(429, "FAILED", `Too many runs in a row. Wait ${wait} seconds and try again.`);
+  }
+
   const declaredLength = Number(request.headers.get("content-length") ?? "0");
   if (Number.isFinite(declaredLength) && declaredLength > config.maxRequestBytes) {
     return problem(413, "UNSUPPORTED_INPUT", ERROR_MESSAGES.tooLarge);
@@ -66,7 +80,7 @@ export async function POST(request: Request): Promise<Response> {
     return problem(400, "UNSUPPORTED_INPUT", "The upload could not be read. Please try again.");
   }
 
-  const userId = await currentUserId();
+  const { userId } = caller;
 
   // ---- which chain -----------------------------------------------------------------------
   let steps: WorkflowStep[];
@@ -138,21 +152,33 @@ export async function POST(request: Request): Promise<Response> {
   try {
     if (batch) {
       const concurrency = Number(form.get("concurrency"));
-      const result = await runBatch({
-        steps,
-        files,
-        workflowId,
-        name,
-        userId,
-        ...(Number.isFinite(concurrency) ? { concurrency } : {}),
-      }, {
-        onFileProgress: (p) => {
-          const done = p.status !== "running";
-          const percent = ((p.fileIndex + (done ? 1 : 0)) / p.fileCount) * 100;
-          const verb = p.status === "running" ? "Processing" : p.status === "success" ? "Finished" : "Failed";
-          setProgress(progressToken, percent, `${verb} ${p.name} (${p.fileIndex + 1}/${p.fileCount})`);
+      const result = await runBatch(
+        {
+          steps,
+          files,
+          workflowId,
+          name,
+          userId,
+          ...(Number.isFinite(concurrency) ? { concurrency } : {}),
         },
-      });
+        {
+          onFileProgress: (p) => {
+            const done = p.status !== "running";
+            const percent = ((p.fileIndex + (done ? 1 : 0)) / p.fileCount) * 100;
+            const verb =
+              p.status === "running"
+                ? "Processing"
+                : p.status === "success"
+                  ? "Finished"
+                  : "Failed";
+            setProgress(
+              progressToken,
+              percent,
+              `${verb} ${p.name} (${p.fileIndex + 1}/${p.fileCount})`,
+            );
+          },
+        },
+      );
       endProgress(progressToken, result.failed === 0);
       if (workflowId && userId && result.succeeded > 0) await noteUse(userId, workflowId);
       return NextResponse.json(
@@ -160,14 +186,22 @@ export async function POST(request: Request): Promise<Response> {
         { status: 200, headers: { "cache-control": "no-store" } },
       );
     }
-    const result = await runWorkflow({ steps, files, workflowId, name, userId }, {
-      onProgress: (p) => {
-        const done = p.status !== "running";
-        const percent = ((p.stepIndex + (done ? 1 : 0)) / p.stepCount) * 100;
-        const verb = p.status === "running" ? "Running" : p.status === "success" ? "Finished" : "Failed";
-        setProgress(progressToken, percent, `${verb} step ${p.stepIndex + 1}/${p.stepCount}: ${p.toolName}`);
+    const result = await runWorkflow(
+      { steps, files, workflowId, name, userId },
+      {
+        onProgress: (p) => {
+          const done = p.status !== "running";
+          const percent = ((p.stepIndex + (done ? 1 : 0)) / p.stepCount) * 100;
+          const verb =
+            p.status === "running" ? "Running" : p.status === "success" ? "Finished" : "Failed";
+          setProgress(
+            progressToken,
+            percent,
+            `${verb} step ${p.stepIndex + 1}/${p.stepCount}: ${p.toolName}`,
+          );
+        },
       },
-    });
+    );
     endProgress(progressToken, result.ok);
     if (workflowId && userId && result.ok) await noteUse(userId, workflowId);
     return NextResponse.json(

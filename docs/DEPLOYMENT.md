@@ -35,7 +35,7 @@ process sitting idle between requests to tick on, so a due automation instead ru
 any signed-in user's browser loads a page (`kickScheduler()` in `/api/notifications`) — it still
 works, just not on the dot.
 
-Whatever you pick, **`/status` on the deployed instance tells the truth**: it lists all 206 tools,
+Whatever you pick, **`/status` on the deployed instance tells the truth**: it lists all 285 tools,
 which are offline-capable, and which server-side programs this particular host actually has. A tool
 whose prerequisite is missing fails with one clear sentence — it is never silently broken.
 
@@ -119,19 +119,20 @@ Netlify behaves the same way.
 
 `.env.example` documents all of them. These are the ones a hosted instance needs:
 
-| Variable                                                          | Needed               | Value                                                                                                    |
-| ----------------------------------------------------------------- | -------------------- | -------------------------------------------------------------------------------------------------------- |
-| `APP_URL`                                                         | **yes**              | the public HTTPS URL, no trailing slash                                                                  |
-| `NEXTAUTH_URL`                                                    | **yes**              | the same URL                                                                                             |
-| `NEXTAUTH_SECRET`                                                 | for accounts         | `npx auth secret`, or `openssl rand -base64 32`                                                          |
-| `DATABASE_URL`                                                    | for accounts         | the pooled Postgres URL from §2                                                                          |
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`                       | optional             | a free Google Cloud OAuth client; add `<APP_URL>/api/auth/callback/google` as an authorised redirect URI |
-| `BREVO_API_KEY` + `MAIL_FROM`, or `RESEND_API_KEY`, or `SMTP_URL` | **yes** for accounts | the email that carries the sign-up code and the password-reset link - see §5.1                           |
-| `MAX_UPLOAD_MB`                                                   | optional             | default 100. Lower it on a small free instance                                                           |
-| `TEMP_FILE_TTL_MINUTES`                                           | optional             | default 60                                                                                               |
-| `TEMP_DIR`                                                        | serverless           | `/tmp`                                                                                                   |
-| `RUN_RATE_LIMIT` / `RUN_RATE_WINDOW_SECONDS`                      | optional             | per-caller cap on `POST /api/tools/run`; default 120 per 60 s                                            |
-| `GROQ_API_KEY` / `OPENROUTER_API_KEY` / `GOOGLE_AI_API_KEY`       | optional             | see §6                                                                                                   |
+| Variable                                                          | Needed               | Value                                                                                                     |
+| ----------------------------------------------------------------- | -------------------- | --------------------------------------------------------------------------------------------------------- |
+| `APP_URL`                                                         | **yes**              | the public HTTPS URL, no trailing slash                                                                   |
+| `NEXTAUTH_URL`                                                    | **yes**              | the same URL                                                                                              |
+| `NEXTAUTH_SECRET`                                                 | for accounts         | `npx auth secret`, or `openssl rand -base64 32`                                                           |
+| `DATABASE_URL`                                                    | for accounts         | the pooled Postgres URL from §2                                                                           |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`                       | optional             | a free Google Cloud OAuth client; add `<APP_URL>/api/auth/callback/google` as an authorised redirect URI  |
+| `BREVO_API_KEY` + `MAIL_FROM`, or `RESEND_API_KEY`, or `SMTP_URL` | **yes** for accounts | the email that carries the sign-up code and the password-reset link - see §5.1                            |
+| `MAX_UPLOAD_MB`                                                   | optional             | default 100. Lower it on a small free instance                                                            |
+| `TEMP_FILE_TTL_MINUTES`                                           | optional             | default 60                                                                                                |
+| `TEMP_DIR`                                                        | serverless           | `/tmp`                                                                                                    |
+| `RUN_RATE_LIMIT` / `RUN_RATE_WINDOW_SECONDS`                      | optional             | per-caller cap on `POST /api/tools/run`; default 120 per 60 s                                             |
+| `TRUSTED_PROXY_HOPS`                                              | optional             | reverse proxies in front of the app (default 1; 2 behind a CDN); rate limits key on the hop they appended |
+| `GROQ_API_KEY` / `OPENROUTER_API_KEY` / `GOOGLE_AI_API_KEY`       | optional             | see §6                                                                                                    |
 
 ### 5.1 Email on a hosted instance (sign-up code and password reset)
 
@@ -189,7 +190,7 @@ requirement.
 
 ## 7. After deploying — check it
 
-1. Open `https://<your-url>/status`. It should list 206 tools and show what this host has.
+1. Open `https://<your-url>/status`. It should list 285 tools and show what this host has.
 2. Run **File Metadata Viewer** on any file. A report means upload → process → download works.
 3. Run **Password Generator**. Instant, no file, no dependency.
 4. If you set up a database: sign up, sign out, sign in, and check `/history` shows the run.
@@ -202,9 +203,18 @@ OneStop was built for personal or small-trusted-group use. Before you give the l
 
 - **Uploads are deleted automatically** — inputs as soon as a job ends, results after
   `TEMP_FILE_TTL_MINUTES` (default 60). No file binary is ever stored in Postgres.
-- **There is no admin, no roles and no billing**, by design. Anyone who can reach the URL can run
-  the tools. If that is not what you want, put the host's own access control in front of it, or
-  keep the URL private.
+- **There is no admin, no roles and no billing**, by design. With accounts configured (a database and
+  a session secret) running a tool, a workflow or the assistant needs a signed-in account, and the API
+  enforces it - not only the page. Anyone can still _create_ an account, so this is a speed bump and an
+  accounting line, not access control: if the instance must stay private, put the host's own access
+  control in front of it, or keep the URL private. With no database there are no accounts and no
+  gating (guest mode).
+- **Sign-in and email endpoints are throttled.** Ten wrong passwords for one address, or forty from one
+  caller, pause sign-in for up to 15 minutes; reset and sign-up emails are limited to one per address
+  per minute and ten per caller per hour, so the forms cannot be used to flood an inbox or exhaust the
+  free mail quota. Set `TRUSTED_PROXY_HOPS` if the app sits behind more than one proxy.
+- **Every response carries security headers** (`nosniff`, frame protection, a referrer policy, HSTS on
+  HTTPS and a permissions policy that keeps the camera and microphone to OneStop itself).
 - **The rate limit is per server process.** One free instance is one process, so it works as
   intended; behind several instances each gets its own budget.
 - **Secrets only in the host's environment panel.** Never commit `.env`.

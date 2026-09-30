@@ -26,7 +26,40 @@ function loadRootEnv(): void {
 
 loadRootEnv();
 
+/**
+ * Headers every response carries. Deliberately the set that cannot break a working feature:
+ *  - nosniff stops a browser reinterpreting a download as something executable;
+ *  - frame-ancestors / X-Frame-Options stop another site framing OneStop (clickjacking) while the
+ *    app's own previews, which frame same-origin content, keep working;
+ *  - base-uri, form-action and object-src close the injection routes a strict script policy would
+ *    otherwise be needed for. A full script-src is not set: the theme bootstrap and Next's own
+ *    inline scripts would need per-request nonces, and a policy full of 'unsafe-inline' protects
+ *    nothing.
+ *  - the camera and microphone stay available to OneStop itself (QR scanner, recorders) and to no
+ *    embedded page; geolocation, payment and USB are switched off because nothing here uses them.
+ *  - HSTS is sent everywhere and simply ignored by browsers over plain http, so it only takes
+ *    effect on the HTTPS deployment.
+ */
+const securityHeaders = [
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "SAMEORIGIN" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  {
+    key: "Permissions-Policy",
+    value:
+      "camera=(self), microphone=(self), geolocation=(), payment=(), usb=(), interest-cohort=()",
+  },
+  {
+    key: "Content-Security-Policy",
+    value: "frame-ancestors 'self'; base-uri 'self'; form-action 'self'; object-src 'none'",
+  },
+  { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
+];
+
 const nextConfig: NextConfig = {
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders }];
+  },
   reactStrictMode: true,
   poweredByHeader: false,
   // Root CLAUDE.md is the single agent guide; stop Next from generating per-app copies.

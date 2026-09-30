@@ -5,9 +5,11 @@
 // the server console otherwise - which is the documented local/dev path (no paid service needed).
 import {
   canDeliverMail,
+  clientIpOf,
   createPasswordReset,
   getPrisma,
   MAIL_NOT_CONFIGURED_MESSAGE,
+  mailRequestVerdict,
   resetEmail,
   selectedTransport,
   sendMail,
@@ -31,6 +33,21 @@ export async function POST(request: Request): Promise<Response> {
   if (!prisma) return fail(503, "DATABASE_UNAVAILABLE", NO_DATABASE_MESSAGE);
   // A server that cannot send email says so, for everyone alike - it says nothing about accounts.
   if (!canDeliverMail()) return fail(503, "MAIL_UNAVAILABLE", MAIL_NOT_CONFIGURED_MESSAGE);
+
+  // One reset email per address per minute, and a cap per caller per hour: without one, this form
+  // is a free way to flood somebody's inbox and to burn through the mail provider's daily quota.
+  // Inside the cooldown the answer is the same neutral one, so nothing is learned about accounts.
+  const verdict = mailRequestVerdict("reset", email, clientIpOf(request.headers));
+  if (verdict.verdict === "blocked") {
+    return fail(
+      429,
+      "RATE_LIMITED",
+      `Too many reset requests. Try again in ${Math.ceil(verdict.retryAfterSeconds / 60)} minutes.`,
+    );
+  }
+  if (verdict.verdict === "cooldown") {
+    return ok({ message: NEUTRAL_MESSAGE, transport: selectedTransport() });
+  }
 
   try {
     const request_ = await createPasswordReset(email, prisma);

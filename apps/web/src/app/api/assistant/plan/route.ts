@@ -16,6 +16,7 @@ import {
 } from "@onestop/api";
 import { auth } from "@/auth";
 import { readAiCredentials } from "@/lib/ai-request";
+import { isRefusal, refusalResponse, resolveCaller } from "@/lib/caller";
 import { fail, ok, readJson } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
@@ -100,6 +101,8 @@ async function readProfile(): Promise<AssistantProfile | undefined> {
 }
 
 export async function POST(request: Request): Promise<Response> {
+  const caller = await resolveCaller(request, "use the assistant");
+  if (isRefusal(caller)) return refusalResponse(caller);
   const body = await readJson(request);
   if (!body) return fail(400, "INVALID_INPUT", "That request could not be read.");
 

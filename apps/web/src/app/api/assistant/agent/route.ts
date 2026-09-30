@@ -7,6 +7,7 @@
 import {
   AiError,
   assistantFailureMessage,
+  clientIpOf,
   consumeRate,
   findUserById,
   getPrisma,
@@ -19,8 +20,9 @@ import {
   type AssistantHistory,
   type AssistantProfile,
 } from "@onestop/api";
-import { auth, currentUserId } from "@/auth";
+import { auth } from "@/auth";
 import { readAiCredentials } from "@/lib/ai-request";
+import { isRefusal, resolveCaller } from "@/lib/caller";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -97,10 +99,15 @@ function stream(events: (send: (e: unknown) => void) => Promise<void>): Response
 
 export async function POST(request: Request): Promise<Response> {
   const config = loadFileCoreConfig();
-  const wait = consumeRate(
-    `agent:${request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local"}`,
-    RUN_RATE_LIMIT,
-  );
+  // With accounts configured the assistant is for signed-in people: anonymous calls would otherwise
+  // spend the owner's free AI quota and run tools with no account behind them.
+  const caller = await resolveCaller(request, "use the assistant");
+  if (isRefusal(caller)) {
+    return stream(async (send) =>
+      send({ type: "error", code: caller.code, message: caller.message }),
+    );
+  }
+  const wait = consumeRate(`agent:${clientIpOf(request.headers) ?? "local"}`, RUN_RATE_LIMIT);
   if (wait !== null) {
     return stream(async (send) =>
       send({
@@ -149,7 +156,8 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   const credentials = readAiCredentials(request, form.get("provider"));
-  const [userId, who] = await Promise.all([currentUserId(), profile()]);
+  const userId = caller.userId;
+  const who = await profile();
   const workflows = json<AgentWorkflow[]>(form.get("workflows"), []).slice(0, 100);
   const favoriteToolIds = json<string[]>(form.get("favoriteToolIds"), [])
     .filter((x) => typeof x === "string")

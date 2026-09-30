@@ -9,16 +9,19 @@
 // Execution itself is phase 15's `runWorkflow` over phase 04's pipeline, so uploads are validated
 // and sanitised, jobs are recorded and temp files expire exactly as they do everywhere else.
 import {
+  clientIpOf,
+  consumeRate,
   PlanRejectedError,
   executePlan,
   isAiProviderId,
   loadFileCoreConfig,
+  RUN_RATE_LIMIT,
   type PipelineFileInput,
 } from "@onestop/api";
 import { ERROR_MESSAGES, type AiProviderId, type ExecutionPlan } from "@onestop/types";
 import { NextResponse } from "next/server";
-import { currentUserId } from "@/auth";
 import { readAiCredentials } from "@/lib/ai-request";
+import { isRefusal, refusalResponse, resolveCaller } from "@/lib/caller";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,6 +79,16 @@ function readPlan(raw: unknown): ExecutionPlan | null {
 
 export async function POST(request: Request): Promise<Response> {
   const config = loadFileCoreConfig();
+
+  const caller = await resolveCaller(request, "run the assistant's plan");
+  if (isRefusal(caller)) return refusalResponse(caller);
+  const wait = consumeRate(
+    `assistant-run:${clientIpOf(request.headers) ?? "local"}`,
+    RUN_RATE_LIMIT,
+  );
+  if (wait !== null) {
+    return problem(429, "FAILED", `Too many runs in a row. Wait ${wait} seconds and try again.`);
+  }
 
   const declaredLength = Number(request.headers.get("content-length") ?? "0");
   if (Number.isFinite(declaredLength) && declaredLength > config.maxRequestBytes) {
@@ -138,7 +151,7 @@ export async function POST(request: Request): Promise<Response> {
     return problem(400, "UNSUPPORTED_INPUT", "Attach the files the assistant should work on.");
   }
 
-  const userId = await currentUserId();
+  const { userId } = caller;
   try {
     const result = await executePlan({ plan, files, userId, name: "AI Assistant" });
     return NextResponse.json(

@@ -13,3 +13,4 @@ export * from "./account-delete.ts";
 
 // Personal access tokens for the visitor's own scripts (21-roadmap-expansion.md, roadmap §2).
 export * from "./accessTokens.ts";
+export * from "./throttle.ts";

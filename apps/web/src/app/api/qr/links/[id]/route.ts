@@ -5,6 +5,8 @@
 // promise of a dynamic code (11-qr-tools.md).
 import { getQrStore, isQrLinkId, statsFor } from "@onestop/api";
 import { NextResponse } from "next/server";
+import { currentUserId } from "@/auth";
+import { authIsConfigured } from "@/lib/auth-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +19,43 @@ function problem(status: number, code: string, message: string) {
 
 function notFound() {
   return problem(404, "NOT_FOUND", "That QR code no longer exists.");
+}
+
+/**
+ * Whether the caller may change this code. The id is printed into every scan URL (`/q/<id>`), so
+ * knowing it proves nothing: only the account that made a code can re-point, pause or delete it.
+ * A code with no owner predates accounts; once accounts are configured it is read-only rather than
+ * up for grabs by whoever signs up next. With no accounts at all there is one person, who owns
+ * everything.
+ */
+async function mayEdit(
+  owner: string | null,
+): Promise<{ ok: true; userId: string | null } | { ok: false; response: Response }> {
+  const userId = await currentUserId();
+  if (!authIsConfigured()) return { ok: true, userId: null };
+  if (!userId) {
+    return {
+      ok: false,
+      response: problem(401, "AUTH_REQUIRED", "Sign in to change your QR codes."),
+    };
+  }
+  if (owner === null) {
+    return {
+      ok: false,
+      response: problem(
+        403,
+        "FORBIDDEN",
+        "This code was made before accounts existed, so it can't be edited here.",
+      ),
+    };
+  }
+  if (owner !== userId) {
+    return {
+      ok: false,
+      response: problem(403, "FORBIDDEN", "That QR code belongs to someone else."),
+    };
+  }
+  return { ok: true, userId };
 }
 
 export async function PATCH(
@@ -57,9 +96,12 @@ export async function PATCH(
   }
 
   const store = getQrStore();
-  if (!(await store.get(id))) return notFound();
+  const existing = await store.get(id);
+  if (!existing) return notFound();
+  const allowed = await mayEdit(existing.ownerToken);
+  if (!allowed.ok) return allowed.response;
   try {
-    const link = await store.update(id, patch);
+    const link = await store.update(id, patch, allowed.userId);
     return NextResponse.json(
       { ok: true, code: statsFor(link) },
       { headers: { "cache-control": "no-store" } },
@@ -76,8 +118,12 @@ export async function DELETE(
 ): Promise<Response> {
   const { id } = await params;
   if (!isQrLinkId(id)) return notFound();
+  const existing = await getQrStore().get(id);
+  if (!existing) return notFound();
+  const allowed = await mayEdit(existing.ownerToken);
+  if (!allowed.ok) return allowed.response;
   try {
-    const removed = await getQrStore().remove(id);
+    const removed = await getQrStore().remove(id, allowed.userId);
     if (!removed) return notFound();
     return NextResponse.json({ ok: true }, { headers: { "cache-control": "no-store" } });
   } catch (err) {

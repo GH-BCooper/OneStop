@@ -7,10 +7,19 @@
 //
 // Sessions are JWTs rather than database rows: a signed cookie keeps guest-friendly tools working
 // with no database round trip per request, and the `sessions` table stays empty by design.
-import { findUserById, getPrisma, verifyCredentials, type PrismaClient } from "@onestop/api";
+import {
+  clearLoginFailures,
+  clientIpOf,
+  findUserById,
+  getPrisma,
+  loginBlockedFor,
+  recordLoginFailure,
+  verifyCredentials,
+  type PrismaClient,
+} from "@onestop/api";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import type { Adapter } from "@auth/core/adapters";
-import NextAuth, { type NextAuthConfig } from "next-auth";
+import NextAuth, { CredentialsSignin, type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 // The three env-only helpers live in `@/lib/auth-config` so a page that only needs the boolean
@@ -43,6 +52,12 @@ export function avatarRef(avatar: string | null | undefined): string | null {
   return avatar.startsWith("data:") ? AVATAR_PROXY_PATH : avatar;
 }
 
+/** Thrown when an address or caller has typed too many wrong passwords; the form words it. */
+export const TOO_MANY_ATTEMPTS = "too_many_attempts";
+class TooManyAttempts extends CredentialsSignin {
+  override code = TOO_MANY_ATTEMPTS;
+}
+
 function providers() {
   const list: NextAuthConfig["providers"] = [
     Credentials({
@@ -52,15 +67,21 @@ function providers() {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(raw) {
+      async authorize(raw, request) {
         const email = typeof raw?.email === "string" ? raw.email : "";
         const password = typeof raw?.password === "string" ? raw.password : "";
         const prisma = getPrisma();
         if (!prisma) return null;
+        // Only wrong passwords count against an address or a caller (see `throttle.ts`), so typing
+        // yours correctly is never slowed down - but nobody can guess at it without limit.
+        const ip = clientIpOf(request.headers);
+        if (loginBlockedFor(email, ip) !== null) throw new TooManyAttempts();
         try {
           const user = await verifyCredentials(email, password, prisma);
+          clearLoginFailures(email);
           return { id: user.id, email: user.email, name: user.name, image: avatarRef(user.avatar) };
         } catch {
+          recordLoginFailure(email, ip);
           // Auth.js turns a null into the generic "sign in failed" path; the form supplies the
           // wording, so nothing here leaks whether the account exists.
           return null;
@@ -115,6 +136,14 @@ export const authConfig: NextAuthConfig = {
   // The adapter persists Google accounts; the credentials flow writes its own rows.
   adapter: getPrisma() ? onestopAdapter(getPrisma() as PrismaClient) : undefined,
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
+  logger: {
+    // A wrong password is an expected event, not a server fault: Auth.js would print a stack trace
+    // for every one and bury the errors that matter.
+    error(error) {
+      if (error instanceof CredentialsSignin) return;
+      console.error("[auth]", error);
+    },
+  },
   secret: authSecret(),
   trustHost: true,
   pages: { signIn: "/auth/login", newUser: "/", error: "/auth/login" },

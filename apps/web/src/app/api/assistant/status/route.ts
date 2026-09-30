@@ -9,12 +9,15 @@
 // and never stored.
 import { getAiStatus } from "@onestop/api";
 import { readAiCredentials } from "@/lib/ai-request";
+import { isRefusal, refusalResponse, resolveCaller } from "@/lib/caller";
 import { fail, ok } from "@/lib/api-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request): Promise<Response> {
+  const caller = await resolveCaller(request, "check the AI service");
+  if (isRefusal(caller)) return refusalResponse(caller);
   const url = new URL(request.url);
   try {
     const status = await getAiStatus(

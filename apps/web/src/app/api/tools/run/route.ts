@@ -8,34 +8,22 @@
 //
 // Validation happens server-side; the client's checks are only there to fail fast and politely.
 import {
+  clientIpOf,
   consumeRate,
-  getPrisma,
   loadFileCoreConfig,
+  reportedClientIpOf,
   RUN_RATE_LIMIT,
   runPipeline,
-  tokenFromHeaders,
   UnknownToolError,
-  verifyAccessToken,
 } from "@onestop/api";
 import { ERROR_MESSAGES } from "@onestop/types";
 import { NextResponse } from "next/server";
-import { currentUserId } from "@/auth";
+import { isRefusal, refusalResponse, resolveCaller } from "@/lib/caller";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_TEXT_LENGTH = 1_000_000;
-
-/**
- * The caller's address, as far as the deployment can tell (17-online-media-network-tools.md).
- * Behind a proxy that is the first entry of `x-forwarded-for`; locally there is no header at all
- * and the answer is null. Tools treat it as untrusted input - it is reported, never trusted.
- */
-function clientIpOf(request: Request): string | null {
-  const forwarded = request.headers.get("x-forwarded-for");
-  const first = forwarded?.split(",")[0]?.trim();
-  return first || request.headers.get("x-real-ip") || null;
-}
 
 function problem(status: number, code: string, message: string) {
   return NextResponse.json({ ok: false, error: { code, message } }, { status });
@@ -47,8 +35,8 @@ export async function POST(request: Request): Promise<Response> {
   // Per-caller rate limit (phase 20). Phases 04, 12, 13 and 16 each logged that this endpoint had
   // none; a personal instance never notices the limit, and an exposed one cannot be used as free
   // compute. It is counted before the body is read, so a flood costs no disk.
-  const caller = clientIpOf(request) ?? "local";
-  const waitSeconds = consumeRate(`tools-run:${caller}`, RUN_RATE_LIMIT);
+  const clientIp = clientIpOf(request.headers);
+  const waitSeconds = consumeRate(`tools-run:${clientIp ?? "local"}`, RUN_RATE_LIMIT);
   if (waitSeconds !== null) {
     return NextResponse.json(
       {
@@ -61,6 +49,11 @@ export async function POST(request: Request): Promise<Response> {
       { status: 429, headers: { "retry-after": String(waitSeconds) } },
     );
   }
+
+  // Who is asking, before any body is read: with accounts configured an anonymous caller is turned
+  // away here, so the sign-in the pages ask for cannot be stepped around with a script.
+  const caller = await resolveCaller(request, "run tools", { allowToken: true });
+  if (isRefusal(caller)) return refusalResponse(caller);
 
   const declaredLength = Number(request.headers.get("content-length") ?? "0");
   if (Number.isFinite(declaredLength) && declaredLength > config.maxRequestBytes) {
@@ -129,30 +122,20 @@ export async function POST(request: Request): Promise<Response> {
   }
 
   try {
-    // Signed in: the job (and anything a tool stores) is attributed to the user. Guest: null,
-    // and every public tool still runs - auth is never required to use one (master plan 9).
-    //
-    // A personal access token is the third way in (21-roadmap-expansion.md, roadmap §2): the
-    // owner's own script, acting as the owner. It is checked only when there is no session, so a
-    // browser request can never be silently re-attributed by a header someone injected, and it
-    // grants nothing beyond what the owner already has - same registry, same validation, same
-    // rate limit, which was already counted above.
-    let userId = await currentUserId();
-    if (!userId) {
-      const presented = tokenFromHeaders(request.headers);
-      const prisma = presented ? getPrisma() : null;
-      if (presented && prisma) {
-        const identity = await verifyAccessToken(presented, prisma).catch(() => null);
-        if (!identity) {
-          return problem(401, "AUTH_REQUIRED", "That access token is not valid, or has been revoked.");
-        }
-        userId = identity.userId;
-      } else if (presented) {
-        return problem(503, "DATABASE_UNAVAILABLE", "Access tokens need a database, and none is configured here.");
-      }
-    }
+    // The job (and anything a tool stores) is attributed to the caller: a session user, or the owner
+    // of a valid personal access token. A guest exists only where no accounts are configured.
+    const { userId } = caller;
     const outcome = await runPipeline(
-      { toolId, userId, files, text, options, clientIp: clientIpOf(request), progressToken },
+      {
+        toolId,
+        userId,
+        files,
+        text,
+        options,
+        // Reported, never trusted: tools show it back to the visitor, nothing is decided by it.
+        clientIp: reportedClientIpOf(request.headers),
+        progressToken,
+      },
       { config },
     );
     return NextResponse.json(

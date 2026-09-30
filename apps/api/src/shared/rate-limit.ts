@@ -39,6 +39,34 @@ export function consumeRate(key: string, { limit, windowMs }: RateLimit): number
   return null;
 }
 
+/**
+ * Whether `key` is over its limit right now, WITHOUT recording a hit. Returns the seconds to wait,
+ * or null when it is allowed. Pair it with `recordHit` to count only the events that should count
+ * (failed sign-ins, for instance) instead of every attempt.
+ */
+export function peekRate(key: string, { limit, windowMs }: RateLimit): number | null {
+  const now = Date.now();
+  const hits = (buckets.get(key) ?? []).filter((t) => now - t < windowMs);
+  if (hits.length < limit) return null;
+  return Math.max(1, Math.ceil((windowMs - (now - hits[0]!)) / 1000));
+}
+
+/** Records one hit against `key` unconditionally. */
+export function recordHit(key: string, { windowMs }: RateLimit): void {
+  const now = Date.now();
+  const hits = (buckets.get(key) ?? []).filter((t) => now - t < windowMs);
+  hits.push(now);
+  buckets.set(key, hits);
+  if (buckets.size > 2000) {
+    for (const [k, v] of buckets) if (v.every((t) => now - t >= windowMs)) buckets.delete(k);
+  }
+}
+
+/** Forgets `key`, e.g. after a successful sign-in. */
+export function clearRate(key: string): void {
+  buckets.delete(key);
+}
+
 /** Tests reset the buckets so one case cannot rate-limit the next. */
 export function resetRateLimits(): void {
   buckets.clear();
