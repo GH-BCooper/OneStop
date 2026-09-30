@@ -60,7 +60,8 @@ export function ThreadSidebar() {
 
   if (collapsed) {
     return (
-      <div className="flex w-12 shrink-0 flex-col items-center gap-2 border-r border-border py-1">
+      // On a phone the collapsed rail is a slim row above the chat, not a 48 px strip beside it.
+      <div className="flex shrink-0 items-center gap-2 max-md:flex-row md:w-12 md:flex-col md:border-r md:border-border md:py-1">
         <button
           type="button"
           aria-label="Expand chat history"
@@ -83,8 +84,8 @@ export function ThreadSidebar() {
   return (
     <>
       {/* On a phone the open list is a drawer laid over the chat (see below); this keeps the chat
-          exactly where the collapsed rail had it, so opening the list does not shift the page. */}
-      <div aria-hidden="true" className="w-12 shrink-0 md:hidden" />
+          exactly where the collapsed rail had it (a row's height), so opening the list does not shift the page. */}
+      <div aria-hidden="true" className="h-9 shrink-0 md:hidden" />
       <div className="flex w-64 shrink-0 flex-col gap-2 border-r border-border pr-3 max-md:absolute max-md:inset-y-0 max-md:left-0 max-md:z-30 max-md:min-h-72 max-md:rounded-lg max-md:border max-md:bg-surface max-md:p-3 max-md:shadow-xl">
         <div className="flex items-center gap-1">
           <Link

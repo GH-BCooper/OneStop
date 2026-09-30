@@ -18,8 +18,16 @@ export function Card({ interactive, className, ...props }: CardProps) {
   );
 }
 
-export function CardTitle({ className, ...props }: HTMLAttributes<HTMLHeadingElement>) {
-  return <h3 className={cn("text-base font-semibold", className)} {...props} />;
+/**
+ * A card's heading. `h3` by default, because most cards sit under a section heading; a card that is
+ * a direct child of the page's `h1` says `as="h2"` so the outline never skips a level.
+ */
+export function CardTitle({
+  as: Tag = "h3",
+  className,
+  ...props
+}: HTMLAttributes<HTMLHeadingElement> & { as?: "h2" | "h3" | "h4" }) {
+  return <Tag className={cn("text-base font-semibold", className)} {...props} />;
 }
 
 export function CardDescription({ className, ...props }: HTMLAttributes<HTMLParagraphElement>) {

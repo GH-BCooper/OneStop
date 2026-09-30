@@ -283,7 +283,7 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
 
       <Card className="flex flex-col gap-3">
         <div>
-          <CardTitle>Appearance</CardTitle>
+          <CardTitle as="h2">Appearance</CardTitle>
           <CardDescription>
             “Match my system” follows your operating system&rsquo;s light/dark setting.
           </CardDescription>
@@ -319,7 +319,7 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
 
       <Card className="flex flex-col gap-4">
         <div>
-          <CardTitle>AI service</CardTitle>
+          <CardTitle as="h2">AI service</CardTitle>
           <CardDescription>
             Choose what powers the AI Assistant and the AI tools. Every AI tool also works with no
             AI at all, using OneStop&rsquo;s built-in offline methods.
@@ -536,7 +536,7 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
 
       <Card className="flex flex-col gap-3">
         <div>
-          <CardTitle>Privacy &amp; storage</CardTitle>
+          <CardTitle as="h2">Privacy &amp; storage</CardTitle>
           <CardDescription>
             Uploaded and produced files are deleted from the server automatically after a short
             retention window. Nothing is ever stored in the cloud unless you ask for it.
@@ -591,7 +591,7 @@ export function SettingsView({ accountsEnabled }: { accountsEnabled: boolean }) 
 
       <Card className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <CardTitle>Your data</CardTitle>
+          <CardTitle as="h2">Your data</CardTitle>
           <CardDescription>
             History and favourites live on {signedIn ? "your account" : "this device"}.
           </CardDescription>

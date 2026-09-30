@@ -63,7 +63,7 @@ export function AppearancePanel() {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <CardTitle>Theme preset</CardTitle>
+        <CardTitle as="h2">Theme preset</CardTitle>
         <CardDescription>
           Presets replace the light/dark toggle while one is chosen. They are stored on this device
           only, so a shared account can look different on each screen.
@@ -113,7 +113,7 @@ export function AppearancePanel() {
       </fieldset>
 
       <div className="border-t border-border pt-4">
-        <CardTitle>Reading & accessibility</CardTitle>
+        <CardTitle as="h2">Reading & accessibility</CardTitle>
         <CardDescription>
           Spacing and size only — no font is downloaded, so these work offline and cost nothing.
         </CardDescription>

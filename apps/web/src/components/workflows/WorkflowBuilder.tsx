@@ -254,17 +254,19 @@ export function WorkflowBuilder({ workflow, useOnly = false }: WorkflowBuilderPr
       {generalIssues.length > 0 ? (
         // A brand-new form has not been done wrong yet, so its missing pieces read as a to-do list
         // in the muted colour; once there is something on the page they are real problems again.
-        <ul className="flex flex-col gap-1" data-testid="workflow-issues">
-          {generalIssues.map((issue) => (
-            <li
-              key={issue.code + issue.message}
-              role={untouched ? "status" : "alert"}
-              className={untouched ? "text-sm text-fg-muted" : "text-sm text-danger"}
-            >
-              {issue.message}
-            </li>
-          ))}
-        </ul>
+        // (The live-region role goes on a wrapper: a list may not carry it on its own items.)
+        <div role={untouched ? "status" : "alert"}>
+          <ul className="flex flex-col gap-1" data-testid="workflow-issues">
+            {generalIssues.map((issue) => (
+              <li
+                key={issue.code + issue.message}
+                className={untouched ? "text-sm text-fg-muted" : "text-sm text-danger"}
+              >
+                {issue.message}
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">

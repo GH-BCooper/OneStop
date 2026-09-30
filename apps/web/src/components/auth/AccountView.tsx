@@ -187,6 +187,7 @@ function AvatarEditor({
       <input
         ref={inputRef}
         type="file"
+        aria-label="Choose a profile picture"
         accept="image/png,image/jpeg,image/webp,image/gif"
         className="sr-only"
         onChange={(e: ChangeEvent<HTMLInputElement>) => {

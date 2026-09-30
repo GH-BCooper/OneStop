@@ -30,7 +30,7 @@ export default async function ToolsPage({ searchParams }: Props) {
             <li key={g.id}>
               <Link href={`/tools/${g.id}`} className="block h-full rounded-lg">
                 <Card interactive className="h-full">
-                  <CardTitle>
+                  <CardTitle as="h2">
                     <span aria-hidden="true">{g.icon}</span> {g.name}
                   </CardTitle>
                   <CardDescription>{toolsForCatalogPage(g.id).length} tools</CardDescription>

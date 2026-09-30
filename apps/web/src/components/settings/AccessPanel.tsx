@@ -103,7 +103,7 @@ export function AccessPanel() {
   if (!available) {
     return (
       <Card className="flex flex-col gap-2">
-        <CardTitle>Push, tokens & sharing</CardTitle>
+        <CardTitle as="h2">Push, tokens & sharing</CardTitle>
         <CardDescription>
           These need an account and a database. This OneStop is running without one, so every tool
           still works — but there is nothing to keep across devices.
@@ -122,7 +122,7 @@ export function AccessPanel() {
 
       <Card className="flex flex-col gap-3">
         <div>
-          <CardTitle>Push notifications to a phone</CardTitle>
+          <CardTitle as="h2">Push notifications to a phone</CardTitle>
           <CardDescription>
             Optional. When an automation finishes, OneStop can also send a notification through{" "}
             <a href="https://ntfy.sh" className="underline" target="_blank" rel="noreferrer noopener">
@@ -193,7 +193,7 @@ export function AccessPanel() {
 
       <Card className="flex flex-col gap-3">
         <div>
-          <CardTitle>Personal access tokens</CardTitle>
+          <CardTitle as="h2">Personal access tokens</CardTitle>
           <CardDescription>
             For your own scripts and cron jobs. A token calls{" "}
             <code className="rounded bg-surface-muted px-1">POST /api/tools/run</code> as you, through
@@ -283,7 +283,7 @@ export function AccessPanel() {
 
       <Card className="flex flex-col gap-3">
         <div>
-          <CardTitle>Shared result links</CardTitle>
+          <CardTitle as="h2">Shared result links</CardTitle>
           <CardDescription>
             Links you have made from the History page. Each one is unguessable, expires on its own,
             and never outlives the files it points at. Anyone with the link can download those files,
