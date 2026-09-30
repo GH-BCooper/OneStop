@@ -1,7 +1,7 @@
 // Appearance preferences beyond light/dark (21-roadmap-expansion.md, roadmap §7.6 and §6).
 //
 // Three separate things, deliberately: the *preset* (which palette), the *text* adjustment
-// (dyslexia-friendly spacing or larger type) and *reduced data* (skip the particle canvas and the
+// (dyslexia-friendly spacing or larger type) and *reduced data* (skip the hover tilt and glow and the
 // heavy gradients on a metered connection). All three are per-device — like the existing theme
 // preference — so they need no account and work offline, and all three are applied by the same
 // pre-paint script in `themeInitScript()` so nothing flashes on reload.
@@ -102,7 +102,7 @@ export function applyTextPreferences(next: Partial<TextPreferences>): TextPrefer
 }
 
 /**
- * Whether decorative canvas work should run at all: off for reduced data, off for
+ * Whether decorative motion (card tilt, glow) should run at all: off for reduced data, off for
  * `prefers-reduced-motion`, and off when the browser reports a metered/slow connection itself.
  */
 export function decorationsEnabled(): boolean {
@@ -110,7 +110,9 @@ export function decorationsEnabled(): boolean {
   if (readTextPreferences().dataSaver) return false;
   try {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return false;
-    const connection = (navigator as { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+    const connection = (
+      navigator as { connection?: { saveData?: boolean; effectiveType?: string } }
+    ).connection;
     if (connection?.saveData) return false;
     if (connection?.effectiveType && /^(slow-)?2g$/.test(connection.effectiveType)) return false;
   } catch {

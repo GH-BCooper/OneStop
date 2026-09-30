@@ -2,8 +2,7 @@
 
 // The global command palette (21-roadmap-expansion.md, roadmap §2 and §7.1).
 //
-// ⌘K / Ctrl+K from anywhere. A frosted panel over a dimmed page with the particle field still
-// faintly alive behind it — the app should never feel frozen — results grouped by Tools / Workflows /
+// ⌘K / Ctrl+K from anywhere. A frosted panel over a dimmed page, results grouped by Tools / Workflows /
 // History / Go to / Actions, arrow keys to move, Enter to commit, Escape to close.
 //
 // Zero new dependencies: the searching is `paletteResults`, which wraps the same registry index the
@@ -86,7 +85,9 @@ export function CommandPalette() {
         favoriteIds: readLocalFavorites(),
         recentIds: readRecentTools(),
         workflows: readLocalWorkflows().map((w) => ({ id: w.id, name: w.name, steps: w.steps })),
-        history: history.slice(0, 20).map((e) => ({ id: e.id, toolId: e.toolId, createdAt: e.createdAt, summary: e.summary })),
+        history: history
+          .slice(0, 20)
+          .map((e) => ({ id: e.id, toolId: e.toolId, createdAt: e.createdAt, summary: e.summary })),
       });
     };
     void load();
@@ -184,7 +185,7 @@ export function CommandPalette() {
   let index = -1;
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-[12vh] sm:pt-[16vh]">
-      {/* Dimmed, not blacked out: the particle field stays faintly visible behind the panel. */}
+      {/* Dimmed, not blacked out: the page stays faintly visible behind the panel. */}
       <button
         type="button"
         aria-label="Close the command palette"
@@ -226,10 +227,17 @@ export function CommandPalette() {
           </kbd>
         </div>
 
-        <div ref={listRef} id={listId} role="listbox" aria-label="Results" className="max-h-[52vh] overflow-y-auto py-1">
+        <div
+          ref={listRef}
+          id={listId}
+          role="listbox"
+          aria-label="Results"
+          className="max-h-[52vh] overflow-y-auto py-1"
+        >
           {items.length === 0 && (
             <p className="px-4 py-8 text-center text-sm text-fg-muted">
-              Nothing matched “{query}”. Try a file type (“pdf”), a verb (“compress”) or a tool name.
+              Nothing matched “{query}”. Try a file type (“pdf”), a verb (“compress”) or a tool
+              name.
             </p>
           )}
           {groups.map((group) => (
@@ -248,7 +256,9 @@ export function CommandPalette() {
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{item.label}</span>
-                      {item.detail && <span className="block truncate text-xs text-fg-muted">{item.detail}</span>}
+                      {item.detail && (
+                        <span className="block truncate text-xs text-fg-muted">{item.detail}</span>
+                      )}
                     </span>
                     {(item.badges ?? []).map((badge) => (
                       <Chip key={badge}>{badge}</Chip>
@@ -295,7 +305,9 @@ export function CommandPalette() {
         <p className="flex items-center gap-3 border-t border-border px-3 py-2 text-[11px] text-fg-muted">
           <span>↑↓ to move</span>
           <span>↵ to open</span>
-          <span className="ml-auto">{items.length} result{items.length === 1 ? "" : "s"}</span>
+          <span className="ml-auto">
+            {items.length} result{items.length === 1 ? "" : "s"}
+          </span>
         </p>
       </div>
     </div>

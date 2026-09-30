@@ -7,7 +7,14 @@
 // existing light/dark control rather than replacing it — choosing a preset takes over, and "Follow
 // light / dark" hands control back.
 import { useEffect, useState } from "react";
-import { CardDescription, CardTitle, THEME_PRESETS, TEXT_PRESETS, type TextPresetId, type ThemePresetId } from "@onestop/ui";
+import {
+  CardDescription,
+  CardTitle,
+  THEME_PRESETS,
+  TEXT_PRESETS,
+  type TextPresetId,
+  type ThemePresetId,
+} from "@onestop/ui";
 import {
   activeThemePreset,
   applyTextPreferences,
@@ -80,7 +87,8 @@ export function AppearancePanel() {
           <span className="min-w-0">
             <span className="block font-medium">Follow light / dark</span>
             <span className="block text-xs text-fg-muted">
-              Uses the header toggle and your system setting — currently {active === "lacquer" ? "black lacquer" : "polished chrome"}.
+              Uses the header toggle and your system setting — currently{" "}
+              {active === "lacquer" ? "black lacquer" : "polished chrome"}.
             </span>
           </span>
         </button>
@@ -120,7 +128,9 @@ export function AppearancePanel() {
               title={option.description}
               onClick={() => chooseText(option.id)}
               className={`rounded-full border px-3 py-1.5 text-sm ${
-                text.text === option.id ? "border-primary bg-primary text-primary-fg" : "border-border bg-surface"
+                text.text === option.id
+                  ? "border-primary bg-primary text-primary-fg"
+                  : "border-border bg-surface"
               }`}
             >
               {option.name}
@@ -141,9 +151,9 @@ export function AppearancePanel() {
         <span>
           <span className="block font-medium">Reduced data mode</span>
           <span className="block text-xs text-fg-muted">
-            Turns off the animated background and the heavy gradients, and loads preview thumbnails
-            lazily. Useful on a metered connection or a low battery. OneStop also does this by itself
-            when your browser reports a slow or metered connection.
+            Turns off the hover tilt and glow effects and the heavy gradients, and loads preview
+            thumbnails lazily. Useful on a metered connection or a low battery. OneStop also does
+            this by itself when your browser reports a slow or metered connection.
           </span>
         </span>
       </label>
