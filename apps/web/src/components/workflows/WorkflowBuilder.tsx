@@ -57,6 +57,8 @@ export function WorkflowBuilder({ workflow, useOnly = false }: WorkflowBuilderPr
     [steps, name, description],
   );
   const generalIssues = validation.issues.filter((i) => i.stepIndex === null);
+  // Nothing typed and nothing added yet: the form is just empty, not wrong.
+  const untouched = steps.length === 0 && name.trim() === "" && description.trim() === "";
   const runnable = steps.length > 0 && validation.issues.every((i) => i.code === "INVALID_NAME");
 
   const previousTool = (index: number): ToolMeta | undefined =>
@@ -221,6 +223,7 @@ export function WorkflowBuilder({ workflow, useOnly = false }: WorkflowBuilderPr
                   key={template.id}
                   size="sm"
                   variant="secondary"
+                  className="text-left"
                   onClick={() => useTemplate(template.id)}
                 >
                   {template.name}
@@ -249,9 +252,15 @@ export function WorkflowBuilder({ workflow, useOnly = false }: WorkflowBuilderPr
       </div>
 
       {generalIssues.length > 0 ? (
+        // A brand-new form has not been done wrong yet, so its missing pieces read as a to-do list
+        // in the muted colour; once there is something on the page they are real problems again.
         <ul className="flex flex-col gap-1" data-testid="workflow-issues">
           {generalIssues.map((issue) => (
-            <li key={issue.code + issue.message} role="alert" className="text-sm text-danger">
+            <li
+              key={issue.code + issue.message}
+              role={untouched ? "status" : "alert"}
+              className={untouched ? "text-sm text-fg-muted" : "text-sm text-danger"}
+            >
               {issue.message}
             </li>
           ))}
@@ -292,9 +301,9 @@ export function WorkflowBuilder({ workflow, useOnly = false }: WorkflowBuilderPr
           steps={steps}
           name={name.trim() || "Workflow"}
           workflowId={workflow?.scope === "account" ? workflow.id : null}
-            onSuccess={() => {
-              if (workflow?.scope === "device") recordLocalUse(workflow.id);
-            }}
+          onSuccess={() => {
+            if (workflow?.scope === "device") recordLocalUse(workflow.id);
+          }}
         />
       ) : null}
 

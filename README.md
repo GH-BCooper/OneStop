@@ -4,7 +4,7 @@
 generate a QR code, trim a video, hash a file, format some JSON — or just describe what you want
 and let the assistant chain the tools together.
 
-**206 tools. 172 of them work with no Internet at all. Nothing costs anything.**
+**285 tools. 229 of them work with no Internet at all. Nothing costs anything.**
 
 ```bash
 npm install && cp .env.example .env && npm run dev     # http://localhost:3000
@@ -38,17 +38,18 @@ working on a plane.
 
 ## What it does
 
-| Category                       | Tools | Examples                                                                                                       |
-| ------------------------------ | ----: | -------------------------------------------------------------------------------------------------------------- |
-| **PDF**                        |    26 | merge, split, compress, rotate, watermark, OCR, sign, fill forms, password, PDF ↔ Word/Excel/PowerPoint/images |
-| **Documents**                  |    24 | Word and PowerPoint conversion, merge, split, slide surgery, metadata, grammar, summarise, translate           |
-| **Data**                       |    30 | Excel, CSV, JSON, XML, YAML — convert, validate, clean, deduplicate, split, merge                              |
-| **Images**                     |    27 | convert, resize, crop, compress, watermark, background removal, upscale, HEIC, metadata                        |
-| **Audio & video**              |    27 | convert, trim, merge, extract audio, compress, subtitles, GIF                                                  |
-| **QR**                         |    15 | generate every payload type, scan with the camera, dynamic codes with scan counts                              |
-| **Developer & file utilities** |    25 | Base64, hashing, UUIDs, passwords, timestamps, regex, ZIP, formatters                                          |
-| **AI**                         |    16 | summarise, rewrite, translate, draft, extract, OCR, image generation and editing                               |
-| **Online media & network**     |    16 | media links, IP, DNS, WHOIS, headers, user agents                                                              |
+| Category                  | Tools | Examples                                                                                                       |
+| ------------------------- | ----: | -------------------------------------------------------------------------------------------------------------- |
+| **PDF**                   |    34 | merge, split, compress, rotate, watermark, OCR, sign, fill forms, password, PDF ↔ Word/Excel/PowerPoint/images |
+| **Documents**             |    30 | Word and PowerPoint conversion, citations, résumé filler, track-changes cleaner, Markdown ↔ Word, slides       |
+| **Data**                  |    35 | Excel, CSV, JSON, XML, YAML — convert, validate, clean, deduplicate, split, merge                              |
+| **Images**                |    38 | convert, resize, crop, compress, watermark, background removal, upscale, HEIC, metadata                        |
+| **Audio & video**         |    42 | convert, trim, merge, compress, subtitles, transcribe, GIF, stabilise, plus saving online media links          |
+| **QR**                    |    18 | generate every payload type, scan with the camera, dynamic codes with scan counts                              |
+| **Utilities & developer** |    49 | Base64, hashing, JWT, regex, cron, diffs, ZIP, formatters, IP / DNS / WHOIS / SSL / header checks              |
+| **AI**                    |    21 | summarise, rewrite, translate, draft, extract, OCR, image generation and editing                               |
+| **Security & privacy**    |     6 | password strength, TOTP codes, file encryption, breach check                                                   |
+| **Everyday, money & fun** |    12 | loans, currency, invoices, flashcards, countdowns, calendars                                                   |
 
 The full list is in [`docs/OneStop_Features.md`](docs/OneStop_Features.md) and, live, at `/tools`.
 
@@ -68,11 +69,11 @@ That is a working instance. Everything below is optional:
 
 | Want                                                          | Install                                                                                                       | Adds                       |
 | ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------- |
-| Audio & video tools                                           | FFmpeg (`winget install Gyan.FFmpeg`, `brew install ffmpeg`, `apt install ffmpeg`, or `npm run fetch:ffmpeg`) | 27 tools                   |
+| Audio & video tools                                           | FFmpeg (`winget install Gyan.FFmpeg`, `brew install ffmpeg`, `apt install ffmpeg`, or `npm run fetch:ffmpeg`) | 35 tools                   |
 | `.doc` / `.xls` / `.ppt` / OpenDocument, better Office layout | LibreOffice                                                                                                   | higher-fidelity conversion |
 | Online media tools                                            | `pip install -U yt-dlp`                                                                                       | 7 tools                    |
 | Accounts, saved history, saved workflows                      | Postgres (`docker compose up -d` or free Neon/Supabase) + `npm run db:deploy`                                 | sign-in, sync              |
-| AI assistant and AI tools                                     | Ollama (`ollama pull llama3.2`) **or** a free API key in `/settings`                                          | 16 tools + the assistant   |
+| AI assistant and AI tools                                     | Ollama (`ollama pull llama3.2`) **or** a free API key in `/settings`                                          | 21 tools + the assistant   |
 
 Full instructions, including hardware guidance for local AI:
 **[`docs/LOCAL_SETUP.md`](docs/LOCAL_SETUP.md)**.

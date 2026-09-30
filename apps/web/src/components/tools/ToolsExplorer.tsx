@@ -11,7 +11,7 @@ import {
   type SortKey,
   type ToolTag,
 } from "@onestop/tool-registry";
-import { buttonClasses } from "@onestop/ui";
+import { Button, buttonClasses } from "@onestop/ui";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { EmptyState } from "@/components/fx/EmptyState";
@@ -36,6 +36,9 @@ const sortLabels: Record<SortKey, string> = {
   recent: "Recently used",
 };
 
+/** How many cards are drawn at once. 285 at a time is a 16,000 px page and a slow first paint. */
+const PAGE_SIZE = 48;
+
 const fieldClass =
   "h-10 w-full min-w-0 rounded-md border border-border bg-surface px-3 text-sm text-fg focus-visible:outline-2 focus-visible:outline-ring";
 
@@ -54,6 +57,7 @@ export function ToolsExplorer({ initial }: { initial: ExplorerParams }) {
   const router = useRouter();
   const [params, setParams] = useState(initial);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const [shown, setShown] = useState(PAGE_SIZE);
   // "Popularity" and "recently used" are backed by real runs since 14-history-favorites.md;
   // starred tools float to the top of whichever ordering is picked.
   const { counts, recent: recentIds } = useUsage();
@@ -62,6 +66,7 @@ export function ToolsExplorer({ initial }: { initial: ExplorerParams }) {
   const update = (patch: Partial<ExplorerParams>) => {
     const next = { ...params, ...patch };
     setParams(next);
+    setShown(PAGE_SIZE);
     router.replace(`/tools${toQueryString(next)}`, { scroll: false });
   };
 
@@ -188,7 +193,10 @@ export function ToolsExplorer({ initial }: { initial: ExplorerParams }) {
           <button
             type="button"
             aria-pressed={favoritesOnly}
-            onClick={() => setFavoritesOnly((on) => !on)}
+            onClick={() => {
+              setFavoritesOnly((on) => !on);
+              setShown(PAGE_SIZE);
+            }}
             title={synced ? "Starred on your account" : "Starred on this device"}
             className={`rounded-full border px-3 py-1 text-sm ${
               favoritesOnly
@@ -218,13 +226,28 @@ export function ToolsExplorer({ initial }: { initial: ExplorerParams }) {
           }
         />
       ) : (
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Tools">
-          {results.map((t) => (
-            <li key={t.id}>
-              <ToolCard tool={t} />
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="Tools">
+            {results.slice(0, shown).map((t) => (
+              <li key={t.id}>
+                <ToolCard tool={t} />
+              </li>
+            ))}
+          </ul>
+          {results.length > shown ? (
+            <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+              <p className="text-sm text-fg-muted" aria-live="polite">
+                Showing {shown} of {results.length}
+              </p>
+              <Button variant="secondary" onClick={() => setShown((n) => n + PAGE_SIZE)}>
+                Show {Math.min(PAGE_SIZE, results.length - shown)} more
+              </Button>
+              <Button variant="ghost" onClick={() => setShown(results.length)}>
+                Show all
+              </Button>
+            </div>
+          ) : null}
+        </>
       )}
     </div>
   );

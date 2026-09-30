@@ -23,18 +23,7 @@ export const CATEGORY_IDS = [
 export type ToolCategory = (typeof CATEGORY_IDS)[number];
 
 /** Build phases that implement tools (file prefix in docs/build/). */
-export type ToolPhase =
-  | "05"
-  | "06"
-  | "07"
-  | "08"
-  | "09"
-  | "10"
-  | "11"
-  | "12"
-  | "16"
-  | "17"
-  | "21";
+export type ToolPhase = "05" | "06" | "07" | "08" | "09" | "10" | "11" | "12" | "16" | "17" | "21";
 
 /**
  * Planned network needs. This is design intent, not a verified capability:
@@ -113,6 +102,8 @@ export interface GroupInfo {
   id: GroupId;
   name: string;
   icon: string;
+  /** One line saying what lives here, for the home tiles and the assistant. */
+  blurb: string;
   categories: ToolCategory[];
 }
 
@@ -138,29 +129,74 @@ export const CATEGORIES: CategoryInfo[] = [
 ];
 
 export const GROUPS: GroupInfo[] = [
-  { id: "pdf", name: "PDF", icon: "📄", categories: ["pdf"] },
-  { id: "documents", name: "Documents, Word & PowerPoint", icon: "📝", categories: ["documents"] },
-  { id: "data", name: "Excel, CSV & Data", icon: "📊", categories: ["data"] },
-  { id: "images", name: "Images", icon: "🖼️", categories: ["images"] },
+  {
+    id: "pdf",
+    name: "PDF",
+    icon: "📄",
+    blurb: "Merge, split, compress, sign, OCR, redact and convert PDFs.",
+    categories: ["pdf"],
+  },
+  {
+    id: "documents",
+    name: "Documents, Word & PowerPoint",
+    icon: "📝",
+    blurb: "Word and PowerPoint conversion, citations, résumés and Markdown.",
+    categories: ["documents"],
+  },
+  {
+    id: "data",
+    name: "Excel, CSV & Data",
+    icon: "📊",
+    blurb: "CSV, Excel, JSON and XML: clean, convert, pivot, chart and compare.",
+    categories: ["data"],
+  },
+  {
+    id: "images",
+    name: "Images",
+    icon: "🖼️",
+    blurb: "Resize, compress, convert, remove backgrounds and batch-edit photos.",
+    categories: ["images"],
+  },
   {
     id: "media",
     name: "Audio & Video",
     icon: "🎬",
+    blurb: "Convert, trim, merge and caption audio and video; save online media.",
     categories: ["audio", "video", "online-media"],
   },
-  { id: "qr", name: "QR", icon: "🔳", categories: ["qr"] },
-  { id: "ai", name: "AI", icon: "✨", categories: ["ai"] },
+  {
+    id: "qr",
+    name: "QR",
+    icon: "🔳",
+    blurb: "QR codes and barcodes, static or dynamic, with a scanner and analytics.",
+    categories: ["qr"],
+  },
+  {
+    id: "ai",
+    name: "AI",
+    icon: "✨",
+    blurb: "Summarise, translate, rewrite and analyse, on local or free-tier AI.",
+    categories: ["ai"],
+  },
   {
     id: "utilities",
     name: "Utilities & Developer",
     icon: "🛠️",
+    blurb: "JSON, hashes, regex, DNS, SSL, cron, diffs and other developer helpers.",
     categories: ["dev-utility", "network", "file-utility"],
   },
-  { id: "security", name: "Security & Privacy", icon: "🛡️", categories: ["security"] },
+  {
+    id: "security",
+    name: "Security & Privacy",
+    icon: "🛡️",
+    blurb: "Password strength, one-time codes, file encryption and breach checks.",
+    categories: ["security"],
+  },
   {
     id: "everyday",
     name: "Everyday, Money & Fun",
     icon: "🎲",
+    blurb: "Loans, currency, invoices, flashcards, countdowns and more.",
     categories: ["finance", "education", "time", "fun"],
   },
 ];

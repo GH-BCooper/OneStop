@@ -18,9 +18,11 @@ const variants: Record<ButtonVariant, string> = {
 };
 
 const sizes: Record<ButtonSize, string> = {
-  sm: "h-8 px-3 text-sm",
-  md: "h-10 px-4 text-sm",
-  lg: "h-12 px-6 text-base",
+  // `min-h`, not `h`: a label that wraps (a long example name on a phone) grows the button instead of
+  // spilling out of a fixed-height pill.
+  sm: "min-h-8 px-3 py-1 text-sm",
+  md: "min-h-10 px-4 py-2 text-sm",
+  lg: "min-h-12 px-6 py-2 text-base",
 };
 
 /** Button styling, exported so links can look like buttons. */

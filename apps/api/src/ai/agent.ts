@@ -16,6 +16,7 @@ import {
   fileInputTypes,
   getTool,
   getToolOptions,
+  GROUPS,
   inputKind,
   scoreTool,
   toolHref,
@@ -107,11 +108,18 @@ const PAGES = [
 
 const ALLOWED_PATHS = new Set<string>(PAGES.map(([p]) => p));
 
+/**
+ * The catalogue as a person sees it: the ten groups on /tools, with what each holds. (The registry's
+ * own category ids - "dev-utility", "online-media" - mean nothing to a user asking "what can you do?".)
+ */
 function categoryIndex(): string {
   const counts = new Map<string, number>();
   for (const t of tools)
     if (t.status === "available") counts.set(t.category, (counts.get(t.category) ?? 0) + 1);
-  return [...counts].map(([c, n]) => `${c} (${n})`).join(", ");
+  return GROUPS.map((group) => {
+    const n = group.categories.reduce((sum, c) => sum + (counts.get(c) ?? 0), 0);
+    return `${group.name} (${n}): ${group.blurb}`;
+  }).join(" | ");
 }
 
 /**
@@ -180,7 +188,7 @@ function systemPrompt(input: AgentInput, attachments: string[], likely: string):
     "RULES: If a OneStop tool can do what the user asks - generating passwords or UUIDs, hashing, encoding, formatting, converting, resizing, OCR, QR codes, anything in the catalogue - you MUST run that tool; never do it yourself in text (a password or hash you make up is not random or correct). Only when no tool applies do you answer from your own knowledge. The LIKELY TOOLS list below was matched to this request: use it directly when one fits, otherwise search_tools. Use only ids the registry returned. A tool that takes files needs a file ref (attached files and every tool output have refs like file1, file2). Tool outputs become new refs you can pass to the next tool. If a needed file is missing, ask the user to attach it via final. If a run fails, read the error, fix the input/options and retry once, else explain plainly. Use options only with ids from tool_info. Ask a short clarifying question via final only when a required detail is truly missing. When done, summarise what you did and what the result is; mention downloadable files by name (they are shown as download buttons automatically). Never claim you ran something you did not. Run a tool once per input - never repeat a run that already succeeded. Put results the user wants to read (hashes, ids, converted text, tables) in the final message, in a fenced code block or a table when that helps. Keep going until the user's whole request is done, then final.",
     "",
     `App pages: ${PAGES.map(([p, d]) => `${p} (${d})`).join("; ")}. Any tool page is /tools/<category>/<slug> - use open_page with a toolId-derived href only from search results.`,
-    `Tool categories (available tool counts): ${categoryIndex()}.`,
+    `Tool groups, as shown on the All Tools page (available tool counts): ${categoryIndex()}`,
     facts.length > 0
       ? `The signed-in user's own ${facts.join(", ")} (share only with them).`
       : "The user is a guest (not signed in); tools that need an account will say so.",
@@ -717,13 +725,17 @@ export async function runAgent(input: AgentInput): Promise<void> {
       }
       case "schedule_workflow": {
         if (!input.userId) {
-          reply("Automations need an account so they can run with nobody present. Ask the user to sign in first.");
+          reply(
+            "Automations need an account so they can run with nobody present. Ask the user to sign in first.",
+          );
           break;
         }
         const workflowId = String(call.workflowId ?? "").trim();
         const known = (input.workflows ?? []).find((w) => w.id === workflowId);
         if (!known) {
-          reply("That workflow id is not one of the user's saved workflows. Use an id from the saved-workflows list, or create_workflow first.");
+          reply(
+            "That workflow id is not one of the user's saved workflows. Use an id from the saved-workflows list, or create_workflow first.",
+          );
           break;
         }
         const cadence = call.cadence;
@@ -733,14 +745,27 @@ export async function runAgent(input: AgentInput): Promise<void> {
         }
         const hour = Number(call.hour ?? 9);
         const minute = Number(call.minute ?? 0);
-        const weekday = call.weekday === undefined || call.weekday === null ? null : Number(call.weekday);
-        if (!Number.isInteger(hour) || hour < 0 || hour > 23 || !Number.isInteger(minute) || minute < 0 || minute > 59) {
+        const weekday =
+          call.weekday === undefined || call.weekday === null ? null : Number(call.weekday);
+        if (
+          !Number.isInteger(hour) ||
+          hour < 0 ||
+          hour > 23 ||
+          !Number.isInteger(minute) ||
+          minute < 0 ||
+          minute > 59
+        ) {
           reply("hour must be 0-23 and minute 0-59 (UTC).");
           break;
         }
         actions.push({ type: "schedule_workflow", workflowId, cadence, hour, minute, weekday });
         const id = ++stepId;
-        emit({ type: "step", id, label: `Scheduled "${known.name}" to run ${cadence}`, status: "done" });
+        emit({
+          type: "step",
+          id,
+          label: `Scheduled "${known.name}" to run ${cadence}`,
+          status: "done",
+        });
         reply(
           `Requested: automate "${known.name}" ${cadence}. The app will confirm it (it only succeeds if that workflow's first step needs no input) and it will then appear on that workflow's page with real notifications when it runs.`,
         );

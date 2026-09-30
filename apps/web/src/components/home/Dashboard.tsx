@@ -59,7 +59,8 @@ export function Dashboard({ name }: { name: string | null }) {
               key={group.id}
               href={`/tools/${group.id}`}
               title={group.name}
-              detail={`${toolsForCatalogPage(group.id).length} tools`}
+              detail={group.blurb}
+              meta={`${toolsForCatalogPage(group.id).length} tools`}
               icon={group.icon}
               size={index < 2 ? "wide" : "small"}
             />

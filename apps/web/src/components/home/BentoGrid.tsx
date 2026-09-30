@@ -17,6 +17,8 @@ export interface BentoTileProps {
   href: string;
   title: string;
   detail?: string;
+  /** A small line pinned to the bottom of the tile, such as a tool count. */
+  meta?: string;
   icon?: string;
   /** How much of the grid this tile takes. */
   size?: "large" | "wide" | "tall" | "small";
@@ -35,7 +37,16 @@ const SPAN: Record<NonNullable<BentoTileProps["size"]>, string> = {
 /** Maximum tilt in degrees. Small on purpose: a card that swings is a distraction, not a delight. */
 const MAX_TILT = 6;
 
-export function BentoTile({ href, title, detail, icon, size = "small", children, asPanel = false }: BentoTileProps) {
+export function BentoTile({
+  href,
+  title,
+  detail,
+  meta,
+  icon,
+  size = "small",
+  children,
+  asPanel = false,
+}: BentoTileProps) {
   const ref = useRef<HTMLDivElement>(null);
   const [live, setLive] = useState(false);
 
@@ -83,6 +94,7 @@ export function BentoTile({ href, title, detail, icon, size = "small", children,
         </div>
       </div>
       {children}
+      {meta && <p className="mt-auto text-xs font-medium text-fg-muted">{meta}</p>}
     </div>
   );
 
@@ -91,7 +103,10 @@ export function BentoTile({ href, title, detail, icon, size = "small", children,
       {asPanel ? (
         body
       ) : (
-        <Link href={href} className="block h-full rounded-lg focus-visible:outline-2 focus-visible:outline-ring">
+        <Link
+          href={href}
+          className="block h-full rounded-lg focus-visible:outline-2 focus-visible:outline-ring"
+        >
           {body}
         </Link>
       )}
@@ -101,6 +116,8 @@ export function BentoTile({ href, title, detail, icon, size = "small", children,
 
 export function BentoGrid({ children }: { children: ReactNode }) {
   return (
-    <div className="grid auto-rows-[minmax(7rem,auto)] grid-cols-1 gap-3 sm:grid-cols-4">{children}</div>
+    <div className="grid grid-cols-1 gap-3 sm:auto-rows-[minmax(7rem,auto)] sm:grid-cols-4">
+      {children}
+    </div>
   );
 }
