@@ -257,28 +257,53 @@ describeDb("accounts in a real browser", () => {
     await fresh.context().close();
   });
 
-  it("lets a guest run a tool and remembers the job across a restart", async () => {
-    // Guest: no cookie at all.
-    const run = await fetch(`${baseUrl()}/api/tools/run`, {
+  it("turns an anonymous caller away from running a tool, and keeps a signed-in run private to its owner", async () => {
+    const runForm = () => {
+      const form = new FormData();
+      form.set("toolId", "password-generator");
+      form.set("options", JSON.stringify({ length: 16 }));
+      return form;
+    };
+    const before = await prisma.job.count({ where: { toolId: "password-generator" } });
+
+    // No cookie at all: with accounts configured the API says the same thing the page does.
+    const anonymous = await fetch(`${baseUrl()}/api/tools/run`, {
       method: "POST",
-      body: (() => {
-        const form = new FormData();
-        form.set("toolId", "password-generator");
-        form.set("options", JSON.stringify({ length: 16 }));
-        return form;
-      })(),
+      body: runForm(),
     });
-    expect(run.status).toBe(200);
+    expect(anonymous.status).toBe(401);
+    expect(((await anonymous.json()) as { error: { code: string } }).error.code).toBe(
+      "AUTH_REQUIRED",
+    );
+    expect(await prisma.job.count({ where: { toolId: "password-generator" } })).toBe(before);
+
+    // Signed in (through the real form, as everyone else does): the run is a row owned by the user.
+    const page = await newPage();
+    await page.goto(`${baseUrl()}/auth/login`);
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password", { exact: true }).fill(newPassword);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+    await page.waitForURL(`${baseUrl()}/`, { timeout: 30_000 });
+    const run = await page.context().request.post(`${baseUrl()}/api/tools/run`, {
+      multipart: { toolId: "password-generator", options: JSON.stringify({ length: 16 }) },
+    });
+    expect(run.status()).toBe(200);
     const body = (await run.json()) as { ok: boolean; job: { id: string; userId: string | null } };
     expect(body.ok).toBe(true);
-    expect(body.job.userId).toBeNull();
+    const owner = await prisma.user.findUniqueOrThrow({ where: { email } });
+    expect(body.job.userId).toBe(owner.id);
 
     // The job is a row, not a memory entry: a different process can read it back.
     const stored = await prisma.job.findUniqueOrThrow({ where: { id: body.job.id } });
     expect(stored.toolId).toBe("password-generator");
     expect(stored.status).toBe("success");
+    expect(stored.userId).toBe(owner.id);
 
-    const reread = await fetch(`${baseUrl()}/api/jobs/${body.job.id}`);
-    expect(reread.status).toBe(200);
+    // Only its owner can read it back over HTTP; to anyone else it does not exist.
+    expect(
+      (await page.context().request.get(`${baseUrl()}/api/jobs/${body.job.id}`)).status(),
+    ).toBe(200);
+    expect((await fetch(`${baseUrl()}/api/jobs/${body.job.id}`)).status).toBe(404);
+    await page.context().close();
   });
 });

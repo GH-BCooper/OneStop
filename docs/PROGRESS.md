@@ -1301,7 +1301,9 @@ New: `route-guards.test.ts` (who may call what), `client-ip.test.ts` (spoofed fo
 throttles), `failure.test.ts`, `dev-utils/extras.test.ts` (45 checks), `automation/maintenance.test.ts`,
 account-deletion and Google-verification cases, search regressions and result-panel cases. Verified:
 lint, typecheck, the full unit suite, the offline-coverage reconciliation, the PWA audit (26/26) and the
-end-to-end suite (see the entry's final line for the last run).
+end-to-end suite: 120/120 after one stale test (an anonymous guest running a tool on the account server, which is now
+correctly a 401) was rewritten to assert the new contract — anonymous refused with no job created, a signed-in
+run stored against its owner and invisible to anyone else.
 
 ### Found, deliberately not changed
 
