@@ -42,6 +42,7 @@ import {
   analyseReadability,
   convertCase,
   convertUnit,
+  detectUnitFamily,
   countSyllables,
   splitWords,
 } from "./dev-utils/transforms.ts";
@@ -210,6 +211,12 @@ describe("password strength", () => {
     expect(shaped.warnings.join(" ")).toMatch(/year|Capital first/);
     expect(scorePassword("aaaXbbbYccc").warnings.join(" ")).toMatch(/repeats/);
     expect(scorePassword("qwertyuiZ9").warnings.join(" ")).toMatch(/keyboard/);
+  });
+
+  it("sees through look-alike swaps and bolted-on digits (Tr0ub4dor&3)", () => {
+    expect(scorePassword("Tr0ub4dor&3").score).toBeLessThanOrEqual(1);
+    expect(scorePassword("P@ssw0rd!").score).toBe(0);
+    expect(scorePassword("q7Kx!vR2mzB").score).toBeGreaterThanOrEqual(3);
   });
 
   it("never echoes the password back in the result", async () => {
@@ -627,8 +634,13 @@ describe("colour converter", () => {
 describe("cron", () => {
   it("explains an expression in plain English", () => {
     expect(explainCron(parseCron("30 6 * * 1-5"))).toMatch(/Monday.*Friday/);
-    expect(explainCron(parseCron("*/15 * * * *"))).toMatch(/every 15 minutes/);
+    expect(explainCron(parseCron("*/15 * * * *"))).toMatch(/Every 15 minutes/);
     expect(explainCron(parseCron("@daily"))).toMatch(/00:00/);
+    expect(explainCron(parseCron("*/15 9-17 * * 1-5"))).toBe(
+      "Every 15 minutes, between 09:00 and 17:59 on Monday through Friday.",
+    );
+    expect(explainCron(parseCron("0 * * * *"))).toBe("At the start of every hour.");
+    expect(explainCron(parseCron("0 0 1,15 * *"))).toBe("At 00:00 on days 1 and 15 of the month.");
   });
 
   it("works out the next runs in UTC", () => {
@@ -679,6 +691,11 @@ describe("text transforms", () => {
     expect(convertUnit(1, "mi", "km", "length")).toBeCloseTo(1.609344, 6);
     expect(convertUnit(100, "c", "f", "temperature")).toBeCloseTo(212, 6);
     expect(convertUnit(-40, "f", "c", "temperature")).toBeCloseTo(-40, 6);
+    // Words people type, and the family worked out from the units themselves.
+    expect(convertUnit(5, "miles", "kilometers", "length")).toBeCloseTo(8.04672, 5);
+    expect(detectUnitFamily("kg", "pounds", "length")).toBe("mass");
+    expect(detectUnitFamily("fahrenheit", "celsius", "length")).toBe("temperature");
+    expect(detectUnitFamily("hours", "mins", "length")).toBe("time");
     expect(convertUnit(0, "c", "k", "temperature")).toBeCloseTo(273.15, 6);
     expect(convertUnit(1, "GiB", "MiB", "data")).toBe(1024);
     expect(() => convertUnit(1, "furlongs-per-fortnight", "m", "length")).toThrow(

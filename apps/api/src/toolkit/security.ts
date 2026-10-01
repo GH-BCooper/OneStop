@@ -11,7 +11,15 @@
 //  • Breach Check — the only Internet-required tool here, and it uses HaveIBeenPwned's
 //    k-anonymity range API: five hex characters of a SHA-1 hash leave this machine, never the
 //    password.
-import { createCipheriv, createDecipheriv, createHmac, pbkdf2Sync, randomBytes, randomInt, timingSafeEqual } from "node:crypto";
+import {
+  createCipheriv,
+  createDecipheriv,
+  createHmac,
+  pbkdf2Sync,
+  randomBytes,
+  randomInt,
+  timingSafeEqual,
+} from "node:crypto";
 import type { Executor } from "@onestop/tool-registry";
 import type { FileRef, OutputFile } from "@onestop/types";
 import { packageFiles } from "../images/common.ts";
@@ -37,14 +45,66 @@ import {
 
 /** The 60 passwords that show up at the top of every breach corpus, plus obvious local ones. */
 export const COMMON_PASSWORDS: readonly string[] = [
-  "password", "123456", "123456789", "12345678", "12345", "1234567", "qwerty", "abc123",
-  "password1", "111111", "1234567890", "letmein", "monkey", "dragon", "iloveyou", "sunshine",
-  "princess", "admin", "welcome", "login", "football", "baseball", "master", "trustno1",
-  "shadow", "michael", "jennifer", "superman", "batman", "hunter", "starwars", "whatever",
-  "qazwsx", "asdfgh", "zxcvbn", "passw0rd", "p@ssword", "secret", "ninja", "azerty",
-  "test", "guest", "root", "toor", "changeme", "default", "internet", "computer",
-  "samsung", "google", "facebook", "onestop", "summer", "winter", "spring", "autumn",
-  "january", "december", "chocolate", "pokemon",
+  "password",
+  "123456",
+  "123456789",
+  "12345678",
+  "12345",
+  "1234567",
+  "qwerty",
+  "abc123",
+  "password1",
+  "111111",
+  "1234567890",
+  "letmein",
+  "monkey",
+  "dragon",
+  "iloveyou",
+  "sunshine",
+  "princess",
+  "admin",
+  "welcome",
+  "login",
+  "football",
+  "baseball",
+  "master",
+  "trustno1",
+  "shadow",
+  "michael",
+  "jennifer",
+  "superman",
+  "batman",
+  "hunter",
+  "starwars",
+  "whatever",
+  "qazwsx",
+  "asdfgh",
+  "zxcvbn",
+  "passw0rd",
+  "p@ssword",
+  "secret",
+  "ninja",
+  "azerty",
+  "test",
+  "guest",
+  "root",
+  "toor",
+  "changeme",
+  "default",
+  "internet",
+  "computer",
+  "samsung",
+  "google",
+  "facebook",
+  "onestop",
+  "summer",
+  "winter",
+  "spring",
+  "autumn",
+  "january",
+  "december",
+  "chocolate",
+  "pokemon",
 ];
 
 const KEYBOARD_ROWS = ["qwertyuiop", "asdfghjkl", "zxcvbnm", "1234567890"];
@@ -119,7 +179,11 @@ export function scorePassword(password: string): StrengthReport {
   for (const row of KEYBOARD_ROWS) {
     const back = [...row].reverse().join("");
     const starts = Array.from({ length: Math.max(0, row.length - 3) }, (_, i) => i);
-    if (starts.some((i) => lower.includes(row.slice(i, i + 4)) || lower.includes(back.slice(i, i + 4)))) {
+    if (
+      starts.some(
+        (i) => lower.includes(row.slice(i, i + 4)) || lower.includes(back.slice(i, i + 4)),
+      )
+    ) {
       bits -= 10;
       warnings.push("It has a straight run of keyboard keys in it.");
     }
@@ -133,6 +197,51 @@ export function scorePassword(password: string): StrengthReport {
     bits -= 6;
     warnings.push("It contains what looks like a year.");
   }
+  // "Tr0ub4dor&3": a word with look-alike characters swapped in and a few digits or a symbol bolted
+  // on. The mixed alphabet makes the naive count look great, but a cracker's rules try exactly this
+  // shape early, so the real work is "guess the word" plus a handful of decorations.
+  const decorated = /^([A-Za-z0-9@$!+]*[A-Za-z@$][A-Za-z0-9@$!+]*?)([0-9!@#$%^&*._-]{0,4})$/.exec(
+    password,
+  );
+  if (decorated) {
+    const [, stem = "", tail = ""] = decorated;
+    const LEET: Record<string, string> = {
+      "0": "o",
+      "1": "l",
+      "3": "e",
+      "4": "a",
+      "5": "s",
+      "7": "t",
+      "@": "a",
+      $: "s",
+      "!": "i",
+      "+": "t",
+    };
+    const swaps = [...stem].filter((c) => c in LEET).length;
+    const word = [...stem.toLowerCase()].map((c) => LEET[c] ?? c).join("");
+    const vowels = (word.match(/[aeiouy]/g) ?? []).length;
+    const wordLike =
+      /^[a-z]{4,}$/.test(word) &&
+      vowels / word.length >= 0.25 &&
+      vowels / word.length <= 0.6 &&
+      !/[^aeiouy]{5,}/.test(word);
+    if (COMMON_PASSWORDS.includes(word)) {
+      bits = Math.min(bits, 8 + tail.length * 2);
+      warnings.push(
+        `It is "${word}" with a few characters swapped or added — crackers try that first.`,
+      );
+    } else if (wordLike && (swaps > 0 || tail.length > 0 || /^[A-Z]/.test(stem))) {
+      const trailing = [...tail].reduce((sum, c) => sum + (/[0-9]/.test(c) ? 3.3 : 5), 0);
+      const guessable =
+        15 + Math.max(0, word.length - 8) * 2 + (/^[A-Z]/.test(stem) ? 1 : 0) + swaps + trailing;
+      if (guessable < bits) {
+        bits = guessable;
+        warnings.push(
+          "It looks like a word with look-alike characters or a few digits added — a pattern crackers try early.",
+        );
+      }
+    }
+  }
   // "Word1!" — a capital at the front and the digits/symbols bolted on the end is the single most
   // predictable shape there is, so the bits for those characters are worth far less than they look.
   if (/^[A-Z][a-z]+\d{0,4}[!@#$%^&*]?$/.test(password)) {
@@ -141,12 +250,17 @@ export function scorePassword(password: string): StrengthReport {
   }
   bits = Math.max(0, Math.round(bits));
 
-  if (password.length < 12) suggestions.push("Make it at least 12 characters — length beats tricks.");
-  if (classes.length < 3) suggestions.push("Mix in another character type (capitals, digits or symbols).");
-  if (warnings.length > 0) suggestions.push("Avoid words, dates and keyboard runs — try a passphrase of unrelated words.");
-  if (suggestions.length === 0) suggestions.push("This one looks solid. Store it in a password manager.");
+  if (password.length < 12)
+    suggestions.push("Make it at least 12 characters — length beats tricks.");
+  if (classes.length < 3)
+    suggestions.push("Mix in another character type (capitals, digits or symbols).");
+  if (warnings.length > 0)
+    suggestions.push("Avoid words, dates and keyboard runs — try a passphrase of unrelated words.");
+  if (suggestions.length === 0)
+    suggestions.push("This one looks solid. Store it in a password manager.");
 
-  const score: StrengthReport["score"] = bits < 28 ? 0 : bits < 40 ? 1 : bits < 60 ? 2 : bits < 80 ? 3 : 4;
+  const score: StrengthReport["score"] =
+    bits < 28 ? 0 : bits < 40 ? 1 : bits < 60 ? 2 : bits < 80 ? 3 : 4;
   const label = ["very weak", "weak", "reasonable", "strong", "very strong"][score]!;
   return {
     length: password.length,
@@ -168,7 +282,10 @@ export const passwordStrengthMeterExecutor: Executor = (input, _options) =>
     return {
       ok: true,
       // The password itself is never echoed back into the result or the job record.
-      output: { ...report, result: `${report.label} — about ${report.entropyBits} bits of entropy` },
+      output: {
+        ...report,
+        result: `${report.label} — about ${report.entropyBits} bits of entropy`,
+      },
       summary: `${report.label[0]!.toUpperCase()}${report.label.slice(1)}: about ${report.entropyBits} bits of entropy, ${report.crackTime} to guess offline.`,
       files: [],
     };
@@ -181,7 +298,9 @@ const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 export function base32Decode(text: string): Uint8Array {
   const clean = text.toUpperCase().replace(/[\s-]/g, "").replace(/=+$/, "");
   if (clean === "" || /[^A-Z2-7]/.test(clean)) {
-    throw unsupported("That is not a valid base32 secret. Paste the key your authenticator app shows.");
+    throw unsupported(
+      "That is not a valid base32 secret. Paste the key your authenticator app shows.",
+    );
   }
   const out: number[] = [];
   let bits = 0;
@@ -240,7 +359,12 @@ export function totp(
 
 export const totpGeneratorExecutor: Executor = (input, options) =>
   runToolkitTool("totp-code-generator", async () => {
-    const mode = optEnum(options, "mode", ["generate", "verify", "new-secret"] as const, "generate");
+    const mode = optEnum(
+      options,
+      "mode",
+      ["generate", "verify", "new-secret"] as const,
+      "generate",
+    );
     const step = optNumber(options, "step", 30, { min: 15, max: 120 });
     const digits = optNumber(options, "digits", 6, { min: 6, max: 8 });
     const algorithm = optEnum(options, "algorithm", ["sha1", "sha256", "sha512"] as const, "sha1");
@@ -264,7 +388,7 @@ export const totpGeneratorExecutor: Executor = (input, options) =>
     const secret = base32Decode(fromUri ? fromUri[1]! : raw);
     const now = Date.now();
     const code = totp(secret, { time: now, step, digits, algorithm });
-    const secondsLeft = step - Math.floor(now / 1000) % step;
+    const secondsLeft = step - (Math.floor(now / 1000) % step);
 
     if (mode === "verify") {
       const candidate = optString(options, "code", "").replace(/\s/g, "");
@@ -273,14 +397,21 @@ export const totpGeneratorExecutor: Executor = (input, options) =>
       let matchedAt: number | null = null;
       for (let drift = -window; drift <= window; drift += 1) {
         const expected = totp(secret, { time: now + drift * step * 1000, step, digits, algorithm });
-        if (expected.length === candidate.length && timingSafeEqual(Buffer.from(expected), Buffer.from(candidate))) {
+        if (
+          expected.length === candidate.length &&
+          timingSafeEqual(Buffer.from(expected), Buffer.from(candidate))
+        ) {
           matchedAt = drift;
           break;
         }
       }
       return {
         ok: true,
-        output: { valid: matchedAt !== null, driftSteps: matchedAt, result: matchedAt !== null ? "valid" : "not valid" },
+        output: {
+          valid: matchedAt !== null,
+          driftSteps: matchedAt,
+          result: matchedAt !== null ? "valid" : "not valid",
+        },
         summary:
           matchedAt === null
             ? "That code does not match. Check the secret, and that the device's clock is right."
@@ -321,7 +452,12 @@ hide high hill hint hive hold hole holy home hood hoof hook hope horn hose host 
   .split(/\s+/)
   .filter(Boolean);
 
-export function diceware(words: number, separator: string, capitalize: boolean, digit: boolean): string {
+export function diceware(
+  words: number,
+  separator: string,
+  capitalize: boolean,
+  digit: boolean,
+): string {
   const picked: string[] = [];
   for (let i = 0; i < words; i += 1) {
     const w = DICEWARE_WORDS[randomInt(DICEWARE_WORDS.length)]!;
@@ -373,11 +509,15 @@ export function encryptBytes(plain: Uint8Array, password: string): Uint8Array {
 
 export function decryptBytes(blob: Uint8Array, password: string): Uint8Array {
   const buf = Buffer.from(blob);
-  if (buf.length < 7 + 4 + 16 + 12 + 16 || buf.subarray(0, 7).toString("latin1") !== ENCRYPT_MAGIC) {
+  if (
+    buf.length < 7 + 4 + 16 + 12 + 16 ||
+    buf.subarray(0, 7).toString("latin1") !== ENCRYPT_MAGIC
+  ) {
     throw unsupported("This file was not encrypted by OneStop's File Encryptor.");
   }
   const rounds = buf.readUInt32BE(7);
-  if (rounds < 10_000 || rounds > 5_000_000) throw unsupported("This encrypted file's header is damaged.");
+  if (rounds < 10_000 || rounds > 5_000_000)
+    throw unsupported("This encrypted file's header is damaged.");
   const salt = buf.subarray(11, 27);
   const iv = buf.subarray(27, 39);
   const tag = buf.subarray(39, 55);
@@ -411,7 +551,9 @@ export const fileEncryptorExecutor: Executor = (input, options, ctx) =>
   runToolkitTool("file-encryptor", async () => {
     const password = optString(options, "password", "");
     if (password.length < 8) {
-      throw unsupported("Choose a password of at least 8 characters. Nothing can recover it if you forget it.");
+      throw unsupported(
+        "Choose a password of at least 8 characters. Nothing can recover it if you forget it.",
+      );
     }
     const files = await readInputFiles(input, ctx);
     const out: OutputFile[] = files.map((f) => ({
@@ -422,7 +564,10 @@ export const fileEncryptorExecutor: Executor = (input, options, ctx) =>
     const strength = scorePassword(password);
     return {
       ok: true,
-      output: { files: out.map((f) => ({ name: f.name, size: f.bytes.length })), passwordStrength: strength.label },
+      output: {
+        files: out.map((f) => ({ name: f.name, size: f.bytes.length })),
+        passwordStrength: strength.label,
+      },
       summary: `Encrypted ${plural(out.length, "file")} with AES-256-GCM. Your password is ${strength.label} — OneStop never stores it, so keep it somewhere safe.`,
       files: packageFiles(out, options, "encrypted-files"),
     };

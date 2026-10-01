@@ -1320,6 +1320,49 @@ run stored against its owner and invisible to anyone else.
 - Rows the earlier test runs wrote to the hosted database are still there (see Open Questions).
 - `main` was not touched: this work is on `newVersion`. Render builds from `main`.
 
+## Post-V1: third QA pass (2026-10-01, branch `newVersion`)
+
+The owner asked again for every page, route and API to be run and everything wrong fixed, fast. The app ran
+in dev against a throwaway local Postgres (never the hosted one). Lint and typecheck were clean before any change.
+The authenticated API was driven tool by tool with known-answer inputs, and the assistant was run on real
+prompts. This pass was cut short at the owner's request ("finish this up fast"), so the full-site browser
+crawl started this session did not finish and its results are not recorded here.
+
+### Fixed
+
+- **No 404 page and no error boundary anywhere.** A bad link showed Next.js's bare default, and a page that
+  threw showed the framework's error screen. Added `app/not-found.tsx` (with links to the catalogue and home),
+  `app/error.tsx` (a short message and a retry button; the detail goes only to the console) and
+  `app/global-error.tsx` (for when the layout itself fails).
+- **`/robots.txt` was a 404.** There is now one: the landing page and catalogue may be indexed; `/api`,
+  account, history, settings, auth, `/q`, `/s`, workflows and the assistant may not.
+- **Unit Converter refused words and wrong families.** "5 miles to km" failed ("miles" is not a length unit),
+  and "10 kg to lb" failed unless "Mass" had been picked first. It now accepts common names and plurals
+  (miles, kilometres, pounds, hours, celsius, megabytes and so on) and works out the family from the two units.
+  The assistant had been failing on this and retrying.
+- **The Cron explainer's wording.** `*/15 9-17 * * 1-5` read "At every 15 minutes, hour 9, 10, 11, …, 17 on
+  Monday, Tuesday, …". It now reads "Every 15 minutes, between 09:00 and 17:59 on Monday through Friday."
+  Runs read as "X through Y", steps as "every N", and `0 * * * *` as "At the start of every hour".
+- **The Password Strength Meter rated `Tr0ub4dor&3` "strong, 15 years".** It now spots a word with look-alike
+  characters swapped in (0→o, 4→a, @→a…) and a few digits or symbols tacked on, and scores it as a guessed word
+  plus decorations. `Tr0ub4dor&3` is now weak and `P@ssw0rd!` very weak, while random strings score as before.
+
+### Found, not changed
+
+- The assistant takes 20–55 s per tool task on the free Google AI Studio tier (several model calls per
+  task). Each call was quick to start, so the time is the provider's.
+- For the home-page example "Hash … then Base64 encode the hash", the assistant ran Hash Generator twice
+  (the second time with base64 output) instead of chaining Base64 Encoder, and returned two `hashes.txt`
+  files. The answer is base64 of the digest bytes, which is a defensible reading.
+- `/q/<unknown>` and `/s/<unknown>` answer 200 with a "not available" page rather than 404. For `/s` this
+  is deliberate (no existence oracle).
+
+### Tests
+
+New regression cases in `apps/api/src/expansion.test.ts` (unit aliases and family detection, the exact cron
+sentences, the look-alike passwords). The `expansion` and `dev-utils` suites pass (270 tests), and lint and
+typecheck are clean on the changed files. The full unit and e2e suites were not re-run this pass.
+
 ## Next Up
 
 **All 22 phases are complete.** `docs/build/` is finished; there is no next phase file.

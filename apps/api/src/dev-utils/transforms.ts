@@ -31,13 +31,43 @@ export function splitWords(text: string): string[] {
 }
 
 const SMALL_WORDS = new Set([
-  "a", "an", "and", "as", "at", "but", "by", "for", "if", "in", "nor", "of", "on", "or", "per",
-  "the", "to", "v", "via", "vs",
+  "a",
+  "an",
+  "and",
+  "as",
+  "at",
+  "but",
+  "by",
+  "for",
+  "if",
+  "in",
+  "nor",
+  "of",
+  "on",
+  "or",
+  "per",
+  "the",
+  "to",
+  "v",
+  "via",
+  "vs",
 ]);
 
 export const CASE_STYLES = [
-  "camel", "pascal", "snake", "kebab", "constant", "dot", "path", "title", "sentence", "lower",
-  "upper", "train", "alternating", "inverse",
+  "camel",
+  "pascal",
+  "snake",
+  "kebab",
+  "constant",
+  "dot",
+  "path",
+  "title",
+  "sentence",
+  "lower",
+  "upper",
+  "train",
+  "alternating",
+  "inverse",
 ] as const;
 export type CaseStyle = (typeof CASE_STYLES)[number];
 
@@ -68,7 +98,9 @@ export function convertCase(text: string, style: CaseStyle): string {
         .map((w, i) => (i > 0 && i < lower.length - 1 && SMALL_WORDS.has(w) ? w : cap(w)))
         .join(" ");
     case "sentence":
-      return lower.length === 0 ? "" : `${cap(lower[0]!)}${lower.length > 1 ? ` ${lower.slice(1).join(" ")}` : ""}`;
+      return lower.length === 0
+        ? ""
+        : `${cap(lower[0]!)}${lower.length > 1 ? ` ${lower.slice(1).join(" ")}` : ""}`;
     case "lower":
       return text.toLowerCase();
     case "upper":
@@ -76,7 +108,9 @@ export function convertCase(text: string, style: CaseStyle): string {
     case "alternating":
       return [...text].map((c, i) => (i % 2 === 0 ? c.toLowerCase() : c.toUpperCase())).join("");
     case "inverse":
-      return [...text].map((c) => (c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase())).join("");
+      return [...text]
+        .map((c) => (c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase()))
+        .join("");
   }
 }
 
@@ -104,7 +138,9 @@ export const caseConverterExecutor: Executor = (input, options, ctx) =>
     const perLine = optBool(options, "perLine", true);
     const apply = (text: string) => convertCase(text, style);
     const result = perLine ? src.text.split(/\r?\n/).map(apply).join("\n") : apply(src.text);
-    const all = Object.fromEntries(CASE_STYLES.map((s) => [s, convertCase(src.text.split(/\r?\n/)[0] ?? "", s)]));
+    const all = Object.fromEntries(
+      CASE_STYLES.map((s) => [s, convertCase(src.text.split(/\r?\n/)[0] ?? "", s)]),
+    );
     return {
       ok: true,
       output: { style, label: CASE_LABELS[style], all, result },
@@ -121,31 +157,87 @@ export const caseConverterExecutor: Executor = (input, options, ctx) =>
  */
 export const UNITS: Record<string, Record<string, number>> = {
   length: {
-    mm: 0.001, cm: 0.01, m: 1, km: 1000, in: 0.0254, ft: 0.3048, yd: 0.9144, mi: 1609.344,
-    nmi: 1852, thou: 0.0000254, furlong: 201.168, ly: 9.4607304725808e15,
+    mm: 0.001,
+    cm: 0.01,
+    m: 1,
+    km: 1000,
+    in: 0.0254,
+    ft: 0.3048,
+    yd: 0.9144,
+    mi: 1609.344,
+    nmi: 1852,
+    thou: 0.0000254,
+    furlong: 201.168,
+    ly: 9.4607304725808e15,
   },
   mass: {
-    mg: 0.000001, g: 0.001, kg: 1, t: 1000, oz: 0.0283495231, lb: 0.45359237, st: 6.35029318,
-    "us-ton": 907.18474, "uk-ton": 1016.0469088, carat: 0.0002,
+    mg: 0.000001,
+    g: 0.001,
+    kg: 1,
+    t: 1000,
+    oz: 0.0283495231,
+    lb: 0.45359237,
+    st: 6.35029318,
+    "us-ton": 907.18474,
+    "uk-ton": 1016.0469088,
+    carat: 0.0002,
   },
   area: {
-    "mm2": 0.000001, "cm2": 0.0001, "m2": 1, "km2": 1e6, "in2": 0.00064516, "ft2": 0.09290304,
-    "yd2": 0.83612736, acre: 4046.8564224, hectare: 10000, "mi2": 2589988.110336,
+    mm2: 0.000001,
+    cm2: 0.0001,
+    m2: 1,
+    km2: 1e6,
+    in2: 0.00064516,
+    ft2: 0.09290304,
+    yd2: 0.83612736,
+    acre: 4046.8564224,
+    hectare: 10000,
+    mi2: 2589988.110336,
   },
   volume: {
-    ml: 0.000001, l: 0.001, "m3": 1, tsp: 4.92892159e-6, tbsp: 1.47867648e-5, "fl-oz": 2.95735296e-5,
-    cup: 2.365882365e-4, pint: 4.73176473e-4, quart: 9.46352946e-4, gallon: 0.003785411784,
-    "imp-gallon": 0.00454609, "ft3": 0.028316846592,
+    ml: 0.000001,
+    l: 0.001,
+    m3: 1,
+    tsp: 4.92892159e-6,
+    tbsp: 1.47867648e-5,
+    "fl-oz": 2.95735296e-5,
+    cup: 2.365882365e-4,
+    pint: 4.73176473e-4,
+    quart: 9.46352946e-4,
+    gallon: 0.003785411784,
+    "imp-gallon": 0.00454609,
+    ft3: 0.028316846592,
   },
   speed: {
-    "m/s": 1, "km/h": 0.2777777778, mph: 0.44704, knot: 0.5144444444, "ft/s": 0.3048, mach: 340.29,
+    "m/s": 1,
+    "km/h": 0.2777777778,
+    mph: 0.44704,
+    knot: 0.5144444444,
+    "ft/s": 0.3048,
+    mach: 340.29,
   },
   data: {
-    bit: 0.125, B: 1, KB: 1000, MB: 1e6, GB: 1e9, TB: 1e12, PB: 1e15,
-    KiB: 1024, MiB: 1048576, GiB: 1073741824, TiB: 1099511627776,
+    bit: 0.125,
+    B: 1,
+    KB: 1000,
+    MB: 1e6,
+    GB: 1e9,
+    TB: 1e12,
+    PB: 1e15,
+    KiB: 1024,
+    MiB: 1048576,
+    GiB: 1073741824,
+    TiB: 1099511627776,
   },
   time: {
-    ms: 0.001, s: 1, min: 60, h: 3600, day: 86400, week: 604800, month: 2629746, year: 31556952,
+    ms: 0.001,
+    s: 1,
+    min: 60,
+    h: 3600,
+    day: 86400,
+    week: 604800,
+    month: 2629746,
+    year: 31556952,
   },
   pressure: { pa: 1, kpa: 1000, bar: 100000, psi: 6894.757293, atm: 101325, mmhg: 133.322387415 },
   energy: { j: 1, kj: 1000, cal: 4.184, kcal: 4184, wh: 3600, kwh: 3.6e6, btu: 1055.05585262 },
@@ -180,22 +272,157 @@ export function fromCelsius(celsius: number, unit: string): number {
   }
 }
 
+/** Words people actually type, mapped to the symbols the tables above use. */
+const UNIT_ALIASES: Record<string, string> = {
+  millimeter: "mm",
+  millimetre: "mm",
+  centimeter: "cm",
+  centimetre: "cm",
+  meter: "m",
+  metre: "m",
+  kilometer: "km",
+  kilometre: "km",
+  inch: "in",
+  inches: "in",
+  foot: "ft",
+  feet: "ft",
+  yard: "yd",
+  mile: "mi",
+  "nautical-mile": "nmi",
+  lightyear: "ly",
+  "light-year": "ly",
+  milligram: "mg",
+  gram: "g",
+  kilogram: "kg",
+  kilo: "kg",
+  tonne: "t",
+  ounce: "oz",
+  pound: "lb",
+  lbs: "lb",
+  stone: "st",
+  hectare: "hectare",
+  ha: "hectare",
+  sqm: "m2",
+  sqft: "ft2",
+  sqkm: "km2",
+  sqmi: "mi2",
+  milliliter: "ml",
+  millilitre: "ml",
+  liter: "l",
+  litre: "l",
+  gal: "gallon",
+  teaspoon: "tsp",
+  tablespoon: "tbsp",
+  floz: "fl-oz",
+  "fluid-ounce": "fl-oz",
+  pt: "pint",
+  qt: "quart",
+  kph: "km/h",
+  kmh: "km/h",
+  kmph: "km/h",
+  knots: "knot",
+  kn: "knot",
+  mps: "m/s",
+  fps: "ft/s",
+  byte: "B",
+  kilobyte: "KB",
+  megabyte: "MB",
+  gigabyte: "GB",
+  terabyte: "TB",
+  petabyte: "PB",
+  kibibyte: "KiB",
+  mebibyte: "MiB",
+  gibibyte: "GiB",
+  tebibyte: "TiB",
+  millisecond: "ms",
+  sec: "s",
+  second: "s",
+  minute: "min",
+  hour: "h",
+  hr: "h",
+  days: "day",
+  weeks: "week",
+  months: "month",
+  yr: "year",
+  pascal: "pa",
+  kilopascal: "kpa",
+  torr: "mmhg",
+  joule: "j",
+  kilojoule: "kj",
+  calorie: "cal",
+  kilocalorie: "kcal",
+  "watt-hour": "wh",
+  "kilowatt-hour": "kwh",
+  degree: "deg",
+  "°": "deg",
+  radian: "rad",
+  gradian: "grad",
+  revolution: "turn",
+  celsius: "c",
+  centigrade: "c",
+  fahrenheit: "f",
+  kelvin: "k",
+  rankine: "r",
+};
+
+/** Turns "Miles", "kilometers" or "°F" into the key a unit table uses, or undefined. */
+function normaliseUnit(raw: string): string {
+  const word = raw
+    .trim()
+    .toLowerCase()
+    .replace(/^°(?=[cfkr]$)/, "")
+    .replace(/\s+/g, "-");
+  if (UNIT_ALIASES[word]) return UNIT_ALIASES[word]!;
+  if (word.endsWith("s") && UNIT_ALIASES[word.slice(0, -1)])
+    return UNIT_ALIASES[word.slice(0, -1)]!;
+  return word;
+}
+
+function findUnitKey(table: Record<string, number>, raw: string): string | undefined {
+  const exact = Object.keys(table).find((k) => k === raw.trim());
+  if (exact) return exact;
+  const word = normaliseUnit(raw);
+  const singular = word.endsWith("s") ? word.slice(0, -1) : word;
+  return Object.keys(table).find((k) => [word, singular].includes(k.toLowerCase()));
+}
+
+/** The family both units belong to, so "10 kg to lb" works without picking "Mass" first. */
+export function detectUnitFamily(from: string, to: string, preferred: string): string {
+  const both = (family: string) =>
+    family === "temperature"
+      ? TEMPERATURE_UNITS.includes(normaliseUnit(from) as never) &&
+        TEMPERATURE_UNITS.includes(normaliseUnit(to) as never)
+      : Boolean(
+          UNITS[family] && findUnitKey(UNITS[family]!, from) && findUnitKey(UNITS[family]!, to),
+        );
+  if (both(preferred)) return preferred;
+  return ["temperature", ...Object.keys(UNITS)].find(both) ?? preferred;
+}
+
 export function convertUnit(value: number, from: string, to: string, family: string): number {
   if (family === "temperature") {
-    const f = from.toLowerCase().replace(/^°/, "").slice(0, 1);
-    const t = to.toLowerCase().replace(/^°/, "").slice(0, 1);
-    if (!(TEMPERATURE_UNITS as readonly string[]).includes(f) || !(TEMPERATURE_UNITS as readonly string[]).includes(t)) {
+    const f = normaliseUnit(from);
+    const t = normaliseUnit(to);
+    if (
+      !(TEMPERATURE_UNITS as readonly string[]).includes(f) ||
+      !(TEMPERATURE_UNITS as readonly string[]).includes(t)
+    ) {
       throw unsupported("Temperature units are C, F, K or R (Rankine).");
     }
     return fromCelsius(toCelsius(value, f), t);
   }
   const table = UNITS[family];
   if (!table) throw unsupported(`"${family}" is not a unit family this tool knows.`);
-  const key = (u: string) => Object.keys(table).find((k) => k.toLowerCase() === u.toLowerCase());
-  const fromKey = key(from);
-  const toKey = key(to);
-  if (!fromKey) throw unsupported(`"${from}" is not a ${family} unit. Try: ${Object.keys(table).slice(0, 8).join(", ")}.`);
-  if (!toKey) throw unsupported(`"${to}" is not a ${family} unit. Try: ${Object.keys(table).slice(0, 8).join(", ")}.`);
+  const fromKey = findUnitKey(table, from);
+  const toKey = findUnitKey(table, to);
+  if (!fromKey)
+    throw unsupported(
+      `"${from}" is not a ${family} unit. Try: ${Object.keys(table).slice(0, 8).join(", ")}.`,
+    );
+  if (!toKey)
+    throw unsupported(
+      `"${to}" is not a ${family} unit. Try: ${Object.keys(table).slice(0, 8).join(", ")}.`,
+    );
   return (value * table[fromKey]!) / table[toKey]!;
 }
 
@@ -208,26 +435,61 @@ function tidy(n: number): number {
 
 export const unitConverterExecutor: Executor = (input, options) =>
   runUtilTool("unit-converter", async () => {
-    const family = optEnum(
+    const chosenFamily = optEnum(
       options,
       "family",
-      ["length", "mass", "temperature", "area", "volume", "speed", "data", "time", "pressure", "energy", "angle"] as const,
+      [
+        "length",
+        "mass",
+        "temperature",
+        "area",
+        "volume",
+        "speed",
+        "data",
+        "time",
+        "pressure",
+        "energy",
+        "angle",
+      ] as const,
       "length",
     );
     const typed = typeof input === "string" ? input.trim() : "";
     // "12 km to mi" is how people actually type this, so parse it when it is offered.
     const shorthand = /^(-?[\d.]+)\s*([^\s]+)\s*(?:to|in|->|=)\s*([^\s]+)$/i.exec(typed);
-    const value = shorthand ? Number(shorthand[1]) : typed !== "" && Number.isFinite(Number(typed)) ? Number(typed) : optNumber(options, "value", 1, { min: -1e15, max: 1e15 });
-    const from = shorthand ? shorthand[2]! : optString(options, "from", family === "temperature" ? "c" : "km");
-    const to = shorthand ? shorthand[3]! : optString(options, "to", family === "temperature" ? "f" : "mi");
+    const value = shorthand
+      ? Number(shorthand[1])
+      : typed !== "" && Number.isFinite(Number(typed))
+        ? Number(typed)
+        : optNumber(options, "value", 1, { min: -1e15, max: 1e15 });
+    const from = shorthand
+      ? shorthand[2]!
+      : optString(options, "from", chosenFamily === "temperature" ? "c" : "km");
+    const to = shorthand
+      ? shorthand[3]!
+      : optString(options, "to", chosenFamily === "temperature" ? "f" : "mi");
+    const family = detectUnitFamily(from, to, chosenFamily);
     const converted = convertUnit(value, from, to, family);
     const table =
       family === "temperature"
-        ? TEMPERATURE_UNITS.map((u) => ({ unit: u.toUpperCase(), value: tidy(convertUnit(value, from, u, family)) }))
-        : Object.keys(UNITS[family]!).map((u) => ({ unit: u, value: tidy(convertUnit(value, from, u, family)) }));
+        ? TEMPERATURE_UNITS.map((u) => ({
+            unit: u.toUpperCase(),
+            value: tidy(convertUnit(value, from, u, family)),
+          }))
+        : Object.keys(UNITS[family]!).map((u) => ({
+            unit: u,
+            value: tidy(convertUnit(value, from, u, family)),
+          }));
     return {
       ok: true,
-      output: { value, from, to, family, converted: tidy(converted), all: table, result: `${tidy(converted)} ${to}` },
+      output: {
+        value,
+        from,
+        to,
+        family,
+        converted: tidy(converted),
+        all: table,
+        result: `${tidy(converted)} ${to}`,
+      },
       summary: `${value} ${from} = ${tidy(converted)} ${to}.`,
       files: [],
     };
@@ -268,8 +530,30 @@ export function placeholderSvg(width: number, height: number, label?: string): s
 }
 
 export function placeholderJson(count: number): unknown[] {
-  const first = ["Ada", "Grace", "Alan", "Katherine", "Linus", "Radia", "Barbara", "Tim", "Anita", "Guido"];
-  const last = ["Lovelace", "Hopper", "Turing", "Johnson", "Torvalds", "Perlman", "Liskov", "Berners-Lee", "Borg", "van Rossum"];
+  const first = [
+    "Ada",
+    "Grace",
+    "Alan",
+    "Katherine",
+    "Linus",
+    "Radia",
+    "Barbara",
+    "Tim",
+    "Anita",
+    "Guido",
+  ];
+  const last = [
+    "Lovelace",
+    "Hopper",
+    "Turing",
+    "Johnson",
+    "Torvalds",
+    "Perlman",
+    "Liskov",
+    "Berners-Lee",
+    "Borg",
+    "van Rossum",
+  ];
   return Array.from({ length: count }, (_, i) => {
     const f = first[randomInt(first.length)]!;
     const l = last[randomInt(last.length)]!;
@@ -286,7 +570,12 @@ export function placeholderJson(count: number): unknown[] {
 
 export const loremIpsumExecutor: Executor = (_input, options) =>
   runUtilTool("lorem-ipsum-generator", async () => {
-    const kind = optEnum(options, "kind", ["paragraphs", "sentences", "words", "json", "image"] as const, "paragraphs");
+    const kind = optEnum(
+      options,
+      "kind",
+      ["paragraphs", "sentences", "words", "json", "image"] as const,
+      "paragraphs",
+    );
     const count = optNumber(options, "count", kind === "words" ? 50 : 3, { min: 1, max: 500 });
 
     if (kind === "image") {
@@ -320,13 +609,22 @@ export const loremIpsumExecutor: Executor = (_input, options) =>
       text = text.replace(/^[^.]*\./, "Lorem ipsum dolor sit amet, consectetur adipiscing elit.");
     }
     const wrapped = optBool(options, "html", false)
-      ? text.split("\n\n").map((p) => `<p>${p}</p>`).join("\n")
+      ? text
+          .split("\n\n")
+          .map((p) => `<p>${p}</p>`)
+          .join("\n")
       : text;
     return {
       ok: true,
       output: { kind, count, characters: wrapped.length, result: wrapped },
       summary: `Generated ${plural(count, kind.replace(/s$/, ""))} — ${wrapped.length} characters.`,
-      files: [textFile("lorem.txt", optBool(options, "html", false) ? MIME.html : MIME.txt, wrapped + "\n")],
+      files: [
+        textFile(
+          "lorem.txt",
+          optBool(options, "html", false) ? MIME.html : MIME.txt,
+          wrapped + "\n",
+        ),
+      ],
     };
   });
 
@@ -419,7 +717,10 @@ export const readabilityExecutor: Executor = (input, options, ctx) =>
       : [];
     return {
       ok: true,
-      output: { ...report, result: `Reading ease ${report.fleschReadingEase} (grade ${report.averageGrade})` },
+      output: {
+        ...report,
+        result: `Reading ease ${report.fleschReadingEase} (grade ${report.averageGrade})`,
+      },
       summary: `Flesch reading ease ${report.fleschReadingEase} — ${report.band}. Around grade ${report.averageGrade} across five measures, ${report.words} words in ${report.sentences} sentences, about ${report.readingMinutes} minute${report.readingMinutes === 1 ? "" : "s"} to read.`,
       files,
     };

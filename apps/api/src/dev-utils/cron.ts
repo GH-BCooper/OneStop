@@ -5,7 +5,15 @@
 // loop forever (the walk is bounded). The automation scheduler in `apps/api/src/automation/` does
 // its own cadence maths for fixed intervals; this is the general case, for people writing crontabs.
 import type { Executor } from "@onestop/tool-registry";
-import { MIME, optNumber, optString, requireText, runUtilTool, textFile, unsupported } from "./common.ts";
+import {
+  MIME,
+  optNumber,
+  optString,
+  requireText,
+  runUtilTool,
+  textFile,
+  unsupported,
+} from "./common.ts";
 
 export interface CronField {
   name: string;
@@ -24,9 +32,35 @@ export interface CronSpec {
   dayOfWeek: CronField;
 }
 
-const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-const MONTH_ALIASES = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+const MONTH_ALIASES = [
+  "jan",
+  "feb",
+  "mar",
+  "apr",
+  "may",
+  "jun",
+  "jul",
+  "aug",
+  "sep",
+  "oct",
+  "nov",
+  "dec",
+];
 const DAY_ALIASES = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
 /** The shorthands every cron implementation understands. */
@@ -40,7 +74,13 @@ export const CRON_MACROS: Record<string, string> = {
   "@hourly": "0 * * * *",
 };
 
-function parseField(raw: string, name: string, min: number, max: number, aliases: string[] = []): CronField {
+function parseField(
+  raw: string,
+  name: string,
+  min: number,
+  max: number,
+  aliases: string[] = [],
+): CronField {
   const text = raw.trim().toLowerCase();
   if (text === "") throw unsupported(`The ${name} field is empty.`);
   const values = new Set<number>();
@@ -57,7 +97,8 @@ function parseField(raw: string, name: string, min: number, max: number, aliases
   for (const part of text.split(",")) {
     const [range, stepText] = part.split("/");
     const step = stepText === undefined ? 1 : Number(stepText);
-    if (!Number.isInteger(step) || step < 1) throw unsupported(`"${part}" has an invalid step in the ${name} field.`);
+    if (!Number.isInteger(step) || step < 1)
+      throw unsupported(`"${part}" has an invalid step in the ${name} field.`);
     let from = min;
     let to = max;
     if (range !== "*" && range !== "?") {
@@ -74,7 +115,9 @@ function parseField(raw: string, name: string, min: number, max: number, aliases
 }
 
 export function parseCron(expression: string): CronSpec {
-  const text = (CRON_MACROS[expression.trim().toLowerCase()] ?? expression).trim().replace(/\s+/g, " ");
+  const text = (CRON_MACROS[expression.trim().toLowerCase()] ?? expression)
+    .trim()
+    .replace(/\s+/g, " ");
   const parts = text.split(" ");
   if (parts.length === 6) parts.shift(); // tolerate a leading seconds field (Quartz/node-cron style)
   if (parts.length !== 5) {
@@ -91,35 +134,81 @@ export function parseCron(expression: string): CronSpec {
   };
 }
 
-function listNames(values: number[], names: string[], offset = 0): string {
-  const parts = values.map((v) => names[v - offset] ?? String(v));
-  if (parts.length === 1) return parts[0]!;
+function joinList(parts: string[]): string {
+  if (parts.length <= 1) return parts[0] ?? "";
   return `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
 
-function everyOrList(field: CronField, unit: string): string {
-  if (field.any) return `every ${unit}`;
-  const step = field.values.length > 2 ? field.values[1]! - field.values[0]! : 0;
-  const even = step > 1 && field.values.every((v, i) => i === 0 || v - field.values[i - 1]! === step);
-  if (even && field.values[0] === field.min) return `every ${step} ${unit}s`;
-  return `${unit} ${field.values.join(", ")}`;
+/** `*`/N style: evenly spaced, starting at the field's minimum, more than two hits. */
+function evenStep(field: CronField): number {
+  const { values } = field;
+  if (values.length < 3 || values[0] !== field.min) return 0;
+  const step = values[1]! - values[0]!;
+  return step > 1 && values.every((v, i) => i === 0 || v - values[i - 1]! === step) ? step : 0;
+}
+
+/** True when the values are one unbroken run (1-5), so they read as "1 through 5". */
+function isRun(values: number[]): boolean {
+  return values.length >= 3 && values.every((v, i) => i === 0 || v - values[i - 1]! === 1);
+}
+
+/** "Monday through Friday", "January and July", "3, 9 and 15" - whichever reads best. */
+function describeValues(values: number[], label: (v: number) => string): string {
+  if (isRun(values)) return `${label(values[0]!)} through ${label(values[values.length - 1]!)}`;
+  return joinList(values.map(label));
+}
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+
+function hourPhrase(hour: CronField): string {
+  if (hour.any) return "";
+  const step = evenStep(hour);
+  if (step) return `every ${step} hours`;
+  if (isRun(hour.values))
+    return `between ${pad2(hour.values[0]!)}:00 and ${pad2(hour.values[hour.values.length - 1]!)}:59`;
+  return `during hour ${joinList(hour.values.map(String))}`;
 }
 
 export function explainCron(spec: CronSpec): string {
+  const { minute, hour } = spec;
   const bits: string[] = [];
-  if (spec.minute.any && spec.hour.any) bits.push("Every minute");
-  else if (spec.minute.values.length === 1 && spec.hour.any) {
-    bits.push(`At ${spec.minute.values[0]} minutes past every hour`);
-  } else if (spec.minute.values.length === 1 && spec.hour.values.length <= 4) {
-    const times = spec.hour.values.map((h) => `${String(h).padStart(2, "0")}:${String(spec.minute.values[0]).padStart(2, "0")}`);
-    bits.push(`At ${listNames(times.map((_, i) => i), times)}`);
+  const minuteStep = evenStep(minute);
+  if (minute.any && hour.any) bits.push("Every minute");
+  else if (minute.any) bits.push(`Every minute, ${hourPhrase(hour)}`);
+  else if (minuteStep)
+    bits.push(
+      hour.any ? `Every ${minuteStep} minutes` : `Every ${minuteStep} minutes, ${hourPhrase(hour)}`,
+    );
+  else if (minute.values.length * hour.values.length <= 6 && !hour.any) {
+    const times = hour.values.flatMap((h) => minute.values.map((m) => `${pad2(h)}:${pad2(m)}`));
+    bits.push(`At ${joinList(times)}`);
   } else {
-    bits.push(`At ${everyOrList(spec.minute, "minute")}, ${everyOrList(spec.hour, "hour")}`);
+    const at =
+      minute.values.length === 1 && minute.values[0] === 0 && hour.any
+        ? "At the start of every hour"
+        : `At minute${minute.values.length > 1 ? "s" : ""} ${joinList(minute.values.map(String))}${hour.any || isRun(hour.values) ? " past every hour" : ""}`;
+    bits.push(hour.any ? at : `${at}, ${hourPhrase(hour)}`);
   }
 
-  if (!spec.dayOfWeek.any) bits.push(`on ${listNames(spec.dayOfWeek.values, DAY_NAMES)}`);
-  if (!spec.dayOfMonth.any) bits.push(`on day ${spec.dayOfMonth.values.join(", ")} of the month`);
-  if (!spec.month.any) bits.push(`in ${listNames(spec.month.values, MONTH_NAMES, 1)}`);
+  if (!spec.dayOfWeek.any)
+    bits.push(`on ${describeValues(spec.dayOfWeek.values, (v) => DAY_NAMES[v] ?? String(v))}`);
+  if (!spec.dayOfMonth.any) {
+    const step = evenStep(spec.dayOfMonth);
+    const days = spec.dayOfMonth.values;
+    bits.push(
+      step
+        ? `on every ${step}${step === 2 ? "nd" : step === 3 ? "rd" : "th"} day of the month`
+        : `on day${days.length > 1 ? "s" : ""} ${describeValues(days, String)} of the month`,
+    );
+  }
+  if (!spec.month.any) {
+    const step = evenStep(spec.month);
+    bits.push(
+      step
+        ? `in every ${step === 2 ? "second" : step === 3 ? "third" : step + "th"} month`
+        : `in ${describeValues(spec.month.values, (v) => MONTH_NAMES[v - 1] ?? String(v))}`,
+    );
+  }
   if (!spec.dayOfWeek.any && !spec.dayOfMonth.any) {
     // POSIX cron ORs the two day fields when both are restricted — a classic trap worth naming.
     bits.push("(cron treats the two day fields as *or*, so it runs when either matches)");
@@ -135,7 +224,8 @@ function matches(spec: CronSpec, date: Date): boolean {
         ? spec.dayOfWeek.values.includes(date.getUTCDay())
         : spec.dayOfWeek.any
           ? spec.dayOfMonth.values.includes(date.getUTCDate())
-          : spec.dayOfMonth.values.includes(date.getUTCDate()) || spec.dayOfWeek.values.includes(date.getUTCDay());
+          : spec.dayOfMonth.values.includes(date.getUTCDate()) ||
+            spec.dayOfWeek.values.includes(date.getUTCDay());
   return (
     spec.minute.values.includes(date.getUTCMinutes()) &&
     spec.hour.values.includes(date.getUTCHours()) &&
@@ -159,7 +249,10 @@ export function nextRuns(spec: CronSpec, from: Date, count: number): Date[] {
 
 export const cronBuilderExecutor: Executor = (input, options) =>
   runUtilTool("cron-expression-builder", async () => {
-    const raw = typeof input === "string" && input.trim() !== "" ? input : optString(options, "expression", "");
+    const raw =
+      typeof input === "string" && input.trim() !== ""
+        ? input
+        : optString(options, "expression", "");
     const expression = requireText(raw, "a cron expression, like 30 6 * * 1-5");
     const spec = parseCron(expression);
     const count = optNumber(options, "runs", 5, { min: 1, max: 50 });
@@ -186,7 +279,16 @@ export const cronBuilderExecutor: Executor = (input, options) =>
         textFile(
           "cron.json",
           MIME.json,
-          JSON.stringify({ expression: expression.trim(), normalised, explanation, nextRuns: runs.map((d) => d.toISOString()) }, null, 2) + "\n",
+          JSON.stringify(
+            {
+              expression: expression.trim(),
+              normalised,
+              explanation,
+              nextRuns: runs.map((d) => d.toISOString()),
+            },
+            null,
+            2,
+          ) + "\n",
         ),
       ],
     };
