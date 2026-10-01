@@ -176,7 +176,8 @@ function systemPrompt(input: AgentInput, attachments: string[], likely: string):
     "PROTOCOL: every reply must be ONE JSON object and nothing else. Choose exactly one action:",
     '{"action":"search_tools","query":"free words about the task"}  -> returns up to 8 matching tools with id, name, inputs/outputs',
     '{"action":"tool_info","toolId":"id"}  -> returns the tool\'s option ids, types, choices, defaults',
-    '{"action":"run_tool","toolId":"id","text":"typed input, if the tool takes text/url","options":{"optionId":value},"files":["file1"]}  -> runs it now',
+    '{"action":"run_tool","toolId":"id","text":"typed input, if the tool takes text/url","options":{"optionId":value},"files":["file1"],"then":"final"}  -> runs it now. Add "then":"final" when this run completes the whole request: the reply is then written for you from the tool\'s real output, with no further turn',
+    '{"action":"run_chain","steps":[{"toolId":"id","text":"...","options":{}},{"toolId":"id2","text":"$last","options":{}}],"then":"final"}  -> runs several tools in order in ONE turn; "$last" as text means the previous step\'s text result, "$last" in files means its output files. Use it for chains like "hash this, then base64 the hash" (hash-generator then base64-encoder with text "$last")',
     '{"action":"read_file","file":"file1"}  -> returns the readable text of an attached file (PDF, Word, PowerPoint, Excel, CSV, text, or an image via OCR) so you can answer questions about it',
     '{"action":"create_workflow","name":"short name","steps":[{"toolId":"id","options":{}}]}  -> validates and saves a reusable workflow for the user',
     '{"action":"run_workflow","steps":[{"toolId":"id","options":{}}],"files":["file1"]}  -> runs a chain on files, each step feeding the next',
@@ -185,7 +186,7 @@ function systemPrompt(input: AgentInput, attachments: string[], likely: string):
     '{"action":"favorite","toolId":"id","on":true}  -> stars/unstars a tool',
     '{"action":"final","message":"your Markdown answer to the user"}  -> ends the turn',
     "",
-    "RULES: If a OneStop tool can do what the user asks - generating passwords or UUIDs, hashing, encoding, formatting, converting, resizing, OCR, QR codes, anything in the catalogue - you MUST run that tool; never do it yourself in text (a password or hash you make up is not random or correct). Only when no tool applies do you answer from your own knowledge. The LIKELY TOOLS list below was matched to this request: use it directly when one fits, otherwise search_tools. Use only ids the registry returned. A tool that takes files needs a file ref (attached files and every tool output have refs like file1, file2). Tool outputs become new refs you can pass to the next tool. If a needed file is missing, ask the user to attach it via final. If a run fails, read the error, fix the input/options and retry once, else explain plainly. Use options only with ids from tool_info. Ask a short clarifying question via final only when a required detail is truly missing. When done, summarise what you did and what the result is; mention downloadable files by name (they are shown as download buttons automatically). Never claim you ran something you did not. Run a tool once per input - never repeat a run that already succeeded. Put results the user wants to read (hashes, ids, converted text, tables) in the final message, in a fenced code block or a table when that helps. Keep going until the user's whole request is done, then final.",
+    "RULES: If a OneStop tool can do what the user asks - generating passwords or UUIDs, hashing, encoding, formatting, converting, resizing, OCR, QR codes, anything in the catalogue - you MUST run that tool; never do it yourself in text (a password or hash you make up is not random or correct). Only when no tool applies do you answer from your own knowledge. The LIKELY TOOLS list below was matched to this request: use it directly when one fits, otherwise search_tools. Use only ids the registry returned. A tool that takes files needs a file ref (attached files and every tool output have refs like file1, file2). Tool outputs become new refs you can pass to the next tool. If a needed file is missing, ask the user to attach it via final. If a run fails, read the error, fix the input/options and retry once, else explain plainly. Use options only with ids from tool_info. Ask a short clarifying question via final only when a required detail is truly missing. When done, summarise what you did and what the result is; mention downloadable files by name (they are shown as download buttons automatically). Never claim you ran something you did not. Run a tool once per input - never repeat a run that already succeeded. When the request is one tool run, or a chain you can describe up front, use 'then: final' so the user gets the answer without an extra turn; leave it off when you still need to read the result (to answer a question about it, or to decide the next step). Put results the user wants to read (hashes, ids, converted text, tables) in the final message, in a fenced code block or a table when that helps. Keep going until the user's whole request is done, then final.",
     "",
     `App pages: ${PAGES.map(([p, d]) => `${p} (${d})`).join("; ")}. Any tool page is /tools/<category>/<slug> - use open_page with a toolId-derived href only from search results.`,
     `Tool groups, as shown on the All Tools page (available tool counts): ${categoryIndex()}`,
@@ -290,12 +291,38 @@ class Files {
   }
 }
 
+interface RunResult {
+  ok: boolean;
+  /** What the model is told. */
+  note: string;
+  /** The tool's main value as text (`output.result`), so the next step or the reply can use it. */
+  result: string | null;
+  summary: string | null;
+  files: PipelineFileInput[];
+}
+
+/**
+ * The reply for a run the model marked `"then":"final"`: written from the tool's real output, so a
+ * one-step task costs one model call instead of two and the value shown is never paraphrased.
+ */
+export function composeFinal(runs: { toolName: string; result: RunResult }[]): string {
+  const last = runs[runs.length - 1]!;
+  const names = runs.map((r) => `**${r.toolName}**`).join(" → ");
+  const lines = [`Done with ${names}.${last.result.summary ? ` ${last.result.summary}` : ""}`];
+  const value = last.result.result?.trim() ?? "";
+  if (value !== "" && value.length <= 4000) lines.push("", "```", value, "```");
+  if (last.result.files.length > 0) {
+    lines.push("", `Your file${last.result.files.length > 1 ? "s are" : " is"} ready below.`);
+  }
+  return lines.join("\n");
+}
+
 /** Runs one tool for the model and tells it, in a few lines, exactly what came back. */
 async function runOne(
   tool: ToolMeta,
   args: { text: string | null; options: Record<string, unknown>; inputs: PipelineFileInput[] },
   ctx: { userId: string | null | undefined; files: Files; outputs: AgentOutput[] },
-): Promise<{ ok: boolean; note: string }> {
+): Promise<RunResult> {
   const input = { toolId: tool.id, files: args.inputs, text: args.text, options: args.options };
   // A stale session (an account that no longer exists) must not stop a tool: the job store rejects
   // the unknown user, so the run is repeated once as a guest, which every public tool allows.
@@ -305,8 +332,15 @@ async function runOne(
     return runPipeline({ ...input, userId: null });
   });
   if (!outcome.ok) {
-    return { ok: false, note: `FAILED: ${outcome.error?.message ?? "the tool could not finish"}` };
+    return {
+      ok: false,
+      note: `FAILED: ${outcome.error?.message ?? "the tool could not finish"}`,
+      result: null,
+      summary: null,
+      files: [],
+    };
   }
+  const produced: PipelineFileInput[] = [];
   const temp = getTempStore();
   const lines: string[] = [`OK${outcome.summary ? `: ${outcome.summary}` : ""}`];
   let text: string | null = null;
@@ -322,11 +356,9 @@ async function runOne(
   for (const file of outcome.files) {
     ctx.files.produced.push(file);
     const bytes: Uint8Array | null = await temp.read(file.id).catch(() => null);
-    const ref = ctx.files.add({
-      name: file.name,
-      mimeType: file.mimeType,
-      bytes: bytes ?? new Uint8Array(),
-    });
+    const made = { name: file.name, mimeType: file.mimeType, bytes: bytes ?? new Uint8Array() };
+    produced.push(made);
+    const ref = ctx.files.add(made);
     let preview = "";
     if (bytes && bytes.length > 0 && (TEXTY.test(file.mimeType) || isTextName(file.name))) {
       const body = new TextDecoder().decode(bytes.slice(0, MAX_RESULT_CHARS));
@@ -345,7 +377,20 @@ async function runOne(
     summary: outcome.summary ?? null,
     text: text ? text.slice(0, 20_000) : null,
   });
-  return { ok: true, note: lines.join("\n") };
+  // The one value a person asked for (a hash, a UUID, converted text), when the tool names it.
+  const value =
+    typeof outcome.output === "string"
+      ? outcome.output
+      : outcome.output && typeof outcome.output === "object"
+        ? (outcome.output as { result?: unknown }).result
+        : undefined;
+  return {
+    ok: true,
+    note: lines.join("\n"),
+    result: typeof value === "string" || typeof value === "number" ? String(value) : null,
+    summary: outcome.summary ?? null,
+    files: produced,
+  };
 }
 
 function refuseTool(id: unknown): { tool: ToolMeta } | { error: string } {
@@ -496,6 +541,31 @@ export async function runAgent(input: AgentInput): Promise<void> {
       runtime,
     });
 
+  /** Runs one tool with the step events the chat shows, for run_tool and each run_chain step. */
+  const runStep = async (
+    tool: ToolMeta,
+    text: string | null,
+    rawOptions: unknown,
+    inputs: PipelineFileInput[],
+  ): Promise<RunResult> => {
+    const id = ++stepId;
+    emit({ type: "step", id, label: `Running ${tool.name}`, toolId: tool.id, status: "running" });
+    const result = await runOne(
+      tool,
+      { text, options: cleanOptions(tool, rawOptions), inputs },
+      { userId: input.userId, files, outputs },
+    );
+    emit({
+      type: "step",
+      id,
+      label: `${result.ok ? "Ran" : "Could not run"} ${tool.name}`,
+      toolId: tool.id,
+      status: result.ok ? "done" : "failed",
+      detail: result.note.split("\n")[0]!.slice(0, 200),
+    });
+    return result;
+  };
+
   for (let turn = 0; turn < MAX_AGENT_TURNS; turn += 1) {
     if (input.signal?.aborted) return;
     pruneResults(messages);
@@ -587,29 +657,67 @@ export async function runAgent(input: AgentInput): Promise<void> {
           );
           break;
         }
-        const id = ++stepId;
-        emit({
-          type: "step",
-          id,
-          label: `Running ${tool.name}`,
-          toolId: tool.id,
-          status: "running",
-        });
         const text = typeof call.text === "string" ? call.text : null;
-        const result = await runOne(
-          tool,
-          { text, options: cleanOptions(tool, call.options), inputs: resolved.files },
-          { userId: input.userId, files, outputs },
-        );
-        emit({
-          type: "step",
-          id,
-          label: `${result.ok ? "Ran" : "Could not run"} ${tool.name}`,
-          toolId: tool.id,
-          status: result.ok ? "done" : "failed",
-          detail: result.note.split("\n")[0]!.slice(0, 200),
-        });
+        const result = await runStep(tool, text, call.options, resolved.files);
+        if (result.ok && call.then === "final") {
+          finish(composeFinal([{ toolName: tool.name, result }]));
+          return;
+        }
         reply(result.note);
+        break;
+      }
+      case "run_chain": {
+        const raw = Array.isArray(call.steps) ? call.steps.slice(0, 8) : [];
+        if (raw.length === 0) {
+          reply('run_chain needs "steps": [{"toolId":"id","text":"...","options":{}}, ...].');
+          break;
+        }
+        const done: { toolName: string; result: RunResult }[] = [];
+        const notes: string[] = [];
+        let stopped = false;
+        for (const [i, entry] of raw.entries()) {
+          const step = (entry ?? {}) as Record<string, unknown>;
+          const guard = refuseTool(step.toolId);
+          if ("error" in guard) {
+            notes.push(`step ${i + 1}: ${guard.error}`);
+            stopped = true;
+            break;
+          }
+          const previous = done[done.length - 1]?.result;
+          const text =
+            step.text === "$last"
+              ? (previous?.result ?? null)
+              : typeof step.text === "string"
+                ? step.text
+                : null;
+          let inputs: PipelineFileInput[];
+          if (
+            step.files === "$last" ||
+            (Array.isArray(step.files) && step.files.includes("$last"))
+          ) {
+            inputs = previous?.files ?? [];
+          } else {
+            const resolved = files.resolve(step.files);
+            if (resolved.missing.length > 0) {
+              notes.push(`step ${i + 1}: unknown file ref(s) ${resolved.missing.join(", ")}`);
+              stopped = true;
+              break;
+            }
+            inputs = resolved.files;
+          }
+          const result = await runStep(guard.tool, text, step.options, inputs);
+          notes.push(`step ${i + 1} (${guard.tool.id}): ${result.note}`);
+          if (!result.ok) {
+            stopped = true;
+            break;
+          }
+          done.push({ toolName: guard.tool.name, result });
+        }
+        if (!stopped && call.then === "final") {
+          finish(composeFinal(done));
+          return;
+        }
+        reply(notes.join("\n"));
         break;
       }
       case "read_file": {

@@ -1347,15 +1347,23 @@ crawl started this session did not finish and its results are not recorded here.
   characters swapped in (0→o, 4→a, @→a…) and a few digits or symbols tacked on, and scores it as a guessed word
   plus decorations. `Tr0ub4dor&3` is now weak and `P@ssw0rd!` very weak, while random strings score as before.
 
-### Found, not changed
+### Assistant: fewer model calls, real chaining (follow-up the same day)
 
-- The assistant takes 20–55 s per tool task on the free Google AI Studio tier (several model calls per
-  task). Each call was quick to start, so the time is the provider's.
-- For the home-page example "Hash … then Base64 encode the hash", the assistant ran Hash Generator twice
-  (the second time with base64 output) instead of chaining Base64 Encoder, and returned two `hashes.txt`
-  files. The answer is base64 of the digest bytes, which is a defensible reading.
-- `/q/<unknown>` and `/s/<unknown>` answer 200 with a "not available" page rather than 404. For `/s` this
-  is deliberate (no existence oracle).
+- **Slow answers.** Every action was a separate model call, so even a one-tool task cost two
+  calls: one to run the tool and one just to write "here is your result". At 7 s or more per call on
+  the free tier, that came to 20–55 s. \`run_tool\` now takes \`"then":"final"\`: when the run completes
+  the request, the reply is written from the tool's real output (its summary, its value in a code block,
+  and a note that the file is ready). That saves a whole model call per simple task, and it also ends the
+  old "the assistant paraphrased the tool output" issue, because the value shown is the tool's own.
+- **No way to chain text between tools.** The new action \`run_chain\` runs several tools in one turn,
+  in order. \`"$last"\` as a step's text means the previous step's text result, and \`"$last"\` in files
+  means its output files. A failed step goes back to the model to recover from, with no false "done".
+  The home-page example "Hash … then Base64 encode the hash" is now a single model call: Hash Generator,
+  then Base64 Encoder on the hex digest. It no longer runs Hash Generator twice.
+- Tests in \`apps/api/src/ai/agent.test.ts\` cover a single-call one-step task, the hash→base64 chain
+  (checked against \`node:crypto\`), and a failed chain step handed back.
+- Still open: \`/q/<unknown>\` answers 200 with a "no longer active" page; \`/s/<unknown>\` does too,
+  on purpose (no existence oracle).
 
 ### Tests
 

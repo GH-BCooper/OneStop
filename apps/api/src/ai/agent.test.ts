@@ -57,6 +57,45 @@ describe("the agentic assistant", () => {
     expect(final?.message).toMatch(/UUID/);
   });
 
+  it("finishes a one-step task in one model call when the run is marked then:final", async () => {
+    const { final, seen } = await run("generate 2 uuids", [
+      { action: "run_tool", toolId: "uuid-generator", options: { count: 2 }, then: "final" },
+    ]);
+    // One model call, and the reply carries the tool's real values rather than a paraphrase.
+    expect(seen).toHaveLength(1);
+    expect(final?.message).toMatch(/UUID Generator/);
+    expect(final?.message).toMatch(/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-/);
+    expect(final?.files).toHaveLength(1);
+  });
+
+  it("chains text results with run_chain and $last (hash, then base64 the hash)", async () => {
+    const { final, seen, events } = await run("hash OneStop with sha-256 then base64 it", [
+      {
+        action: "run_chain",
+        steps: [
+          { toolId: "hash-generator", text: "OneStop", options: { algorithm: "sha256" } },
+          { toolId: "base64-encoder", text: "$last" },
+        ],
+        then: "final",
+      },
+    ]);
+    const { createHash } = await import("node:crypto");
+    const hex = createHash("sha256").update("OneStop").digest("hex");
+    expect(seen).toHaveLength(1);
+    expect(events.filter((e) => e.type === "step" && e.status === "done")).toHaveLength(2);
+    expect(final?.message).toContain(Buffer.from(hex).toString("base64"));
+    expect(final?.outputs.map((o) => o.toolId)).toEqual(["hash-generator", "base64-encoder"]);
+  });
+
+  it("hands a failed chain step back to the model instead of finishing", async () => {
+    const { final, seen } = await run("chain", [
+      { action: "run_chain", steps: [{ toolId: "not-a-tool" }], then: "final" },
+      { action: "final", message: "That tool does not exist, so nothing was run." },
+    ]);
+    expect(seen.some((m) => /no available tool with id "not-a-tool"/.test(m))).toBe(true);
+    expect(final?.message).toMatch(/nothing was run/);
+  });
+
   it("refuses a tool that is not in the registry and tells the model so", async () => {
     const { final, seen } = await run("do a thing", [
       { action: "run_tool", toolId: "rm-rf-everything" },
@@ -73,7 +112,9 @@ describe("the agentic assistant", () => {
       { action: "final", message: "Opened your settings page for you." },
     ]);
     expect(seen.some((m) => /not allowed/.test(m))).toBe(true);
-    expect(final?.actions).toEqual([{ type: "navigate", href: "/settings", label: "Open settings" }]);
+    expect(final?.actions).toEqual([
+      { type: "navigate", href: "/settings", label: "Open settings" },
+    ]);
   });
 
   it("validates a workflow before offering to save it", async () => {
@@ -90,7 +131,11 @@ describe("the agentic assistant", () => {
 
   it("rejects a workflow whose steps do not fit together", async () => {
     const { final, seen } = await run("bad workflow", [
-      { action: "create_workflow", name: "Bad", steps: [{ toolId: "url-to-qr" }, { toolId: "merge-pdf" }] },
+      {
+        action: "create_workflow",
+        name: "Bad",
+        steps: [{ toolId: "url-to-qr" }, { toolId: "merge-pdf" }],
+      },
       { action: "final", message: "That chain does not work, so I did not save it." },
     ]);
     expect(seen.some((m) => /Invalid workflow/.test(m))).toBe(true);
