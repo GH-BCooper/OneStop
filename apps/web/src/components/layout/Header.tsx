@@ -1,11 +1,11 @@
 "use client";
 
+import { buttonClasses } from "@onestop/ui";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useEffect, useState } from "react";
-import { buttonClasses } from "@onestop/ui";
 import { AccountMenu } from "@/components/auth/AccountMenu";
 import { openCommandPalette } from "./CommandPalette";
 import { ConnectionBadge } from "./ConnectionBadge";
@@ -13,10 +13,6 @@ import { Nav } from "./Nav";
 import { NotificationBell } from "./NotificationBell";
 import { ThemeToggle } from "./ThemeToggle";
 
-/**
- * Opens the command palette (roadmap §2). It is a button rather than a fake search box because that
- * is what it is - the real input lives in the palette itself, and this way the header stays narrow.
- */
 function PaletteButton() {
   return (
     <button
@@ -28,7 +24,9 @@ function PaletteButton() {
       title="Search everything (Ctrl+K)"
     >
       <span aria-hidden="true">🔍</span>
-      <kbd className="rounded border border-border px-1 py-0.5 text-[10px] leading-none">Ctrl K</kbd>
+      <kbd className="rounded border border-border px-1 py-0.5 text-[10px] leading-none">
+        Ctrl K
+      </kbd>
     </button>
   );
 }
@@ -45,18 +43,100 @@ function Wordmark() {
   );
 }
 
+function MobileDrawer({ close }: { close: () => void }) {
+  const shortcuts = [
+    ["★", "Favourites", "/#quick-access"],
+    ["🔥", "Popular", "/#popular-heading"],
+    ["◷", "Recent", "/#recent-tools"],
+  ] as const;
+  return (
+    <>
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-label="Dismiss navigation"
+        className="fixed inset-x-0 bottom-0 top-14 z-30 cursor-default bg-black/45 backdrop-blur-[1px] lg:hidden"
+        onClick={close}
+      />
+      <aside
+        id="mobile-nav"
+        aria-label="Mobile navigation"
+        className="fixed inset-x-3 top-[4.25rem] z-40 max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-2xl border border-border bg-surface p-3 shadow-2xl motion-safe:animate-[os-drawer-in_180ms_ease-out] lg:hidden"
+      >
+        <p className="px-3 pb-2 text-sm font-semibold">OneStop</p>
+        <Nav orientation="vertical" label="Mobile" onNavigate={close} />
+        <div className="my-3 border-t border-border" />
+        <nav aria-label="Dashboard shortcuts">
+          <ul className="flex flex-col gap-1">
+            {shortcuts.map(([icon, label, href]) => (
+              <li key={label}>
+                <Link
+                  href={href}
+                  onClick={close}
+                  className="flex items-center gap-2 rounded-md px-3 py-2 text-sm text-fg-muted hover:bg-surface-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring"
+                >
+                  <span aria-hidden="true">{icon}</span>
+                  {label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <div className="my-3 border-t border-border" />
+        <nav aria-label="Secondary navigation">
+          <ul className="flex flex-col gap-1">
+            <li>
+              <Link
+                href="/settings"
+                onClick={close}
+                className="flex rounded-md px-3 py-2 text-sm text-fg-muted hover:bg-surface-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                ⚙ Settings
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/status"
+                onClick={close}
+                className="flex rounded-md px-3 py-2 text-sm text-fg-muted hover:bg-surface-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                ◌ Connection status
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/account"
+                onClick={close}
+                className="flex rounded-md px-3 py-2 text-sm text-fg-muted hover:bg-surface-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                ⓘ About & account
+              </Link>
+            </li>
+          </ul>
+        </nav>
+        <div className="mt-3 border-t border-border pt-3">
+          <ThemeToggle />
+        </div>
+      </aside>
+    </>
+  );
+}
+
 export function Header({ accountsEnabled = false }: { accountsEnabled?: boolean }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const pathname = usePathname();
   const { data: session, status } = useSession();
-  // A guest on an instance that genuinely has no accounts is not "signed out" - there is nothing to
-  // sign in to, so that instance always gets the full nav (it always has, and hiding it would trap
-  // every visitor with nothing but a dead "Sign in" button).
   const guestOnlyChrome = accountsEnabled && status !== "loading" && !session?.user;
 
+  useEffect(() => setMenuOpen(false), [pathname]);
   useEffect(() => {
-    setMenuOpen(false);
-  }, [pathname]);
+    if (!menuOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMenuOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [menuOpen]);
 
   if (guestOnlyChrome) {
     return (
@@ -84,26 +164,24 @@ export function Header({ accountsEnabled = false }: { accountsEnabled?: boolean 
         <div className="ml-auto flex shrink-0 items-center gap-2 lg:ml-0">
           <PaletteButton />
           <ConnectionBadge />
-          {accountsEnabled && <NotificationBell />}
+          <span className="hidden lg:contents">{accountsEnabled && <NotificationBell />}</span>
           {accountsEnabled && <AccountMenu />}
-          <ThemeToggle />
+          <span className="hidden lg:contents">
+            <ThemeToggle />
+          </span>
           <button
             type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-ring lg:hidden"
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-ring lg:hidden"
             aria-label={menuOpen ? "Close menu" : "Open menu"}
             aria-expanded={menuOpen}
             aria-controls="mobile-nav"
-            onClick={() => setMenuOpen((o) => !o)}
+            onClick={() => setMenuOpen((open) => !open)}
           >
-            <span aria-hidden="true">{menuOpen ? "✕" : "☰"}</span>
+            <span aria-hidden="true">{menuOpen ? "×" : "☰"}</span>
           </button>
         </div>
       </div>
-      {menuOpen && (
-        <div id="mobile-nav" className="border-t border-border px-4 py-2 lg:hidden">
-          <Nav orientation="vertical" label="Mobile" onNavigate={() => setMenuOpen(false)} />
-        </div>
-      )}
+      {menuOpen && <MobileDrawer close={() => setMenuOpen(false)} />}
     </header>
   );
 }

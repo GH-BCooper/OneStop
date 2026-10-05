@@ -1,10 +1,5 @@
 "use client";
 
-// The Home page's "Popular tools" row (14-history-favorites.md).
-//
-// Phase 03 ordered this by a hand-set `popularity` number on each registry entry. Real usage now
-// leads that ordering (`useUsage` merges this device's runs with the account's), and the editorial
-// number only breaks ties - so a fresh install still shows a sensible list.
 import { searchTools, toolHref, tools } from "@onestop/tool-registry";
 import Link from "next/link";
 import { useMemo } from "react";
@@ -12,9 +7,8 @@ import { useFavorites } from "@/lib/use-favorites";
 import { useUsage } from "@/lib/use-usage";
 
 export function PopularTools({ count = 8 }: { count?: number }) {
-  const { counts } = useUsage();
+  const { counts, loading } = useUsage();
   const { favorites } = useFavorites();
-
   const popular = useMemo(
     () =>
       searchTools(tools, { sort: "popularity", usageCounts: counts, favoriteIds: favorites }).slice(
@@ -25,22 +19,34 @@ export function PopularTools({ count = 8 }: { count?: number }) {
   );
 
   return (
-    <section aria-labelledby="popular-heading" className="flex flex-col gap-4">
-      <h2 id="popular-heading" className="text-xl font-semibold">
-        Popular tools
-      </h2>
-      <ul className="flex flex-wrap gap-2">
-        {popular.map((t) => (
-          <li key={t.id}>
-            <Link
-              href={toolHref(t)}
-              className="inline-block rounded-full border border-border bg-surface px-3 py-1.5 text-sm hover:border-primary hover:text-primary"
-            >
-              {t.name}
-            </Link>
-          </li>
-        ))}
-      </ul>
+    <section aria-labelledby="popular-heading" className="flex flex-col gap-3">
+      <div>
+        <h2 id="popular-heading" className="text-xl font-semibold tracking-tight">
+          Popular tools
+        </h2>
+        <p className="mt-1 text-sm text-fg-muted">Reliable shortcuts for common tasks.</p>
+      </div>
+      {loading ? (
+        <div aria-live="polite" className="grid grid-cols-2 gap-2">
+          <span className="sr-only">Loading popular tools…</span>
+          <div className="h-10 animate-pulse rounded-lg bg-surface-muted" />
+          <div className="h-10 animate-pulse rounded-lg bg-surface-muted" />
+        </div>
+      ) : (
+        <ul className="flex flex-wrap gap-2">
+          {popular.map((tool) => (
+            <li key={tool.id}>
+              <Link
+                href={toolHref(tool)}
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm font-medium shadow-sm transition-colors hover:border-primary hover:bg-surface-muted hover:text-primary focus-visible:outline-2 focus-visible:outline-ring"
+              >
+                <span aria-hidden="true">✦</span>
+                {tool.name}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

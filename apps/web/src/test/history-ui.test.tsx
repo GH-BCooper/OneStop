@@ -228,17 +228,18 @@ describe("favourites", () => {
 
     render(<RecentTools />);
 
-    expect(await screen.findByRole("heading", { name: /your favourites/i })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: /quick access/i })).toBeTruthy();
     expect(screen.getByRole("link", { name: MERGE.name })).toBeTruthy();
-    expect(screen.getByText(/saved on this device/i)).toBeTruthy();
+    expect(screen.getByText(/favourites on this device/i)).toBeTruthy();
     // ...and the tool that was actually run shows under "Recently used".
     expect(await screen.findByRole("heading", { name: /recently used/i })).toBeTruthy();
-    expect(screen.getByRole("link", { name: getTool("split-pdf")!.name })).toBeTruthy();
+    expect(await screen.findByRole("link", { name: getTool("split-pdf")!.name })).toBeTruthy();
   });
 
-  it("renders nothing when there is neither a favourite nor a run", async () => {
-    const { container } = render(<RecentTools />);
-    await waitFor(() => expect(container.querySelector("section")).toBeNull());
+  it("renders intentional empty states when there is neither a favourite nor a run", async () => {
+    render(<RecentTools />);
+    expect(await screen.findByText(/no favourites yet/i)).toBeTruthy();
+    expect(await screen.findByText(/nothing here yet/i)).toBeTruthy();
   });
 });
 

@@ -157,6 +157,34 @@ footer {
     transform: none;
   }
 }
+
+@keyframes os-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Dashboard-only depth: quiet light around the AI entry point, kept away from the copy. */
+.dashboard-hero-glow {
+  position: absolute;
+  top: -11rem;
+  right: -7rem;
+  width: 22rem;
+  height: 16rem;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--os-primary) 20%, transparent),
+    transparent 70%
+  );
+  filter: blur(12px);
+}
 .os-rise {
   animation: os-rise 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
