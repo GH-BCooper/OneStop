@@ -55,13 +55,13 @@ function MobileDrawer({ close }: { close: () => void }) {
         type="button"
         tabIndex={-1}
         aria-label="Dismiss navigation"
-        className="fixed inset-x-0 bottom-0 top-14 z-30 cursor-default bg-black/45 backdrop-blur-[1px] lg:hidden"
+        className="fixed inset-x-0 bottom-0 top-14 z-[105] cursor-default bg-black/45 backdrop-blur-[1px] lg:hidden"
         onClick={close}
       />
       <aside
         id="mobile-nav"
         aria-label="Mobile navigation"
-        className="fixed inset-x-3 top-[4.25rem] z-40 max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-2xl border border-border bg-surface p-3 shadow-2xl motion-safe:animate-[os-drawer-in_180ms_ease-out] lg:hidden"
+        className="fixed inset-x-3 top-[4.25rem] z-[110] max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-2xl border border-border bg-surface p-3 shadow-2xl motion-safe:animate-[os-drawer-in_180ms_ease-out] lg:hidden"
       >
         <p className="px-3 pb-2 text-sm font-semibold">OneStop</p>
         <Nav orientation="vertical" label="Mobile" onNavigate={close} />
@@ -140,7 +140,7 @@ export function Header({ accountsEnabled = false }: { accountsEnabled?: boolean 
 
   if (guestOnlyChrome) {
     return (
-      <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur">
+      <header className="sticky top-0 z-[100] overflow-visible border-b border-border bg-surface/95 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
           <Wordmark />
           <div className="ml-auto flex shrink-0 items-center gap-2">
@@ -155,7 +155,7 @@ export function Header({ accountsEnabled = false }: { accountsEnabled?: boolean 
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-surface/95 backdrop-blur">
+    <header className="sticky top-0 z-[100] overflow-visible border-b border-border bg-surface/95 backdrop-blur">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
         <Wordmark />
         <div className="hidden min-w-0 flex-1 justify-center lg:flex">

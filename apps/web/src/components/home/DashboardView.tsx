@@ -26,12 +26,14 @@ function HeroAssistant({ greeting, desktop = false }: { greeting: string; deskto
       <div className="dashboard-hero-glow" aria-hidden="true" />
       <div className="relative flex flex-col gap-4">
         <div className="max-w-3xl">
-          <p className="mb-2 text-sm font-medium text-primary">Your local-first workspace</p>
+          <p className="mb-2 text-sm font-medium text-primary">
+            OneStop — your local-first workspace
+          </p>
           <h1 id="home-heading" className="text-3xl font-bold tracking-tight sm:text-4xl">
             {greeting}
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-fg-muted sm:text-base">
-            Convert, edit, inspect, or automate your files — or tell OneStop what you want to do.
+            One place to convert, create, and automate your files — privately and fast.
           </p>
         </div>
         <HomeSearch />

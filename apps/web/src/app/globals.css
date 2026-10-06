@@ -141,10 +141,17 @@ body {
 
 /* Content sits above the pointer-reactive backdrop. */
 #main,
-header,
 footer {
   position: relative;
   z-index: 1;
+}
+
+/* Header menus must out-rank transformed page content. `isolation` gives the drawer, account,
+   and notification popovers a stable layer without letting decorative effects leak above them. */
+header.sticky {
+  z-index: 100;
+  isolation: isolate;
+  overflow: visible;
 }
 
 @keyframes os-rise {

@@ -91,7 +91,7 @@ export function NotificationBell() {
   };
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative z-[110]">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -119,7 +119,7 @@ export function NotificationBell() {
           id={menuId}
           role="menu"
           aria-label="Notifications"
-          className="absolute right-0 z-50 mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-border bg-surface shadow-xl"
+          className="absolute right-0 z-[120] mt-2 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-border bg-surface shadow-xl"
         >
           <div className="flex items-center justify-between border-b border-border px-3 py-2">
             <p className="text-sm font-medium">Notifications</p>

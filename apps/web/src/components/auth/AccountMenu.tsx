@@ -59,7 +59,7 @@ export function AccountMenu() {
   const avatar = changed.image !== undefined ? changed.image : session.user.image;
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative z-[110]">
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -94,7 +94,7 @@ export function AccountMenu() {
           id={menuId}
           role="menu"
           aria-label="Account menu"
-          className="absolute right-0 z-50 mt-2 w-56 overflow-hidden rounded-lg border border-border bg-surface py-1 shadow-xl"
+          className="absolute right-0 z-[120] mt-2 w-56 overflow-hidden rounded-lg border border-border bg-surface py-1 shadow-xl"
         >
           <div className="border-b border-border px-3 py-2">
             <p className="truncate text-sm font-medium">{label}</p>
