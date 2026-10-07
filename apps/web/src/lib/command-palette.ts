@@ -50,8 +50,8 @@ function navItems(): CommandItem[] {
   }));
   const extras: CommandItem[] = [
     { id: "nav:/", group: "Go to", label: "Home", href: "/", icon: "🏠" },
-    { id: "nav:/settings", group: "Go to", label: "Settings", href: "/settings", icon: "⚙️" },
-    { id: "nav:/account", group: "Go to", label: "Account", href: "/account", icon: "👤" },
+    { id: "nav:/settings", group: "Go to", label: "Settings", href: "/account?tab=personal", icon: "⚙️" },
+    { id: "nav:/account", group: "Go to", label: "About & account", href: "/account?tab=app", icon: "👤" },
     { id: "nav:/status", group: "Go to", label: "Status & offline", href: "/status", icon: "📶", keywords: ["offline", "connection", "ffmpeg", "diagnostics"] },
   ];
   const categories: CommandItem[] = GROUPS.map((group) => ({

@@ -452,19 +452,12 @@ export function AssistantView() {
   };
   const [composerError, setComposerError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [showJumpToBottom, setShowJumpToBottom] = useState(false);
   const transcriptEnd = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // The request currently in flight, so the Stop button can cancel it.
   const inFlight = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    const checkMobile = () =>
-      setIsMobile(typeof window !== "undefined" && window.innerWidth < 640);
-    checkMobile();
-    window.addEventListener("resize", checkMobile);
-    return () => window.removeEventListener("resize", checkMobile);
-  }, []);
 
   // The active thread id. A ref, not state: `send()` and `updateTurn()` run inside async callbacks
   // and setState updaters and need the id that is current *right now*, not one captured when the
@@ -589,11 +582,32 @@ export function AssistantView() {
     // `pending` above is what keeps this to exactly one send.
   }, [pending, sessionReady]);
 
-  useEffect(() => {
-    transcriptEnd.current?.scrollIntoView?.({ behavior: "smooth", block: "end" });
-  }, [turns]);
-
   const busy = turns.some((t) => t.status === "planning" || t.status === "running");
+
+  // Follow a live answer, but never drag the user away from the footer after generation finishes.
+  useEffect(() => {
+    if (busy) transcriptEnd.current?.scrollIntoView?.({ behavior: "smooth", block: "end" });
+  }, [turns, busy]);
+
+  // The jump control is only useful when the composer is farther down the chat. If the user has
+  // deliberately scrolled past it to the footer, it stays out of the way.
+  useEffect(() => {
+    if (turns.length === 0) {
+      setShowJumpToBottom(false);
+      return;
+    }
+    const update = () => {
+      const box = composerRef.current?.getBoundingClientRect();
+      setShowJumpToBottom(Boolean(box && box.top > window.innerHeight));
+    };
+    update();
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [turns.length]);
 
   const addFiles = (picked: File[]) => {
     if (picked.length === 0) return;
@@ -897,6 +911,7 @@ export function AssistantView() {
 
   const composer = (
     <div
+      ref={composerRef}
       data-testid="assistant-composer"
       data-dragging={dragging ? "true" : "false"}
       onDragOver={(e: DragEvent<HTMLDivElement>) => {
@@ -965,7 +980,7 @@ export function AssistantView() {
           data-testid="assistant-request"
           rows={1}
           className="max-h-40 w-full flex-1 resize-none rounded-md border-0 bg-transparent px-1 py-2.5 text-sm text-fg focus-visible:outline-2 focus-visible:outline-ring"
-          placeholder="Ask anything, or describe a task — or attach any file"
+          placeholder="Message OneStop…"
           value={request}
           disabled={busy}
           onKeyDown={(e) => {
@@ -1009,7 +1024,7 @@ export function AssistantView() {
   if (turns.length === 0) {
     return (
       <div
-        className="flex min-h-[65vh] flex-col items-center justify-center gap-6 py-10"
+        className="flex flex-col items-center justify-center gap-4 py-3 sm:gap-5 sm:py-6"
         data-testid="assistant"
       >
         <h2
@@ -1019,24 +1034,32 @@ export function AssistantView() {
           {greeting ?? "Where should we begin?"}
         </h2>
         <div className="w-full max-w-2xl px-4">{composer}</div>
-        <div className="grid w-full max-w-2xl grid-cols-1 gap-2 px-4 sm:grid-cols-2">
-          {EXAMPLES.map((example) => (
-            <button
-              key={example.text}
-              type="button"
-              className="os-glow os-rise flex items-start gap-3 rounded-xl border border-border bg-surface/70 px-3 py-2.5 text-left text-sm backdrop-blur transition-[transform,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary"
-              onClick={() => setRequest(example.text)}
-            >
-              <span aria-hidden="true" className="text-xl">
-                {example.icon}
-              </span>
-              <span className="min-w-0">
-                <span className="block font-semibold">{example.title}</span>
-                <span className="block text-xs text-fg-muted">{example.text}</span>
-              </span>
-            </button>
-          ))}
-        </div>
+        <section className="w-full max-w-2xl px-4" aria-labelledby="suggestions-heading">
+          <h3
+            id="suggestions-heading"
+            className="mb-2 text-xs font-semibold lowercase tracking-wide text-fg-muted"
+          >
+            suggestions
+          </h3>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {EXAMPLES.slice(0, 3).map((example) => (
+              <button
+                key={example.text}
+                type="button"
+                className="os-glow os-rise flex items-start gap-3 rounded-xl border border-border bg-surface/70 px-3 py-2.5 text-left text-sm backdrop-blur transition-[transform,border-color] duration-200 hover:-translate-y-0.5 hover:border-primary"
+                onClick={() => setRequest(example.text)}
+              >
+                <span aria-hidden="true" className="text-xl">
+                  {example.icon}
+                </span>
+                <span className="min-w-0">
+                  <span className="block font-semibold">{example.title}</span>
+                  <span className="hidden text-xs text-fg-muted sm:block">{example.text}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
         <div className="w-full max-w-md px-4">
           <OutOfService status={status} />
         </div>
@@ -1045,9 +1068,12 @@ export function AssistantView() {
   }
 
   return (
-    <div className="flex flex-col gap-4" data-testid="assistant">
+    <div
+      className="flex min-h-[calc(100dvh-12.5rem)] flex-col gap-4 lg:min-h-[calc(100dvh-9rem)]"
+      data-testid="assistant"
+    >
       <OutOfService status={status} />
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-1 flex-col gap-4">
         {turns.map((turn) => (
           <div key={turn.id} className="flex flex-col gap-3">
             <Bubble from="user">
@@ -1076,6 +1102,17 @@ export function AssistantView() {
         <div ref={transcriptEnd} />
       </div>
       {composer}
+      {showJumpToBottom && (
+        <button
+          type="button"
+          aria-label="Jump to the latest message"
+          title="Jump to the latest message"
+          onClick={() => composerRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })}
+          className="fixed bottom-20 right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-2xl font-bold text-fg shadow-xl transition-colors hover:bg-surface-muted lg:bottom-6 lg:right-6"
+        >
+          <span aria-hidden="true">⌄</span>
+        </button>
+      )}
     </div>
   );
 }

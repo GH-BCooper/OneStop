@@ -128,7 +128,7 @@ export function CommandPalette() {
           return;
         case "open-settings":
           setOpen(false);
-          router.push("/settings");
+          router.push("/account?tab=personal");
           return;
         default:
           break;
