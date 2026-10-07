@@ -107,7 +107,11 @@ export function ThreadSidebar() {
       <div className="flex items-center">
         <Link
           href={`/assistant/${thread.id}`}
-          onClick={() => {
+          onClick={(event) => {
+            if (isActive) {
+              event.preventDefault();
+              return;
+            }
             if (isMobile) setMobileListOpen(false);
           }}
           className={cn(
@@ -134,7 +138,9 @@ export function ThreadSidebar() {
           }}
           className={cn(
             "rounded px-1.5 py-1 text-fg-muted hover:bg-surface-muted hover:text-fg focus-visible:opacity-100",
-            isMobile ? "opacity-90" : "opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100",
+            isMobile
+              ? "opacity-90"
+              : "opacity-0 group-hover:opacity-100 [@media(hover:none)]:opacity-100",
           )}
         >
           ⋯
@@ -186,17 +192,19 @@ export function ThreadSidebar() {
 
   return (
     <>
-      {/* -------------------- MOBILE VIEW (md:hidden) -------------------- */}
+      {/* -------------------- MOBILE VIEW (lg:hidden) -------------------- */}
       {/* Sub-navbar right below the original navbar across full width */}
-      <div className="md:hidden sticky top-14 z-30 w-full border-b border-border bg-surface/95 backdrop-blur-md pb-2 pt-1 mb-1">
-        <div className="flex w-full items-center gap-2 px-1">
+      <div className="fixed inset-x-0 top-14 z-[80] border-b-2 border-border bg-surface/95 py-1.5 backdrop-blur-md lg:hidden">
+        <div className="mx-auto flex w-full max-w-6xl items-center gap-2 px-4">
           {/* Button 1: New chat */}
           <button
             type="button"
             onClick={handleMobileNewChat}
             className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-border bg-surface-muted/60 px-3 py-2 text-sm font-medium text-fg shadow-sm hover:bg-surface-muted active:scale-[0.98] transition-all"
           >
-            <span aria-hidden="true" className="text-base leading-none">➕</span>
+            <span aria-hidden="true" className="text-base leading-none">
+              ➕
+            </span>
             <span>New chat</span>
           </button>
 
@@ -222,7 +230,7 @@ export function ThreadSidebar() {
         {/* Dropdown list of chats with smooth drop-down (expand) and move-up (collapse) animation */}
         <div
           className={cn(
-            "grid transition-all duration-300 ease-in-out overflow-hidden",
+            "mx-auto grid w-full max-w-6xl overflow-hidden px-4 transition-all duration-300 ease-in-out",
             mobileListOpen
               ? "grid-rows-[1fr] opacity-100 mt-2"
               : "grid-rows-[0fr] opacity-0 mt-0 pointer-events-none",
@@ -251,8 +259,8 @@ export function ThreadSidebar() {
         </div>
       </div>
 
-      {/* -------------------- DESKTOP VIEW (hidden md:flex) -------------------- */}
-      <aside aria-label="Chat history" className="hidden md:flex shrink-0">
+      {/* -------------------- DESKTOP VIEW (hidden lg:flex) -------------------- */}
+      <aside aria-label="Chat history" className="hidden lg:flex shrink-0">
         {collapsed ? (
           <div className="flex w-12 flex-col items-center gap-2 border-r border-border py-1">
             <button
@@ -290,7 +298,10 @@ export function ThreadSidebar() {
               </button>
             </div>
 
-            <ul className="flex flex-col gap-0.5 overflow-y-auto" data-testid="assistant-thread-list">
+            <ul
+              className="flex flex-col gap-0.5 overflow-y-auto"
+              data-testid="assistant-thread-list"
+            >
               {threads.length === 0 && (
                 <li className="px-2 py-3 text-sm text-fg-muted">No chats yet.</li>
               )}

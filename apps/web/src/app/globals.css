@@ -1,0 +1,406 @@
+@import "tailwindcss";
+
+/* Shared components live outside this app; let Tailwind scan them for classes. */
+@source "../../../../packages/ui/src";
+
+/* `dark:` follows the theme toggle (data-theme on <html>), not only the OS setting. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* Values come from packages/ui/src/tokens.ts via themeCss(), injected in the root layout. */
+@theme inline {
+  --color-bg: var(--os-bg);
+  --color-surface: var(--os-surface);
+  --color-surface-muted: var(--os-surface-muted);
+  --color-border: var(--os-border);
+  --color-fg: var(--os-fg);
+  --color-fg-muted: var(--os-fg-muted);
+  --color-primary: var(--os-primary);
+  --color-primary-hover: var(--os-primary-hover);
+  --color-primary-fg: var(--os-primary-fg);
+  --color-success: var(--os-success);
+  --color-warning: var(--os-warning);
+  --color-danger: var(--os-danger);
+  --color-ring: var(--os-ring);
+  --radius-sm: var(--os-radius-sm);
+  --radius-md: var(--os-radius-md);
+  --radius-lg: var(--os-radius-lg);
+  --font-sans: var(--os-font-sans);
+  --font-mono: var(--os-font-mono);
+}
+
+/* `clip`, not `hidden`: `hidden` turns <html>/<body> into scroll containers, and a `position:
+   sticky` header inside one sticks to that container instead of the window - it scrolled away.
+   `clip` stops sideways overflow without creating a scroll container. (`hidden` first is the
+   fallback for the few browsers that predate `clip`.) */
+html,
+body {
+  overflow-x: hidden;
+  overflow-x: clip;
+}
+
+body {
+  background-color: var(--os-bg);
+  background-image: var(--os-bg-image);
+  background-attachment: fixed;
+  color: var(--os-fg);
+  font-family: var(--os-font-sans);
+}
+
+/* The "OneStop" wordmark and a few hero accents: a moving sheen across polished metal - graphite
+   to steel on chrome, steel to bright platinum on black - so it always reads as light on metal. */
+.brand-gradient {
+  background-image: linear-gradient(
+    120deg,
+    var(--os-shine-start),
+    var(--os-shine-end) 60%,
+    var(--os-shine-start)
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: os-shine 6s ease-in-out infinite;
+}
+
+@keyframes os-shine {
+  0% {
+    background-position: 0% center;
+  }
+  50% {
+    background-position: 100% center;
+  }
+  100% {
+    background-position: 0% center;
+  }
+}
+
+@keyframes os-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.os-enter {
+  animation: os-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* A gently pulsing dot beside the assistant's "working on it" notices. */
+.os-pulse-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: os-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes os-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+.os-enter-1 {
+  animation-delay: 0.05s;
+}
+.os-enter-2 {
+  animation-delay: 0.15s;
+}
+.os-enter-3 {
+  animation-delay: 0.25s;
+}
+.os-enter-4 {
+  animation-delay: 0.35s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-gradient {
+    animation: none;
+  }
+  .os-pulse-dot {
+    animation: none;
+  }
+  .os-enter {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- Motion & depth (shared by the whole app) ---------------------------------------------- */
+
+/* Content sits above the pointer-reactive backdrop. */
+#main,
+footer {
+  position: relative;
+  z-index: 1;
+}
+
+/* Header menus must out-rank transformed page content. `isolation` gives the drawer, account,
+   and notification popovers a stable layer without letting decorative effects leak above them. */
+header.sticky {
+  z-index: 100;
+  isolation: isolate;
+  overflow: visible;
+}
+
+@keyframes os-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes os-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Dashboard-only depth: quiet light around the AI entry point, kept away from the copy. */
+.dashboard-hero-glow {
+  position: absolute;
+  top: -11rem;
+  right: -7rem;
+  width: 22rem;
+  height: 16rem;
+  border-radius: 9999px;
+  pointer-events: none;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--os-primary) 20%, transparent),
+    transparent 70%
+  );
+  filter: blur(12px);
+}
+.os-rise {
+  animation: os-rise 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Every page eases in instead of popping. */
+#main > * {
+  animation: os-fade-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Spotlight: a soft light that follows the pointer across a card (position set by PointerField). */
+.os-glow {
+  position: relative;
+  isolation: isolate;
+}
+.os-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  background: radial-gradient(
+    260px circle at var(--mx, 50%) var(--my, 50%),
+    color-mix(in srgb, var(--os-fg) 14%, transparent),
+    transparent 65%
+  );
+}
+.os-glow:hover::before {
+  opacity: 1;
+}
+.os-glow::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  padding: 1px;
+  background: radial-gradient(
+    200px circle at var(--mx, 50%) var(--my, 50%),
+    color-mix(in srgb, var(--os-fg) 55%, transparent),
+    transparent 70%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+.os-glow:hover::after {
+  opacity: 1;
+}
+
+/* Buttons: quick press feedback and a lift on hover for the main call-to-actions. */
+button:not(:disabled):active {
+  transform: scale(0.97);
+}
+.os-btn-lift {
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.2s ease;
+}
+.os-btn-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -10px color-mix(in srgb, var(--os-fg) 55%, transparent);
+}
+
+/* Hero orbit: a real 3D scene (perspective on the stage, preserve-3d down the tree). */
+.os-orbit-stage {
+  position: relative;
+  height: 340px;
+  width: 100%;
+  max-width: 520px;
+  perspective: 1100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.os-orbit-scene {
+  position: relative;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.os-orbit-ring {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.os-orbit-card {
+  position: absolute;
+  left: -38px;
+  top: -30px;
+  width: 76px;
+  height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border-radius: 14px;
+  border: 1px solid var(--os-border);
+  background: color-mix(in srgb, var(--os-surface) 88%, transparent);
+  color: var(--os-fg);
+  box-shadow: var(--os-card-shadow);
+  backface-visibility: hidden;
+}
+.os-cube {
+  position: absolute;
+  left: -56px;
+  top: -56px;
+  width: 112px;
+  height: 112px;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.os-cube-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.2rem;
+  font-weight: 800;
+  color: var(--os-primary-fg);
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--os-fg) 40%, transparent);
+  background: var(--os-primary-sheen);
+  opacity: 0.92;
+  box-shadow: inset 0 0 24px rgba(255, 255, 255, 0.18);
+}
+.os-orbit-floor {
+  position: absolute;
+  bottom: 6px;
+  width: 300px;
+  height: 36px;
+  border-radius: 50%;
+  background: radial-gradient(
+    closest-side,
+    color-mix(in srgb, var(--os-fg) 22%, transparent),
+    transparent
+  );
+  filter: blur(6px);
+}
+
+/* Slow drifting light behind the hero. */
+@keyframes os-aurora {
+  0%,
+  100% {
+    transform: translate3d(-4%, -2%, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(4%, 3%, 0) scale(1.12);
+  }
+}
+.os-aurora {
+  position: absolute;
+  inset: -20% -10% auto -10%;
+  height: 80%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      40% 50% at 25% 40%,
+      color-mix(in srgb, var(--os-fg) 16%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      35% 45% at 75% 30%,
+      color-mix(in srgb, var(--os-fg) 12%, transparent),
+      transparent 70%
+    );
+  filter: blur(30px);
+  animation: os-aurora 14s ease-in-out infinite;
+}
+
+/* Chat: the composer glows while you type. */
+[data-testid="assistant-composer"]:focus-within {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--os-fg) 45%, transparent),
+    0 12px 40px -14px color-mix(in srgb, var(--os-fg) 55%, transparent);
+}
+
+/* Phone/tablet light mode needs stronger ink than the reflective chrome background. */
+@media (max-width: 1023px) {
+  :root[data-theme="light"] {
+    --os-fg: #070b0f !important;
+    --os-fg-muted: #293640 !important;
+    --os-border: #8497a6 !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .os-orbit-stage {
+    height: 280px;
+    transform: scale(0.78);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .os-aurora,
+  #main > *,
+  .os-rise {
+    animation: none;
+  }
+}

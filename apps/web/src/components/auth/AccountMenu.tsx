@@ -104,7 +104,7 @@ export function AccountMenu({ isOpen, onToggle, onClose }: AccountMenuProps = {}
     <div ref={rootRef} className="relative z-[110]">
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={handleToggle}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}
@@ -152,7 +152,7 @@ export function AccountMenu({ isOpen, onToggle, onClose }: AccountMenuProps = {}
           <Link
             role="menuitem"
             href="/account?tab=personal"
-            onClick={() => setOpen(false)}
+            onClick={handleClose}
             className="block px-3 py-2 text-sm hover:bg-surface-muted"
           >
             Personal settings
@@ -160,7 +160,7 @@ export function AccountMenu({ isOpen, onToggle, onClose }: AccountMenuProps = {}
           <Link
             role="menuitem"
             href="/account?tab=app"
-            onClick={() => setOpen(false)}
+            onClick={handleClose}
             className="block px-3 py-2 text-sm hover:bg-surface-muted"
           >
             App settings
@@ -169,7 +169,7 @@ export function AccountMenu({ isOpen, onToggle, onClose }: AccountMenuProps = {}
             role="menuitem"
             type="button"
             onClick={() => {
-              setOpen(false);
+              handleClose();
               void signOutToLanding();
             }}
             className="block w-full px-3 py-2 text-left text-sm text-danger hover:bg-surface-muted"
