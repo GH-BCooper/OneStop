@@ -194,7 +194,7 @@ export function ThreadSidebar() {
     <>
       {/* -------------------- MOBILE VIEW (lg:hidden) -------------------- */}
       {/* Sub-navbar right below the original navbar across full width */}
-      <div className="fixed inset-x-0 top-14 z-[80] border-b-2 border-border bg-surface/95 py-1.5 backdrop-blur-md lg:hidden">
+      <div className="fixed inset-x-0 top-14 z-[80] border-y-2 border-border bg-surface/95 py-1.5 backdrop-blur-md lg:hidden">
         <div className="mx-auto flex w-full max-w-6xl items-center gap-2 px-4">
           {/* Button 1: New chat */}
           <button

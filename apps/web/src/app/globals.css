@@ -397,6 +397,51 @@ button:not(:disabled):active {
   }
 }
 
+/* Keep the fixed phone navigation from covering the footer, without leaving an empty strip
+   underneath it for signed-out visitors (the spacer only renders with the visible nav). */
+:root {
+  --mobile-nav-clearance: calc(4rem + env(safe-area-inset-bottom));
+}
+
+.mobile-bottom-nav-spacer {
+  flex: 0 0 var(--mobile-nav-clearance);
+  height: var(--mobile-nav-clearance);
+}
+
+/* In a live assistant thread, the composer follows the newest message. The normal-flow spacer
+   preserves its footprint so scrolling farther down can still reach the footer. */
+@media (max-width: 1023px) {
+  /* The global page entrance animation applies a transform that changes the containing block of
+     fixed descendants. Keep the assistant shell untransformed so its mobile sub-nav and composer
+     are positioned against the actual viewport. */
+  #main > .assistant-layout-shell {
+    animation: none;
+    transform: none;
+  }
+
+  .assistant-composer-dock[data-pinned="true"] {
+    position: fixed;
+    inset: auto 0 var(--mobile-nav-clearance);
+    z-index: 70;
+    padding: 0.75rem 1rem 0.5rem;
+    background: linear-gradient(to bottom, transparent, var(--os-bg) 30%);
+  }
+
+  .assistant-composer-dock[data-pinned="true"] > [data-testid="assistant-composer"] {
+    width: 100%;
+    max-width: 48rem;
+    margin-inline: auto;
+  }
+
+  .assistant-composer-spacer[data-pinned="true"] {
+    height: calc(var(--assistant-composer-height, 4rem) + 5.25rem + env(safe-area-inset-bottom));
+  }
+
+  .assistant-jump-to-bottom[data-docked="true"] {
+    bottom: calc(var(--mobile-nav-clearance) + var(--assistant-composer-height, 4rem) + 2rem);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .os-aurora,
   #main > *,

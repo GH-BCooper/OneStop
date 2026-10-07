@@ -290,12 +290,39 @@ describe("the assistant workspace", () => {
     fireEvent.click(screen.getByRole("button", { name: /send/i }));
 
     const panel = await screen.findByTestId("assistant-plan");
+    expect(screen.getByTestId("assistant-composer-dock").getAttribute("data-pinned")).toBe("true");
     expect(panel.textContent).toContain("Delete PDF Pages");
     expect(panel.textContent).toContain("PDF → Excel");
     expect(panel.textContent).toContain("File Compressor");
     expect(panel.textContent).toContain("pages: 1-2");
     // Nothing ran: the only calls so far are the status check and the plan.
     expect(fetchMock.mock.calls.every(([url]) => !String(url).includes("/run"))).toBe(true);
+  });
+
+  it("keeps the mobile composer docked while scrolling up to browse the conversation", async () => {
+    const originalWidth = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 390 });
+    try {
+      fetchMock.mockImplementation((url: string) =>
+        Promise.resolve(
+          String(url).includes("/status")
+            ? respond({ ok: true, status: LOCAL_STATUS })
+            : respond({ ok: true, plan: PLAN }),
+        ),
+      );
+      render(<AssistantView />);
+      fireEvent.change(screen.getByTestId("assistant-request"), { target: { value: "hi" } });
+      fireEvent.click(screen.getByRole("button", { name: /send/i }));
+      await screen.findByTestId("assistant-plan");
+
+      const dock = screen.getByTestId("assistant-composer-dock");
+      await waitFor(() => expect(dock.getAttribute("data-follow-latest")).toBe("true"));
+      fireEvent.wheel(window, { deltaY: -160 });
+      await waitFor(() => expect(dock.getAttribute("data-follow-latest")).toBe("false"));
+      expect(dock.getAttribute("data-pinned")).toBe("true");
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: originalWidth });
+    }
   });
 
   it("runs a plan by sending the whole plan, steps and explanation, in the shape the server reads", async () => {
