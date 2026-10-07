@@ -24,7 +24,15 @@ import { Badge, Button, buttonClasses, Card } from "@onestop/ui";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Fragment, useCallback, useEffect, useRef, useState, type DragEvent } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type DragEvent,
+} from "react";
 import { checkFiles, formatBytes } from "@/components/tools/UploadZone";
 import {
   createThread,
@@ -53,6 +61,8 @@ import { ToolCatalogue } from "./ToolCatalogue";
 
 /** Anything can be attached: which tools may run is decided by the plan, not by the picker. */
 const ANY_FILE = { name: "the assistant", inputTypes: ["any"], supportsBatch: true };
+
+const isMobileViewport = () => typeof window !== "undefined" && window.innerWidth < 1024;
 
 const EXAMPLES = [
   { icon: "🔗", title: "Make a QR code", text: "Make a QR code for https://example.com" },
@@ -452,10 +462,62 @@ export function AssistantView() {
   };
   const [composerError, setComposerError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [followLatest, setFollowLatest] = useState(false);
+  const [composerDocked, setComposerDocked] = useState(false);
   const [showJumpToBottom, setShowJumpToBottom] = useState(false);
+  const [composerHeight, setComposerHeight] = useState(0);
   const transcriptEnd = useRef<HTMLDivElement>(null);
+  const chatBottom = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const programmaticScroll = useRef(false);
+  const programmaticScrollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scrollToLatest = useCallback((behavior: ScrollBehavior = "auto") => {
+    const target = chatBottom.current;
+    if (!target) return;
+    programmaticScroll.current = true;
+    if (programmaticScrollTimer.current) clearTimeout(programmaticScrollTimer.current);
+    target.scrollIntoView?.({ behavior, block: "end" });
+    programmaticScrollTimer.current = setTimeout(
+      () => {
+        programmaticScroll.current = false;
+        programmaticScrollTimer.current = null;
+      },
+      behavior === "smooth" ? 1000 : 120,
+    );
+  }, []);
+
+  const updateJumpVisibility = useCallback(() => {
+    const composer = composerRef.current?.getBoundingClientRect();
+    if (!isMobileViewport()) {
+      setShowJumpToBottom(
+        Boolean(turnsRef.current.length > 0 && composer && composer.top > window.innerHeight),
+      );
+      return;
+    }
+
+    const footer = document.querySelector("footer")?.getBoundingClientRect();
+    const latest = chatBottom.current?.getBoundingClientRect();
+    const footerVisible = Boolean(footer && footer.top < window.innerHeight && footer.bottom > 0);
+    const latestBelowViewport = Boolean(latest && latest.bottom > window.innerHeight + 120);
+    const composerOutOfView = Boolean(
+      composer && (composer.top > window.innerHeight || composer.bottom <= 0),
+    );
+    setShowJumpToBottom(
+      Boolean(
+        turnsRef.current.length > 0 && !footerVisible && (latestBelowViewport || composerOutOfView),
+      ),
+    );
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (programmaticScrollTimer.current) clearTimeout(programmaticScrollTimer.current);
+    },
+    [],
+  );
+
   // The request currently in flight, so the Stop button can cancel it.
   const inFlight = useRef<AbortController | null>(null);
 
@@ -477,7 +539,10 @@ export function AssistantView() {
       skipNextHydrateRef.current = false;
       return;
     }
-    setTurns(incoming ? (getThread(incoming)?.turns.map(fromStored) ?? []) : []);
+    const restored = incoming ? (getThread(incoming)?.turns.map(fromStored) ?? []) : [];
+    setFollowLatest(restored.length > 0);
+    setComposerDocked(restored.length > 0);
+    setTurns(restored);
   }, [threadId]);
 
   const provider = typeof window === "undefined" ? null : activeAiProvider();
@@ -584,30 +649,159 @@ export function AssistantView() {
 
   const busy = turns.some((t) => t.status === "planning" || t.status === "running");
 
-  // Follow a live answer, but never drag the user away from the footer after generation finishes.
+  // Keep the mobile chat anchored to the latest turn only while the user is following it. Desktop
+  // keeps its existing behavior: auto-scroll only while an answer is actively being generated.
   useEffect(() => {
-    if (busy) transcriptEnd.current?.scrollIntoView?.({ behavior: "smooth", block: "end" });
+    if (!isMobileViewport() && busy) {
+      transcriptEnd.current?.scrollIntoView?.({ behavior: "smooth", block: "end" });
+    }
   }, [turns, busy]);
 
-  // The jump control is only useful when the composer is farther down the chat. If the user has
-  // deliberately scrolled past it to the footer, it stays out of the way.
+  useEffect(() => {
+    if (isMobileViewport() && followLatest && turns.length > 0) scrollToLatest();
+  }, [turns, followLatest, composerHeight, scrollToLatest]);
+
+  // Measure the composer so its mobile fixed dock can reserve the same amount of normal-flow space.
+  useEffect(() => {
+    const composer = composerRef.current;
+    if (!composer) return;
+    const measure = () => setComposerHeight(Math.ceil(composer.getBoundingClientRect().height));
+    measure();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(composer);
+    return () => observer.disconnect();
+  }, [turns.length]);
+
+  // On mobile, scrolling up stops auto-following while leaving the composer docked. Scrolling
+  // manually into the footer releases the dock; desktop retains its original free-flow layout.
   useEffect(() => {
     if (turns.length === 0) {
       setShowJumpToBottom(false);
       return;
     }
-    const update = () => {
-      const box = composerRef.current?.getBoundingClientRect();
-      setShowJumpToBottom(Boolean(box && box.top > window.innerHeight));
+
+    let previousScrollY = window.scrollY;
+    let previousTouchY: number | null = null;
+    let manualScrollUpUntil = 0;
+    let manualScrollDownUntil = 0;
+    const getLatestDelta = () => {
+      const latest = chatBottom.current?.getBoundingClientRect();
+      return latest ? latest.bottom - window.innerHeight : Number.POSITIVE_INFINITY;
     };
+    const isFooterVisible = () => {
+      const footer = document.querySelector("footer")?.getBoundingClientRect();
+      return Boolean(footer && footer.top < window.innerHeight && footer.bottom > 0);
+    };
+    let previousLatestDelta = getLatestDelta();
+
+    const onWheel = (event: WheelEvent) => {
+      if (!isMobileViewport()) return;
+      if (event.deltaY < 0) {
+        manualScrollUpUntil = Date.now() + 250;
+        manualScrollDownUntil = 0;
+        setFollowLatest(false);
+      } else if (event.deltaY > 0) {
+        manualScrollDownUntil = Date.now() + 250;
+        manualScrollUpUntil = 0;
+        if (isFooterVisible()) {
+          setFollowLatest(false);
+          setComposerDocked(false);
+        }
+      }
+    };
+    const onTouchStart = (event: TouchEvent) => {
+      if (isMobileViewport()) previousTouchY = event.touches[0]?.clientY ?? null;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      if (!isMobileViewport()) return;
+      const currentTouchY = event.touches[0]?.clientY;
+      if (currentTouchY === undefined || previousTouchY === null) return;
+      const movement = currentTouchY - previousTouchY;
+      previousTouchY = currentTouchY;
+      if (movement > 0) {
+        manualScrollUpUntil = Date.now() + 250;
+        manualScrollDownUntil = 0;
+        setFollowLatest(false);
+      } else if (movement < 0) {
+        manualScrollDownUntil = Date.now() + 250;
+        manualScrollUpUntil = 0;
+        if (isFooterVisible()) {
+          setFollowLatest(false);
+          setComposerDocked(false);
+        }
+      }
+    };
+    const onTouchEnd = () => {
+      previousTouchY = null;
+    };
+
+    const update = () => {
+      const currentScrollY = window.scrollY;
+      const scrollingUp = currentScrollY < previousScrollY - 1;
+      const scrollingDown = currentScrollY > previousScrollY + 1;
+      previousScrollY = currentScrollY;
+
+      if (!isMobileViewport()) {
+        previousLatestDelta = getLatestDelta();
+        updateJumpVisibility();
+        return;
+      }
+
+      const latestDelta = getLatestDelta();
+      const atLatest = latestDelta >= -48 && latestDelta <= 120;
+      const footerVisible = isFooterVisible();
+      const manualScrollUp = Date.now() < manualScrollUpUntil;
+      const manualScrollDown = Date.now() < manualScrollDownUntil;
+      const isUserScroll = !programmaticScroll.current || manualScrollUp || manualScrollDown;
+      const userScrolledUp = manualScrollUp || (isUserScroll && scrollingUp);
+      const userScrolledDown = manualScrollDown || (isUserScroll && scrollingDown);
+
+      if (footerVisible && userScrolledDown) {
+        setComposerDocked(false);
+        setFollowLatest(false);
+      } else if (!footerVisible) {
+        setComposerDocked(true);
+        if (userScrolledUp) {
+          // Re-pin auto-follow only after scrolling from below the chat back to the latest turn.
+          setFollowLatest(previousLatestDelta < -120 && atLatest);
+        } else if (atLatest) {
+          setFollowLatest(true);
+        }
+      }
+      previousLatestDelta = latestDelta;
+      updateJumpVisibility();
+    };
+
     update();
     window.addEventListener("scroll", update, { passive: true });
     window.addEventListener("resize", update);
+    window.addEventListener("wheel", onWheel, { passive: true });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
+    window.addEventListener("touchend", onTouchEnd, { passive: true });
+    window.addEventListener("touchcancel", onTouchEnd, { passive: true });
     return () => {
       window.removeEventListener("scroll", update);
       window.removeEventListener("resize", update);
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("touchcancel", onTouchEnd);
     };
-  }, [turns.length]);
+  }, [turns.length, updateJumpVisibility]);
+
+  // Recheck after docking changes so the down-chevron reflects the latest-message position and
+  // whether the composer is visible, not merely whether auto-follow is enabled.
+  useEffect(() => {
+    updateJumpVisibility();
+  }, [composerDocked, followLatest, turns.length, updateJumpVisibility]);
 
   const addFiles = (picked: File[]) => {
     if (picked.length === 0) return;
@@ -690,6 +884,9 @@ export function AssistantView() {
       saveThreadTurns(activeId, [...turns, turn].map(toStored));
     }
 
+    setFollowLatest(true);
+    setComposerDocked(true);
+    setShowJumpToBottom(false);
     setTurns([...turnsRef.current, turn]);
     setRequest("");
     setFiles([]);
@@ -1101,16 +1298,62 @@ export function AssistantView() {
         ))}
         <div ref={transcriptEnd} />
       </div>
-      {composer}
+      <div className="assistant-composer-position">
+        <div
+          data-testid="assistant-composer-dock"
+          data-pinned={composerDocked ? "true" : "false"}
+          data-follow-latest={followLatest ? "true" : "false"}
+          className="assistant-composer-dock"
+        >
+          {composer}
+        </div>
+        {turns.length > 0 && (
+          <div
+            aria-hidden="true"
+            data-pinned={composerDocked ? "true" : "false"}
+            className="assistant-composer-spacer lg:hidden"
+            style={
+              composerHeight > 0
+                ? ({ "--assistant-composer-height": `${composerHeight}px` } as CSSProperties)
+                : undefined
+            }
+          />
+        )}
+        <div ref={chatBottom} className="h-px w-full" aria-hidden="true" />
+      </div>
       {showJumpToBottom && (
         <button
           type="button"
           aria-label="Jump to the latest message"
           title="Jump to the latest message"
-          onClick={() => composerRef.current?.scrollIntoView({ behavior: "smooth", block: "end" })}
-          className="fixed bottom-20 right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-2xl font-bold text-fg shadow-xl transition-colors hover:bg-surface-muted lg:bottom-6 lg:right-6"
+          data-docked={composerDocked ? "true" : "false"}
+          style={
+            composerHeight > 0
+              ? ({ "--assistant-composer-height": `${composerHeight}px` } as CSSProperties)
+              : undefined
+          }
+          onClick={() => {
+            if (isMobileViewport()) {
+              setComposerDocked(true);
+              setFollowLatest(true);
+            } else {
+              composerRef.current?.scrollIntoView?.({ behavior: "smooth", block: "end" });
+            }
+          }}
+          className="assistant-jump-to-bottom fixed bottom-20 right-4 z-50 flex h-11 w-11 items-center justify-center rounded-full border border-border bg-surface text-fg shadow-xl transition-colors hover:bg-surface-muted lg:bottom-6 lg:right-6"
         >
-          <span aria-hidden="true">⌄</span>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            className="h-5 w-5"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="m6 9 6 6 6-6" />
+          </svg>
         </button>
       )}
     </div>

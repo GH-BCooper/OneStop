@@ -1,6 +1,6 @@
 "use client";
 
-import { isThemeMode, THEME_STORAGE_KEY, type ThemeMode } from "@onestop/ui";
+import { cn, isThemeMode, THEME_STORAGE_KEY, type ThemeMode } from "@onestop/ui";
 import { useEffect, useState } from "react";
 import { applyThemePreset } from "@/lib/appearance";
 
@@ -18,7 +18,7 @@ export function applyTheme(mode: ThemeMode): void {
   }
 }
 
-export function ThemeToggle() {
+export function ThemeToggle({ className }: { className?: string } = {}) {
   // null until mounted: the server can't know the stored theme.
   const [mode, setMode] = useState<ThemeMode | null>(null);
 
@@ -39,7 +39,10 @@ export function ThemeToggle() {
       }}
       aria-label={`Switch to ${next} theme`}
       title={`Switch to ${next} theme`}
-      className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-lg hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-ring"
+      className={cn(
+        "inline-flex h-9 w-9 items-center justify-center rounded-md border border-border text-lg hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-ring",
+        className,
+      )}
     >
       <span aria-hidden="true">{mode === "dark" ? "☀️" : "🌙"}</span>
     </button>

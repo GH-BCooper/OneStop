@@ -10,9 +10,10 @@ import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
 import { Nav } from "@/components/layout/Nav";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { isNavItemActive, primaryNav } from "@/lib/nav";
 import { routeCases } from "./routes";
-import { navigation } from "./setup";
+import { navigation, session } from "./setup";
 
 async function renderRoute(route: (typeof routeCases)[number]) {
   const mod = await route.load();
@@ -202,15 +203,49 @@ describe("home page", () => {
   });
 });
 
-describe("header", () => {
-  it("opens and closes the mobile menu", () => {
-    render(<Header />);
-    const toggle = screen.getByRole("button", { name: /open menu/i });
-    expect(toggle.getAttribute("aria-expanded")).toBe("false");
-    fireEvent.click(toggle);
-    expect(screen.getByRole("navigation", { name: /mobile/i })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /close menu/i }));
-    expect(screen.queryByRole("navigation", { name: /mobile/i })).toBeNull();
+describe("mobile navigation", () => {
+  it("removes the hamburger and keeps the theme control beside Status when signed in", () => {
+    session.data = {
+      user: { id: "mobile-user", email: "mobile@example.com", name: "Mobile User" },
+    };
+    session.status = "authenticated";
+    render(<Header accountsEnabled />);
+
+    expect(screen.queryByRole("button", { name: /open menu/i })).toBeNull();
+    const statusLink = screen.getByRole("link", { name: /connection status:/i });
+    expect(statusLink.getAttribute("href")).toBe("/status");
+    expect(statusLink.nextElementSibling?.getAttribute("aria-label")).toMatch(
+      /switch to (light|dark) theme/i,
+    );
+    expect(screen.getByRole("button", { name: /switch to (light|dark) theme/i })).toBeTruthy();
+  });
+
+  it("hides the bottom navigation from signed-out visitors when accounts are enabled", () => {
+    session.data = null;
+    session.status = "unauthenticated";
+    render(<MobileBottomNav accountsEnabled />);
+    expect(screen.queryByTestId("mobile-bottom-nav")).toBeNull();
+  });
+
+  it("puts favourites, popular and recent under More for signed-in visitors", () => {
+    session.data = {
+      user: { id: "mobile-user", email: "mobile@example.com", name: "Mobile User" },
+    };
+    session.status = "authenticated";
+    navigation.pathname = "/tools";
+    render(<MobileBottomNav accountsEnabled />);
+
+    expect(screen.getByRole("navigation", { name: "Mobile primary" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "More" }));
+    expect(screen.getByRole("link", { name: /favourites/i }).getAttribute("href")).toBe(
+      "/#quick-access",
+    );
+    expect(screen.getByRole("link", { name: /popular/i }).getAttribute("href")).toBe(
+      "/#popular-heading",
+    );
+    expect(screen.getByRole("link", { name: "Recent" }).getAttribute("href")).toBe(
+      "/#recent-tools",
+    );
   });
 });
 
@@ -220,7 +255,6 @@ describe("accessibility basics", () => {
     // A route that redirected rendered nothing to check; the smoke test above covers that case.
     if (!rendered) return;
     const { container } = rendered;
-    fireEvent.click(screen.getByRole("button", { name: /open menu/i }));
     const interactive = container.querySelectorAll<HTMLElement>(
       "a, button, input, select, textarea, [role=tab]",
     );

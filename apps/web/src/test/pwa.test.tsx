@@ -537,6 +537,20 @@ describe("offline UX", () => {
     await waitFor(() => expect(screen.getByLabelText(/Connection status: Offline/)).toBeTruthy());
   });
 
+  it("labels the status control and reveals that label on a mobile long-press", async () => {
+    stubConnectivity({ internet: true });
+    const { container } = render(<ConnectionBadge />);
+    const statusLink = screen.getByRole("link");
+    expect(statusLink.getAttribute("title")).toBe("Status");
+
+    fireEvent.pointerDown(statusLink, { pointerType: "touch" });
+    await waitFor(() => {
+      expect(container.querySelector('[role="tooltip"]')?.className).toContain("opacity-100");
+    });
+    fireEvent.pointerUp(statusLink, { pointerType: "touch" });
+    expect(fireEvent.click(statusLink)).toBe(false);
+  });
+
   it("shows no banner while online and an explanatory one when not", async () => {
     stubConnectivity({ internet: true });
     const { unmount } = render(<OfflineBanner />);

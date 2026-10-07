@@ -52,6 +52,8 @@ export const viewport: Viewport = {
 export const dynamic = "force-dynamic";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  const accountsEnabled = authIsConfigured();
+
   return (
     // The init script sets data-theme before hydration, so the attribute differs from the server render.
     <html lang="en" suppressHydrationWarning>
@@ -59,7 +61,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: themeInitScript() }} />
         <style dangerouslySetInnerHTML={{ __html: themeCss() }} />
       </head>
-      <body className="flex min-h-screen flex-col bg-bg pb-16 text-fg antialiased lg:pb-0">
+      <body className="flex min-h-screen flex-col bg-bg text-fg antialiased">
         <a
           href="#main"
           className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-2 focus:z-50 focus:rounded-md focus:bg-surface focus:px-3 focus:py-2"
@@ -69,7 +71,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <PointerField />
         <SessionProvider>
           <ServiceWorkerManager />
-          <Header accountsEnabled={authIsConfigured()} />
+          <Header accountsEnabled={accountsEnabled} />
           {/* Global command palette (roadmap §2/§7.1): one instance, opened with Ctrl/Cmd+K. */}
           <CommandPalette />
           <OfflineBanner />
@@ -77,7 +79,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             {children}
           </main>
           <Footer />
-          <MobileBottomNav />
+          <MobileBottomNav accountsEnabled={accountsEnabled} />
         </SessionProvider>
       </body>
     </html>
