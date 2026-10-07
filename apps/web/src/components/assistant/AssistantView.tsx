@@ -452,10 +452,19 @@ export function AssistantView() {
   };
   const [composerError, setComposerError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const transcriptEnd = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // The request currently in flight, so the Stop button can cancel it.
   const inFlight = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    const checkMobile = () =>
+      setIsMobile(typeof window !== "undefined" && window.innerWidth < 640);
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   // The active thread id. A ref, not state: `send()` and `updateTurn()` run inside async callbacks
   // and setState updaters and need the id that is current *right now*, not one captured when the

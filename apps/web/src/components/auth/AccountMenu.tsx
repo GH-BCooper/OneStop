@@ -10,14 +10,51 @@ import { useEffect, useId, useRef, useState } from "react";
 import { PROFILE_UPDATED, type ProfilePatch } from "@/lib/profile-events";
 import { signOutToLanding } from "@/lib/sign-out";
 
+export interface AccountMenuProps {
+  isOpen?: boolean;
+  onToggle?: () => void;
+  onClose?: () => void;
+}
+
 /** Mounted by the header only when accounts are configured, so it can rely on the session. */
-export function AccountMenu() {
+export function AccountMenu({ isOpen, onToggle, onClose }: AccountMenuProps = {}) {
   const { data: session, status } = useSession();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = isOpen !== undefined;
+  const open = isControlled ? isOpen : internalOpen;
+
+  const handleToggle = () => {
+    if (isControlled) {
+      onToggle?.();
+    } else {
+      setInternalOpen((o) => !o);
+    }
+  };
+
+  const handleClose = () => {
+    if (isControlled) {
+      onClose?.();
+    } else {
+      setInternalOpen(false);
+    }
+  };
+
   // A name or picture changed on the profile page: shown at once, ahead of the session cookie.
   const [changed, setChanged] = useState<ProfilePatch>({});
+  // Track the user ID so we can wipe the patch if the account switches.
+  const lastUserIdRef = useRef<string | null | undefined>(undefined);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
+
+  // Reset the local patch whenever a different user's session arrives, so a
+  // cached avatar/name from account A never bleeds into account B.
+  const userKey = session?.user?.id ?? session?.user?.email ?? null;
+  useEffect(() => {
+    if (lastUserIdRef.current !== undefined && lastUserIdRef.current !== userKey) {
+      setChanged({});
+    }
+    lastUserIdRef.current = userKey;
+  }, [userKey]);
 
   useEffect(() => {
     const onChange = (e: Event) =>
@@ -29,10 +66,10 @@ export function AccountMenu() {
   useEffect(() => {
     if (!open) return;
     const onPointer = (e: MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) handleClose();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") handleClose();
     };
     document.addEventListener("mousedown", onPointer);
     document.addEventListener("keydown", onKey);
@@ -40,7 +77,7 @@ export function AccountMenu() {
       document.removeEventListener("mousedown", onPointer);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, isControlled]);
 
   if (status === "loading") {
     return <span className="hidden h-9 w-20 animate-pulse rounded-md bg-surface-muted sm:block" />;
@@ -56,7 +93,12 @@ export function AccountMenu() {
 
   const label = (changed.name ?? session.user.name)?.trim() || session.user.email || "Account";
   const initial = label.trim().charAt(0).toUpperCase() || "A";
-  const avatar = changed.image !== undefined ? changed.image : session.user.image;
+  const rawAvatar = changed.image !== undefined ? changed.image : session.user.image;
+  const avatar = rawAvatar
+    ? rawAvatar.startsWith("/api/account/avatar") && !rawAvatar.includes("?u=")
+      ? `${rawAvatar}?u=${encodeURIComponent(session.user.id ?? session.user.email ?? "user")}`
+      : rawAvatar
+    : null;
 
   return (
     <div ref={rootRef} className="relative z-[110]">
@@ -75,7 +117,12 @@ export function AccountMenu() {
       >
         {avatar ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={avatar} alt="" className="h-6 w-6 shrink-0 rounded-full object-cover" />
+          <img
+            key={session.user.id ?? session.user.email ?? avatar}
+            src={avatar}
+            alt=""
+            className="h-6 w-6 shrink-0 rounded-full object-cover"
+          />
         ) : (
           <span
             aria-hidden="true"
